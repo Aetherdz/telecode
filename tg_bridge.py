@@ -56,6 +56,7 @@ INJECT_Q: "queue.Queue[dict]" = queue.Queue()
 SESSION_PAGE_SIZE = 8
 MODELS_PAGE_SIZE = 8
 SESSION_PAGE = 0
+SESSION_SNAPSHOT = []
 os.umask(0o077)
 
 
@@ -188,7 +189,7 @@ def _updated(s: dict) -> float:
 
 def _session_items(cfg, query: str):
     data = _opencode_api(
-        cfg, "get", f"/api/session?order=desc&limit=1000&parentID=null{query}", timeout=15
+        cfg, "get", f"/api/session?order=desc&limit=1000&parentID=null{query}", timeout=30
     )
     if isinstance(data, dict):
         return data.get("data") or []
@@ -289,12 +290,13 @@ def _session_buttons(sessions):
 
 
 def _send_session_picker(cfg, page=0, sessions=None):
-    global SESSION_PAGE
+    global SESSION_PAGE, SESSION_SNAPSHOT
     sessions = list_sessions(cfg) if sessions is None else sessions
     if not sessions:
         send_text(cfg, "No OpenCode sessions were found. Check that the OpenCode service is running and that its session database is available.")
         _send_keyboard(cfg)
         return
+    SESSION_SNAPSHOT = list(sessions)
     SESSION_PAGE = min(max(0, page), (len(sessions) - 1) // SESSION_PAGE_SIZE)
     start = SESSION_PAGE * SESSION_PAGE_SIZE
     visible = sessions
@@ -312,35 +314,61 @@ def _send_session_picker(cfg, page=0, sessions=None):
     active = _active_session_id()
     if not active:
         active = (cfg.get("OPENCODE_SESSION_ID") or "").strip()
-    text = "*Choose a session*\nSelect the destination for your Telegram messages."
+    text = "<b>Choose a session</b>\nSelect the destination for your Telegram messages."
     page_sessions = visible[start:start + SESSION_PAGE_SIZE]
     page_labels = {str(s.get("id") or ""): labels[str(s.get("id") or "")]
                    for s in page_sessions}
     text += "\n" + "\n".join(
-        f"{start + index}\\. *{_mdv2_escape(page_labels[str(s.get('id') or '')])}* — `{_mdv2_escape(s.get('id', ''))}`"
-        + (" \\(active\\)" if s.get("id") == active else "")
+        f"{start + index}. <b>{_html_escape(page_labels[str(s.get('id') or '')])}</b> — "
+        f"<code>{_html_escape(s.get('id', ''))}</code>"
+        + (" <i>(active)</i>" if s.get("id") == active else "")
         for index, s in enumerate(page_sessions, start=1))
-    api(cfg["TG_BOT_TOKEN"], "sendMessage", {
-        "chat_id": cfg["TG_CHAT_ID"], "text": text,
-        "parse_mode": "MarkdownV2",
+    params = {
+        "chat_id": cfg["TG_CHAT_ID"], "text": text, "parse_mode": "HTML",
         "reply_markup": json.dumps({
             "keyboard": rows,
             "resize_keyboard": True,
             "is_persistent": True,
-            "is_bot": True,
             "input_field_placeholder": "Send a request to the selected session",
             "one_time_keyboard": False,
-        }, ensure_ascii=False)}, timeout=15)
+        }, ensure_ascii=False),
+    }
+    try:
+        api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
+    except Exception as e:
+        log(f"[{ts()}] formatted session picker failed; retrying as plain text: {e!r}", flush=True)
+        params["text"] = _plain_fallback(text)
+        params.pop("parse_mode", None)
+        api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
 
 
-def _mdv2_escape(value):
-    return re.sub(r"([_*\[\]()~`>#+\-=|{}.!\\])", lambda match: "\\" + match.group(1), str(value))
+def _html_escape(value):
+    return (str(value).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;"))
 
 
-def _send_inline(cfg, text, rows, parse_mode="MarkdownV2"):
-    api(cfg["TG_BOT_TOKEN"], "sendMessage", {
-        "chat_id": cfg["TG_CHAT_ID"], "text": text, "parse_mode": parse_mode,
-        "reply_markup": json.dumps({"inline_keyboard": rows}, ensure_ascii=False)}, timeout=15)
+def _plain_fallback(value):
+    value = re.sub(r"</?(?:b|strong|i|em|u|s|strike|del|code|pre|a|blockquote)(?:\s+[^>]*)?>", "", str(value), flags=re.I)
+    return (value.replace("&amp;", "&").replace("&lt;", "<")
+            .replace("&gt;", ">"))
+
+
+def _plain_fallback(value):
+    return re.sub(r"<[^>]*>", "", str(value)).replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+
+
+def _send_inline(cfg, text, rows):
+    params = {
+        "chat_id": cfg["TG_CHAT_ID"], "text": text, "parse_mode": "HTML",
+        "reply_markup": json.dumps({"inline_keyboard": rows}, ensure_ascii=False),
+    }
+    try:
+        return api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
+    except Exception as e:
+        log(f"[{ts()}] formatted inline message failed; retrying as plain text: {e!r}", flush=True)
+        params["text"] = _plain_fallback(text)
+        params.pop("parse_mode", None)
+        return api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
 
 
 def _models_from_api(cfg):
@@ -421,14 +449,15 @@ def _models_menu(cfg, provider_index=None, page=0):
     sid, _ = resolve_session(cfg)
     current = _current_model(cfg, sid)
     if provider_index is None:
-        header = "*Choose a model provider*"
+        header = "<b>Choose a model provider</b>"
         if current:
-            header += f"\nCurrent model: `{_mdv2_escape(current)}`"
+            header += f"\nCurrent model: <code>{_html_escape(current)}</code>"
         rows = [[{"text": f"{provider} ({len(groups[provider])})",
-                  "callback_data": f"mdl:p:{index}"}]
-                for index, provider in enumerate(providers)]
+                       "callback_data": f"mdl:p:{index}"}]
+                      for index, provider in enumerate(providers)]
         rows.append([{"text": "Close", "callback_data": "mdl:x"}])
-        _send_inline(cfg, header, rows)
+        keyboard = rows
+        _send_inline(cfg, header, keyboard)
         return
     try:
         provider_index = int(provider_index)
@@ -448,7 +477,7 @@ def _models_menu(cfg, provider_index=None, page=0):
     rows = []
     for offset, model in enumerate(items[start:start + MODELS_PAGE_SIZE]):
         name = str(model.get("name") or model["id"])[:32]
-        name = _mdv2_escape(name)
+        name = _html_escape(name)
         if current and model["id"] == current:
             name = "Current: " + name
         rows.append([{"text": name,
@@ -462,9 +491,9 @@ def _models_menu(cfg, provider_index=None, page=0):
         rows.append(nav)
     rows.append([{"text": "Providers", "callback_data": "mdl:r"},
                  {"text": "Close", "callback_data": "mdl:x"}])
-    text = f"*{_mdv2_escape(provider)}* — Select a model ({page + 1}/{pages})"
+    text = f"<b>{_html_escape(provider)}</b> — Select a model ({page + 1}/{pages})"
     if current:
-        text += f"\nCurrent model: `{_mdv2_escape(current)}`"
+        text += f"\nCurrent model: <code>{_html_escape(current)}</code>"
     _send_inline(cfg, text, rows)
 
 
@@ -473,14 +502,14 @@ def _switch_session_model(cfg, model):
     if not sid:
         send_text(cfg, "No active session is available for model switching.")
         return
-    model_name = _mdv2_escape(model.get("name") or model.get("id") or "model")
-    provider = _mdv2_escape(model.get("providerID") or "")
-    session_name = _mdv2_escape(session_title(_session_by_id(cfg, sid) or {"id": sid}))
+    model_name = _html_escape(model.get("name") or model.get("id") or "model")
+    provider = _html_escape(model.get("providerID") or "")
+    session_name = _html_escape(session_title(_session_by_id(cfg, sid) or {"id": sid}))
     _opencode_api(
         cfg, "post", f"/api/session/{urllib.parse.quote(sid, safe='')}/model",
         {"model": {"id": model["id"], "providerID": model["providerID"]}}, timeout=30)
     log(f"[{ts()}] model switch sid={sid} ({how}) -> {model['providerID']}/{model['id']}", flush=True)
-    send_text(cfg, f"*Model switched*\n{model_name} (`{provider}`)\nSession: {session_name}", parse_mode="MarkdownV2")
+    send_text(cfg, f"<b>Model switched</b>\n{model_name} (<code>{provider}</code>)\nSession: {session_name}", parse_mode="HTML")
 
 
 def handle_callback(cfg, cb):
@@ -521,7 +550,7 @@ def handle_callback(cfg, cb):
                 _switch_session_model(cfg, items[model_index])
             except Exception as e:
                 log(f"[{ts()}] model switch failed: {e!r}", flush=True)
-                send_text(cfg, f"Model switch failed: {_mdv2_escape(str(e)[:140])}", parse_mode="MarkdownV2")
+                send_text(cfg, f"Model switch failed: {_html_escape(str(e)[:140])}", parse_mode="HTML")
             return True
     except (TypeError, ValueError):
         return False
@@ -532,15 +561,16 @@ def handle_control_message(cfg, msg, text):
     """Handle Telegram keyboard commands before normal agent injection."""
     global SESSION_PAGE
     cmd = (text or "").strip()
+    cmd = cmd.replace("\ufe0e", "").replace("\ufe0f", "").strip()
     if cmd.startswith("/") and "@" in cmd:
         cmd = cmd.split("@", 1)[0]
     if cmd in ("Next", "Previous"):
-        cached_sessions = list_sessions(cfg)
+        cached_sessions = SESSION_SNAPSHOT or list_sessions(cfg)
         _send_session_picker(cfg, SESSION_PAGE + (1 if cmd == "Next" else -1), cached_sessions)
         return True
     if cmd in ("/start", "/help", "Help"):
         _send_keyboard(cfg)
-        send_text(cfg, "*Commands*\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through the `tg_send` and `tg_sendfile` MCP tools.", parse_mode="MarkdownV2")
+        send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
         return True
     if cmd in ("/session", "Sessions"):
         _send_session_picker(cfg)
@@ -561,9 +591,9 @@ def handle_control_message(cfg, msg, text):
         sid, _ = resolve_session(cfg)
         session = _session_by_id(cfg, sid) if sid else None
         if session:
-            send_text(cfg, f"*Active session:* {_mdv2_escape(session_title(session))}\n*Session ID:* `{_mdv2_escape(sid)}`", parse_mode="MarkdownV2")
+            send_text(cfg, f"<b>Active session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(sid)}</code>", parse_mode="HTML")
         else:
-            send_text(cfg, f"Active session: `{_mdv2_escape(sid or 'not set')}`", parse_mode="MarkdownV2")
+            send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
         return True
     if cmd == "Cancel":
         _send_keyboard(cfg)
@@ -585,7 +615,7 @@ def handle_control_message(cfg, msg, text):
             _set_active_session(session)
             SESSION_PAGE = 0
             try:
-                send_text(cfg, f"*Target session:* {_mdv2_escape(session_title(session))}\n*Session ID:* `{_mdv2_escape(sid)}`", parse_mode="MarkdownV2")
+                send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(sid)}</code>", parse_mode="HTML")
             except Exception as e:
                 log(f"[{ts()}] session-switch notification failed: {e!r}", flush=True)
             _send_keyboard(cfg)
@@ -893,14 +923,19 @@ def send_text(cfg, text, parse_mode=None):
     chunks.append(remaining)
     mid = None
     for chunk in chunks:
-        res = api(
-            cfg["TG_BOT_TOKEN"],
-            "sendMessage",
-            {"chat_id": cfg["TG_CHAT_ID"], "text": chunk,
-             "disable_web_page_preview": "true",
-             **({"parse_mode": parse_mode} if parse_mode else {})},
-            timeout=30,
-        )
+        params = {"chat_id": cfg["TG_CHAT_ID"], "text": chunk,
+                  "disable_web_page_preview": "true"}
+        if parse_mode:
+            params["parse_mode"] = parse_mode
+        try:
+            res = api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=30)
+        except Exception as e:
+            if not parse_mode:
+                raise
+            log(f"[{ts()}] formatted Telegram message failed; retrying as plain text: {e!r}", flush=True)
+            params["text"] = _plain_fallback(chunk)
+            params.pop("parse_mode", None)
+            res = api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=30)
         mid = (res.get("result") or {}).get("message_id")
     return mid
 

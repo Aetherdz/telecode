@@ -91,6 +91,9 @@ credential checks the installer performs.
 Buttons are exact-match English text. Successfully routed messages do not generate a
 separate acknowledgement, so the chat stays focused on the agent's replies. Any
 other text is routed to the active session.
+Formatted picker and status messages use Telegram HTML parse mode with a plain-text
+fallback if formatting is rejected. Telegram messages do not support Markdown-style
+headings or tables; the UI uses supported inline formatting only.
 Full semantics are in [docs/BUTTONS.md](docs/BUTTONS.md).
 
 ## Model switching

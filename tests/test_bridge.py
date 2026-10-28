@@ -66,8 +66,24 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(tb.session_title({"title": "a\nb"}), "a b")
         self.assertEqual(tb.session_title({}), "Untitled")
 
-    def test_markdown_v2_escape_handles_reserved_characters(self):
-        self.assertEqual(tb._mdv2_escape("a_b.c"), r"a\_b\.c")
+    def test_html_escape_handles_markup_characters(self):
+        self.assertEqual(tb._html_escape("A&B <x>"), "A&amp;B &lt;x&gt;")
+
+    def test_formatted_message_retries_as_plain_text(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "api", side_effect=[ValueError("bad entities"), {"result": {"message_id": 1}}]) as api:
+            self.assertEqual(tb.send_text(cfg, "<b>safe</b>", parse_mode="HTML"), 1)
+        self.assertEqual(api.call_count, 2)
+        self.assertEqual(api.call_args.args[2]["text"], "safe")
+        self.assertNotIn("parse_mode", api.call_args.args[2])
+
+    def test_inline_formatted_send_retries_as_plain_text(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "api", side_effect=[ValueError("bad HTML"), {"ok": True}]) as api:
+            tb._send_inline(cfg, "<b>models</b>", [[{"text": "Close", "callback_data": "mdl:x"}]])
+        self.assertEqual(api.call_count, 2)
+        self.assertNotIn("parse_mode", api.call_args.args[2])
+        self.assertEqual(api.call_args.args[2]["text"], "models")
 
     def test_inject_success_does_not_send_acknowledgement(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TG_DELIVERY": "steer"}
@@ -118,9 +134,9 @@ class SessionRoutingTests(unittest.TestCase):
         send.assert_not_called()
         menu.assert_not_called()
 
-    def test_models_picker_uses_english_markdown_v2(self):
+    def test_models_picker_uses_html_parse_mode_and_plain_button_labels(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
-        models = [{"id": "gpt_5.1", "providerID": "openai", "name": "GPT_5.1"}]
+        models = [{"id": "gpt_5.1", "providerID": "openai", "name": "GPT <fast> & safe"}]
         with patch.object(tb, "_models_from_api", return_value=models), \
              patch.object(tb, "_write_models_cache"), \
              patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", "active")), \
@@ -128,12 +144,15 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "api") as api:
             tb._models_menu(cfg)
         payload = api.call_args.args[2]
-        self.assertEqual(payload["parse_mode"], "MarkdownV2")
+        self.assertEqual(payload["parse_mode"], "HTML")
         self.assertIn("Choose a model provider", payload["text"])
         self.assertTrue(any(label.startswith("openai") for label in
                             [row[0]["text"] for row in __import__("json").loads(payload["reply_markup"])["inline_keyboard"]]))
+        inline = __import__("json").loads(payload["reply_markup"])["inline_keyboard"]
+        self.assertTrue(all("<" not in button["text"] and "&" not in button["text"]
+                            for row in inline for button in row))
 
-    def test_session_picker_escapes_dynamic_values_for_markdown_v2(self):
+    def test_session_picker_escapes_dynamic_values_for_html(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         sessions = [{"id": "ses_abc1234567", "title": "fix_auth.v2"}]
         with patch.object(tb, "list_sessions", return_value=sessions), \
@@ -141,9 +160,21 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "api") as api:
             tb._send_session_picker(cfg)
         payload = api.call_args.args[2]
-        self.assertEqual(payload["parse_mode"], "MarkdownV2")
-        self.assertIn(r"fix\_auth\.v2", payload["text"])
-        self.assertIn(r"ses\_abc1234567", payload["text"])
+        self.assertEqual(payload["parse_mode"], "HTML")
+        self.assertIn("<b>fix_auth.v2</b>", payload["text"])
+        self.assertIn("<code>ses_abc1234567</code>", payload["text"])
+
+    def test_session_picker_formatted_send_falls_back_to_plain_text(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        sessions = [{"id": "ses_abc1234567", "title": "A < B"}]
+        with patch.object(tb, "list_sessions", return_value=sessions), \
+             patch.object(tb, "_active_session_id", return_value=""), \
+             patch.object(tb, "discover_session", return_value=""), \
+             patch.object(tb, "api", side_effect=[ValueError("parse error"), {"ok": True}]) as api:
+            tb._send_session_picker(cfg)
+        self.assertEqual(api.call_count, 2)
+        self.assertNotIn("parse_mode", api.call_args.args[2])
+        self.assertIn("A < B", api.call_args.args[2]["text"])
 
     def test_session_listing_falls_back_when_directory_filter_is_unsupported(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
@@ -156,6 +187,14 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "_session_items", side_effect=[RuntimeError("filter unsupported"), all_sessions]):
             result = tb.list_sessions(cfg)
         self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
+
+    def test_session_listing_retries_unfiltered_when_filtered_result_is_empty(self):
+        cfg = {"TG_BOT_TOKEN": "unused"}
+        fallback = [{"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}}]
+        with patch.object(tb, "_session_items", side_effect=[[], fallback]) as listing:
+            result = tb.list_sessions(cfg)
+        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
+        self.assertEqual(listing.call_count, 2)
 
     def test_session_picker_displays_only_the_selected_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -170,8 +209,8 @@ class SessionRoutingTests(unittest.TestCase):
         labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel")]
         self.assertEqual(len(labels), 8)
         body = payload["text"]
-        self.assertIn("9\\.", body)
-        self.assertNotIn("1\\. *session 0*", body)
+        self.assertIn("9. <b>session 8</b>", body)
+        self.assertNotIn("1. <b>session 0</b>", body)
         self.assertEqual(tb.SESSION_PAGE, 1)
 
     def test_session_page_change_reuses_one_session_snapshot(self):
@@ -184,6 +223,16 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, "Next"))
         listing.assert_called_once()
         self.assertEqual(tb.SESSION_PAGE, 1)
+
+    def test_keyboard_button_ignores_unicode_variation_selector(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "_send_session_picker") as picker:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Sessions\ufe0f"))
+        picker.assert_called_once()
+
+    def test_keyboard_labels_are_english(self):
+        buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
+        self.assertEqual(buttons, ["Sessions", "Current session", "Models", "Help"])
 
     def test_module_has_no_emoji_in_ui_strings(self):
         source = BRIDGE.read_text(encoding="utf-8")

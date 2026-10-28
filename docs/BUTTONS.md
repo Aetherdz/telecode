@@ -16,8 +16,9 @@ completed session switch, or `Cancel`. It has two rows and is resized and persis
 
 Labels are English text only. There is no emoji in the keyboard. Each label is
 matched exactly after stripping surrounding whitespace. The session-picker body and
-Markdown-formatted status messages use Telegram `MarkdownV2`; dynamic values are
-escaped before insertion. Reply-keyboard and inline-keyboard button labels are plain
+formatted status messages use Telegram HTML parse mode; dynamic values escape `&`,
+`<`, and `>`. If formatted sending fails, the bridge retries with stripped plain text.
+Reply-keyboard and inline-keyboard button labels are plain
 text and do not use message parse mode.
 
 | Label | Routes to | Effect |

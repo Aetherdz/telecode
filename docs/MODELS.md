@@ -1,10 +1,11 @@
 # Model switching
 
-`/models` changes the model of the active OpenCode session. The menu uses Telegram's
-`MarkdownV2` parse mode for message text; dynamic names are escaped before formatting.
-Inline keyboard button labels are plain text and are not parsed as Markdown. The
-bridge does not keep a model setting of its own: it asks the local OpenCode server to update the session,
-and the server applies the model to subsequent turns.
+`/models` changes the model of the active OpenCode session. The menu uses Telegram
+HTML parse mode for message text; dynamic values escape ampersands and angle
+brackets. Inline keyboard button labels are plain text and are not parsed as markup.
+If a formatted send fails, the bridge retries once with stripped plain text. The bridge
+does not keep a model setting of its own: it asks the local OpenCode server to update
+the session, and the server applies the model to subsequent turns.
 
 ## Flow
 
