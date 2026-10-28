@@ -36,17 +36,22 @@ plain text is routed to the active session, and notes that replies arrive throug
 `/session` or `Sessions` replaces the reply keyboard with a temporary one.
 
 - Sessions are root, non-archived sessions in the current home directory, ordered by
-  the API's descending update order. The bridge requests up to 100.
+  the API's descending update order. The bridge requests up to 1,000 and retries
+  without a directory filter if the filtered request fails or returns no sessions;
+  client-side checks still exclude other directories.
 - Page size is 8.
 - Each session row is a button labelled with its title. The title is truncated to 36
   characters and newlines are removed. A short session-ID suffix is added only when
   titles collide.
-- The message body lists each session name with its full ID and marks the active target.
+- The message body lists the eight session names on the current page with their full
+  IDs and marks the active target. The reply keyboard is also paginated because
+  Telegram limits a keyboard to 100 buttons per message.
 - `Previous` and `Next` appear only when a previous or next page exists.
 - `Cancel` restores the persistent keyboard without changing the target.
 
-Selecting a row validates the ID against `ses[0-9A-Za-z_-]{6,80}`, resolves it
-against the current session list, writes `active-session.json` atomically with mode
+Selecting a row resolves its exact displayed button label against the refreshed
+session list, validates the ID against `ses[0-9A-Za-z_-]{6,80}`, and writes
+`active-session.json` atomically with mode
 `0600`, resets pagination, confirms the switch, and restores the persistent
 keyboard. If the label no longer uniquely matches a live session, the bridge asks
 you to reopen the list; it does not guess. A stale label ending in `[ses...]` is

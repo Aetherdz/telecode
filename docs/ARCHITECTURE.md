@@ -119,8 +119,9 @@ failed. A failed download is logged and the message is still routed.
 4. `none`: no target; injection fails.
 
 Session listing calls
-`GET /api/session?order=desc&limit=100&parentID=null&directory=<home>` and filters
-again on the client for root sessions, archive state, and directory. IDs are checked
+`GET /api/session?order=desc&limit=1000&parentID=null&directory=<home>`. If that
+request fails or returns no sessions, it retries without the directory filter and
+filters on the client for root sessions, archive state, and directory. IDs are checked
 with `ses[0-9A-Za-z_-]{6,80}` before persistence or use in a URL path.
 
 ## Concurrency

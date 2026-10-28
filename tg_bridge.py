@@ -188,7 +188,7 @@ def _updated(s: dict) -> float:
 
 def _session_items(cfg, query: str):
     data = _opencode_api(
-        cfg, "get", f"/api/session?order=desc&limit=100&parentID=null{query}"
+        cfg, "get", f"/api/session?order=desc&limit=1000&parentID=null{query}", timeout=15
     )
     if isinstance(data, dict):
         return data.get("data") or []
@@ -196,17 +196,35 @@ def _session_items(cfg, query: str):
 
 
 def list_sessions(cfg):
-    """Return recent, non-archived root sessions in the current home directory."""
-    home = urllib.parse.quote(str(pathlib.Path.home()))
+    """Return non-archived root sessions, falling back to an unfiltered API query."""
+    home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
     try:
         items = _session_items(cfg, f"&directory={home}")
+        if not items:
+            items = _session_items(cfg, "")
     except Exception as e:
         log(f"[{ts()}] session listing failed: {e!r}", flush=True)
-        return []
-    return [s for s in items if isinstance(s, dict) and not s.get("parentID")
-            and not (s.get("time") or {}).get("archived")
-            and (not s.get("directory") or pathlib.Path(str(s["directory"])).resolve()
-                 == pathlib.Path.home().resolve())]
+        try:
+            items = _session_items(cfg, "")
+        except Exception as fallback_error:
+            log(f"[{ts()}] unfiltered session listing failed: {fallback_error!r}", flush=True)
+            return []
+    home_path = pathlib.Path.home().resolve()
+    sessions = []
+    for session in items:
+        if not isinstance(session, dict) or session.get("parentID"):
+            continue
+        if (session.get("time") or {}).get("archived"):
+            continue
+        directory = str(session.get("directory") or "")
+        if directory:
+            try:
+                if pathlib.Path(directory).resolve() != home_path:
+                    continue
+            except (OSError, RuntimeError):
+                continue
+        sessions.append(session)
+    return sessions
 
 
 def _active_session_id():
@@ -270,22 +288,19 @@ def _session_buttons(sessions):
     return labels
 
 
-def _send_session_picker(cfg, page=0):
+def _send_session_picker(cfg, page=0, sessions=None):
     global SESSION_PAGE
-    sessions = list_sessions(cfg)
+    sessions = list_sessions(cfg) if sessions is None else sessions
     if not sessions:
-        send_text(cfg, "No recent OpenCode sessions were found in the home directory.")
+        send_text(cfg, "No OpenCode sessions were found. Check that the OpenCode service is running and that its session database is available.")
         _send_keyboard(cfg)
         return
     SESSION_PAGE = min(max(0, page), (len(sessions) - 1) // SESSION_PAGE_SIZE)
     start = SESSION_PAGE * SESSION_PAGE_SIZE
-    visible = sessions[start:start + SESSION_PAGE_SIZE]
-    if not visible:
-        SESSION_PAGE = 0
-        _send_session_picker(cfg, 0)
-        return
+    visible = sessions
     labels = _session_buttons(sessions)
-    rows = [[{"text": labels[str(s.get("id") or "")]}] for s in visible]
+    rows = [[{"text": labels[str(s.get("id") or "")]}]
+            for s in visible[start:start + SESSION_PAGE_SIZE]]
     nav = []
     if SESSION_PAGE > 0:
         nav.append({"text": "Previous"})
@@ -297,18 +312,25 @@ def _send_session_picker(cfg, page=0):
     active = _active_session_id()
     if not active:
         active = (cfg.get("OPENCODE_SESSION_ID") or "").strip()
-    if not active:
-        active = discover_session(cfg) or ""
     text = "*Choose a session*\nSelect the destination for your Telegram messages."
+    page_sessions = visible[start:start + SESSION_PAGE_SIZE]
+    page_labels = {str(s.get("id") or ""): labels[str(s.get("id") or "")]
+                   for s in page_sessions}
     text += "\n" + "\n".join(
-        f"{start + index}\\. *{_mdv2_escape(session_title(s))}* — `{_mdv2_escape(s.get('id', ''))}`"
+        f"{start + index}\\. *{_mdv2_escape(page_labels[str(s.get('id') or '')])}* — `{_mdv2_escape(s.get('id', ''))}`"
         + (" \\(active\\)" if s.get("id") == active else "")
-        for index, s in enumerate(visible, start=1))
+        for index, s in enumerate(page_sessions, start=1))
     api(cfg["TG_BOT_TOKEN"], "sendMessage", {
         "chat_id": cfg["TG_CHAT_ID"], "text": text,
         "parse_mode": "MarkdownV2",
-        "reply_markup": json.dumps({"keyboard": rows, "resize_keyboard": True,
-                                     "is_persistent": True}, ensure_ascii=False)}, timeout=15)
+        "reply_markup": json.dumps({
+            "keyboard": rows,
+            "resize_keyboard": True,
+            "is_persistent": True,
+            "is_bot": True,
+            "input_field_placeholder": "Send a request to the selected session",
+            "one_time_keyboard": False,
+        }, ensure_ascii=False)}, timeout=15)
 
 
 def _mdv2_escape(value):
@@ -508,9 +530,14 @@ def handle_callback(cfg, cb):
 
 def handle_control_message(cfg, msg, text):
     """Handle Telegram keyboard commands before normal agent injection."""
+    global SESSION_PAGE
     cmd = (text or "").strip()
     if cmd.startswith("/") and "@" in cmd:
         cmd = cmd.split("@", 1)[0]
+    if cmd in ("Next", "Previous"):
+        cached_sessions = list_sessions(cfg)
+        _send_session_picker(cfg, SESSION_PAGE + (1 if cmd == "Next" else -1), cached_sessions)
+        return True
     if cmd in ("/start", "/help", "Help"):
         _send_keyboard(cfg)
         send_text(cfg, "*Commands*\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through the `tg_send` and `tg_sendfile` MCP tools.", parse_mode="MarkdownV2")
@@ -532,7 +559,7 @@ def handle_control_message(cfg, msg, text):
         return True
     if cmd in ("/current", "Current session"):
         sid, _ = resolve_session(cfg)
-        session = next((s for s in list_sessions(cfg) if s.get("id") == sid), None)
+        session = _session_by_id(cfg, sid) if sid else None
         if session:
             send_text(cfg, f"*Active session:* {_mdv2_escape(session_title(session))}\n*Session ID:* `{_mdv2_escape(sid)}`", parse_mode="MarkdownV2")
         else:
@@ -540,12 +567,6 @@ def handle_control_message(cfg, msg, text):
         return True
     if cmd == "Cancel":
         _send_keyboard(cfg)
-        return True
-    if cmd == "Next":
-        _send_session_picker(cfg, SESSION_PAGE + 1)
-        return True
-    if cmd == "Previous":
-        _send_session_picker(cfg, max(0, SESSION_PAGE - 1))
         return True
     sessions = list_sessions(cfg)
     labels = _session_buttons(sessions)
@@ -577,7 +598,7 @@ def handle_control_message(cfg, msg, text):
 
 def discover_session(cfg):
     """Newest non-archived root session (prefers this home directory)."""
-    home = urllib.parse.quote(str(pathlib.Path.home()))
+    home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
     for query in (f"&directory={home}",):
         try:
             items = _session_items(cfg, query)

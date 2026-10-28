@@ -25,8 +25,8 @@ message goes to the local session, and the agent decides how to answer.
   owner before a message is stored or routed.
 - Persistent, text-only reply keyboard with session, current-session, model, and help
   controls.
-- Paginated session picker that switches a single active target without editing
-  environment files or source.
+- Paginated session picker that lists all available sessions in batches and switches
+  a single active target without editing environment files or source.
 - Paginated inline model picker that applies a model switch to the active session
   through the local OpenCode API.
 - Inbound text, documents, and photos routed into the selected session; attachments

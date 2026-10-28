@@ -145,6 +145,46 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIn(r"fix\_auth\.v2", payload["text"])
         self.assertIn(r"ses\_abc1234567", payload["text"])
 
+    def test_session_listing_falls_back_when_directory_filter_is_unsupported(self):
+        cfg = {"TG_BOT_TOKEN": "unused"}
+        all_sessions = [
+            {"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}},
+            {"id": "ses_bbbbbb", "directory": "/tmp/other", "time": {}},
+            {"id": "ses_cccccc", "parentID": "ses_parent", "directory": str(pathlib.Path.home()), "time": {}},
+            {"id": "ses_dddddd", "directory": str(pathlib.Path.home()), "time": {"archived": 1}},
+        ]
+        with patch.object(tb, "_session_items", side_effect=[RuntimeError("filter unsupported"), all_sessions]):
+            result = tb.list_sessions(cfg)
+        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
+
+    def test_session_picker_displays_only_the_selected_page(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(20)]
+        with patch.object(tb, "list_sessions", return_value=sessions), \
+             patch.object(tb, "_active_session_id", return_value=""), \
+             patch.object(tb, "discover_session", return_value=""), \
+             patch.object(tb, "api") as api:
+            tb._send_session_picker(cfg, page=1)
+        payload = api.call_args.args[2]
+        keyboard = __import__("json").loads(payload["reply_markup"])["keyboard"]
+        labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel")]
+        self.assertEqual(len(labels), 8)
+        body = payload["text"]
+        self.assertIn("9\\.", body)
+        self.assertNotIn("1\\. *session 0*", body)
+        self.assertEqual(tb.SESSION_PAGE, 1)
+
+    def test_session_page_change_reuses_one_session_snapshot(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(20)]
+        with patch.object(tb, "list_sessions", return_value=sessions) as listing, \
+             patch.object(tb, "_active_session_id", return_value=""), \
+             patch.object(tb, "discover_session", return_value=""), \
+             patch.object(tb, "api"):
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Next"))
+        listing.assert_called_once()
+        self.assertEqual(tb.SESSION_PAGE, 1)
+
     def test_module_has_no_emoji_in_ui_strings(self):
         source = BRIDGE.read_text(encoding="utf-8")
         emoji = [ch for ch in source if ord(ch) >= 0x1F000]
