@@ -17,7 +17,8 @@ make check
 make test
 ```
 
-`make check` runs `py_compile` on `tg_bridge.py` and `tg_mcp.py`. `make test` runs
+`make check` runs Python byte-compilation, shell syntax checks, Node syntax validation,
+and an HTML parser check for the site. `make test` runs
 `python3 -m unittest discover -s tests -v`. Neither target performs network access.
 
 For a manual run, point the processes at a temporary runtime directory so real

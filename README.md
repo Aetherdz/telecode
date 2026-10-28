@@ -155,7 +155,7 @@ The Makefile defines two convenience targets:
 
 | Target | Command | Purpose |
 | --- | --- | --- |
-| `make check` | Python compile, shell syntax, and site JS/HTML checks | Static checks for the runtime, installer, and site. |
+| `make check` | Python compile, shell syntax, Node syntax, and HTML parse | Static checks for runtime, installer, and site. |
 | `make test` | `python3 -m unittest discover -s tests -v` | Run the full test suite. |
 
 `make check` does not run the test suite or a general-purpose linter. Run `make test`

@@ -15,8 +15,8 @@ outbound MCP tools for other MCP-capable clients.
 
 - Telegram listener with long polling, owner authorization, and prompt injection
   into the selected local OpenCode session.
-- Persistent, text-only reply keyboard with `الجلسات`, `الجلسة الحالية`, `النماذج`,
-  and `المساعدة`.
+- Persistent, text-only reply keyboard with `Sessions`, `Current session`, `Models`,
+  and `Help`.
 - `/session` paginated session picker, 8 sessions per page, with previous, next, and
   cancel controls and duplicate-title disambiguation.
 - `/current` active-session report with fallback discovery and pinned-session mode.

@@ -17,7 +17,7 @@ description: Use the Telegram bridge to deliver user-facing answers and requeste
 
 ## Sessions
 
-- Use Telegram's persistent **الجلسات** keyboard or `/session` to choose the
+- Use Telegram's persistent **Sessions** keyboard or `/session` to choose the
   target. `/current` reports the selected session ID.
 - Session switches affect future inbound messages. Queued messages retain the
   target captured when received.
