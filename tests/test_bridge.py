@@ -140,17 +140,30 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "_models_from_api", return_value=models), \
              patch.object(tb, "_write_models_cache"), \
              patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", "active")), \
-             patch.object(tb, "_current_model", return_value="gpt_5.1"), \
+             patch.object(tb, "_current_model", return_value="gpt_5.1") as current_model, \
              patch.object(tb, "api") as api:
             tb._models_menu(cfg)
         payload = api.call_args.args[2]
         self.assertEqual(payload["parse_mode"], "HTML")
         self.assertIn("Choose a model provider", payload["text"])
+        current_model.assert_not_called()
         self.assertTrue(any(label.startswith("openai") for label in
                             [row[0]["text"] for row in __import__("json").loads(payload["reply_markup"])["inline_keyboard"]]))
         inline = __import__("json").loads(payload["reply_markup"])["inline_keyboard"]
         self.assertTrue(all("<" not in button["text"] and "&" not in button["text"]
                             for row in inline for button in row))
+
+    def test_model_page_looks_up_current_model_only_after_provider_selection(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        models = [{"id": "gpt_5.1", "providerID": "openai", "name": "GPT 5.1"}]
+        with patch.object(tb, "_models_from_api", return_value=models), \
+             patch.object(tb, "_write_models_cache"), \
+             patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", "active")), \
+             patch.object(tb, "_current_model", return_value="gpt_5.1") as current_model, \
+             patch.object(tb, "api") as api:
+            tb._models_menu(cfg, provider_index=0)
+        current_model.assert_called_once_with(cfg, "ses_abcdefgh")
+        self.assertIn("Current model", api.call_args.args[2]["text"])
 
     def test_session_picker_escapes_dynamic_values_for_html(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}

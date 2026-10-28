@@ -15,7 +15,9 @@ the session, and the server applies the model to subsequent turns.
 3. On success it writes `models-cache.json` in the runtime directory. On failure it
    falls back to that cache.
 4. The bridge groups models by `providerID`, sorts providers by model count
-   descending and then by provider ID, and sends an inline keyboard.
+   descending and then by provider ID, and sends an inline keyboard. This first screen
+   skips the active-session lookup so the provider list appears without waiting on a
+   second API request.
 5. Selecting a provider shows its models, 8 per page, sorted by display name.
 6. Selecting a model resolves the active session, then runs:
    `opencode api post /api/session/{sessionID}/model` with the JSON body below.
@@ -56,7 +58,7 @@ request, 30 seconds to the switch, and 20 seconds to the current-model lookup.
 
 ## Current model display
 
-When the provider list or a model page is rendered, the bridge calls
+When a provider's model page is rendered, the bridge calls
 `GET /api/session/{sessionID}` for the active session. If the response contains
 `model.id`, that value is shown in the header and the matching model row is prefixed
 with `Current:`. A lookup failure is silent: the picker still works, but no current model is

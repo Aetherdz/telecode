@@ -446,18 +446,19 @@ def _models_menu(cfg, provider_index=None, page=0):
         return
     groups = _group_models(models)
     providers = _ordered_providers(groups)
-    sid, _ = resolve_session(cfg)
-    current = _current_model(cfg, sid)
+    current = ""
+    if provider_index is not None:
+        sid, _ = resolve_session(cfg)
+        current = _current_model(cfg, sid)
     if provider_index is None:
         header = "<b>Choose a model provider</b>"
         if current:
             header += f"\nCurrent model: <code>{_html_escape(current)}</code>"
         rows = [[{"text": f"{provider} ({len(groups[provider])})",
-                       "callback_data": f"mdl:p:{index}"}]
-                      for index, provider in enumerate(providers)]
+                  "callback_data": f"mdl:p:{index}"}]
+                for index, provider in enumerate(providers)]
         rows.append([{"text": "Close", "callback_data": "mdl:x"}])
-        keyboard = rows
-        _send_inline(cfg, header, keyboard)
+        _send_inline(cfg, header, rows)
         return
     try:
         provider_index = int(provider_index)
