@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d1017">
+<meta name="description" content="TeleCode connects Telegram to local OpenCode sessions and coding-agent MCP tools.">
+<title>TeleCode — Telegram for your coding sessions</title>
+<link rel="icon" href="assets/brand/telecode-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{const t=localStorage.getItem('telecode-theme');if(t)document.documentElement.dataset.theme=t}catch{};</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="#top" aria-label="TeleCode home"><img src="assets/brand/telecode-mark.svg" alt=""><span>TeleCode</span></a>
+  <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Open navigation"><span></span><span></span></button>
+  <nav id="nav" class="nav" aria-label="Main navigation">
+    <a href="#flow">How it works</a><a href="#integrations">Integrations</a><a href="#commands">Commands</a><a href="#security">Security</a>
+    <button id="theme-toggle" class="theme-toggle" aria-label="Switch color theme">Light mode</button>
+    <a class="nav-cta" href="https://github.com/Aetherdz/telecode">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<section class="hero wrap" id="top">
+  <div class="hero-copy reveal">
+    <p class="eyebrow">A private control channel for local coding agents</p>
+    <h1>Your coding session,<br><em>within reach.</em></h1>
+    <p class="lede">Send a request to an OpenCode session from Telegram. Read the agent's response there, too. No exposed shell. No hosted relay.</p>
+    <div class="install-line"><code>git clone https://github.com/Aetherdz/telecode.git</code><button class="copy" data-copy="git clone https://github.com/Aetherdz/telecode.git">Copy</button></div>
+    <div class="hero-links"><a class="button primary" href="#install">Get started</a><a class="button secondary" href="https://github.com/Aetherdz/telecode">View source</a></div>
+    <p class="micro">Python 3.11+ <span></span> Standard library <span></span> MIT license</p>
+  </div>
+  <div class="hero-art reveal" aria-label="TeleCode message flow demo">
+    <div class="art-head"><span class="live-dot"></span>LOCAL SESSION <span class="art-status">CONNECTED</span></div>
+    <div class="message user"><small>TELEGRAM · YOU</small><p>Review the open pull request and summarize the risks.</p></div>
+    <div class="route"><i></i><span>ROUTED TO</span><b>refactor-auth <code>ses_8f13c2</code></b></div>
+    <div class="message agent"><small>OPENCODE · AGENT</small><p>Review complete. I found two authorization checks worth verifying before merge.</p></div>
+    <div class="art-foot"><span>Replies delivered with MCP</span><span class="mono">tg_send</span></div>
+  </div>
+</section>
+<section class="manifesto wrap reveal" id="flow">
+  <div><p class="eyebrow">01 / The loop</p><h2>One owner.<br>One clear route.</h2></div>
+  <div class="steps">
+    <article><span class="step-no">01</span><h3>Connect your bot</h3><p>Install locally and set the owner chat ID. The listener accepts only your configured chat.</p></article>
+    <article><span class="step-no">02</span><h3>Choose a session</h3><p>Pick a named OpenCode session. Messages are routed to that target; attachments stay tied to the session selected when received.</p></article>
+    <article><span class="step-no">03</span><h3>Keep working</h3><p>Send requests from Telegram. The agent can send text and allowlisted files back through MCP.</p></article>
+  </div>
+</section>
+<section class="capabilities wrap" id="features">
+  <div class="section-heading reveal"><p class="eyebrow">02 / Capabilities</p><h2>Purpose-built, not a remote shell.</h2></div>
+  <div class="cap-grid">
+    <article class="cap reveal"><span class="cap-index">A</span><h3>Named session routing</h3><p>Browse sessions by title, page through the list, and switch the active target explicitly.</p></article>
+    <article class="cap reveal"><span class="cap-index">B</span><h3>Model selection</h3><p>Browse providers and models in Telegram. A selection updates the active OpenCode session.</p></article>
+    <article class="cap reveal"><span class="cap-index">C</span><h3>File exchange</h3><p>Route incoming attachments to their captured session and restrict outbound files to approved roots.</p></article>
+    <article class="cap reveal"><span class="cap-index">D</span><h3>MCP replies</h3><p>Local coding-agent clients can use bridge tools to send text, files, and session status.</p></article>
+    <article class="cap reveal"><span class="cap-index">E</span><h3>Owner checks</h3><p>The listener verifies the configured chat, with sender validation where Telegram provides a sender identity.</p></article>
+    <article class="cap reveal"><span class="cap-index">F</span><h3>Local operation</h3><p>No public webhook or hosted broker. Optional systemd user service starts the local listener.</p></article>
+  </div>
+</section>
+<section class="showcase wrap reveal">
+  <div class="showcase-copy"><p class="eyebrow">03 / Telegram interface</p><h2>A small control surface for real work.</h2><p>Pick a session, check the active target, or change its model without switching your workflow to a browser dashboard.</p><div class="keyboard"><span>Sessions</span><span>Current session</span><span>Models</span><span>Help</span></div></div>
+  <div class="phone" aria-label="Telegram model picker interface preview">
+    <div class="phone-title"><span>TeleCode</span><small>Model picker</small></div>
+    <p class="phone-label">CHOOSE A MODEL PROVIDER</p>
+    <button class="provider selected" data-provider="openrouter">openrouter <span>364</span></button>
+    <button class="provider" data-provider="google">google <span>29</span></button>
+    <button class="provider" data-provider="openai">openai <span>21</span></button>
+    <div class="model-preview" id="model-preview"><span>Current model</span><b>deepseek-v4.1-flash-free</b></div>
+    <div class="phone-controls"><button data-preview="Previous provider">Previous</button><button data-preview="Next provider">Next</button><button data-preview="Provider list">Providers</button><button data-preview="Picker closed">Close</button></div>
+  </div>
+</section>
+<section class="integrations wrap" id="integrations">
+  <div class="section-heading reveal"><p class="eyebrow">04 / Integrations</p><h2>Clear support boundaries.</h2><p>OpenCode currently has targeted Telegram-to-session routing. Other listed clients can use the outbound MCP tools where their MCP configuration supports it.</p></div>
+  <div class="table-wrap reveal"><table><thead><tr><th>Client</th><th>Outbound MCP tools</th><th>Targeted inbound routing</th></tr></thead><tbody>
+    <tr><td>OpenCode</td><td>Supported</td><td><strong>Supported</strong></td></tr><tr><td>Claude Code</td><td>Supported</td><td>Not implemented</td></tr><tr><td>Cursor</td><td>Supported</td><td>Not implemented</td></tr><tr><td>Gemini CLI</td><td>Supported</td><td>Not implemented</td></tr><tr><td>Cline / Roo Code</td><td>Supported</td><td>Not implemented</td></tr><tr><td>Continue / Aider</td><td>Manual MCP configuration</td><td>Not implemented</td></tr><tr><td>Amazon Q / Codex CLI</td><td>Supported</td><td>Not implemented</td></tr>
+  </tbody></table></div>
+</section>
+<section class="commands wrap" id="commands">
+ <div class="section-heading reveal"><p class="eyebrow">05 / Commands</p><h2>Direct controls. No surprises.</h2></div>
+ <div class="command-list reveal"><div><code>/session</code><span>Browse and select the active session.</span></div><div><code>/current</code><span>Show the active session name and ID.</span></div><div><code>/models</code><span>Browse providers and switch the session model.</span></div><div><code>/files</code><span>List received files for the active session.</span></div><div><code>/help</code><span>Restore the keyboard and show available commands.</span></div></div>
+</section>
+<section class="security wrap" id="security">
+ <div class="security-head reveal"><p class="eyebrow">06 / Security model</p><h2>Keep control<br>on your machine.</h2><a href="SECURITY.md">Read the security notes <span>↗</span></a></div>
+ <ul class="security-list reveal"><li>Owner chat ID is checked before message routing.</li><li>Credentials are stored in a private runtime config, not the repository.</li><li>Outbound files are constrained by allowlisted roots and a deny list.</li><li>Session identifiers are validated before API calls.</li><li>Local listener lock prevents duplicate pollers.</li><li>Targeted routing is OpenCode-specific; MCP availability is not remote shell access.</li></ul>
+</section>
+<section class="install wrap reveal" id="install">
+ <div><p class="eyebrow">07 / Start locally</p><h2>Install. Configure. Connect.</h2><p>The interactive installer detects supported clients, shows the config path, and asks before changing it.</p></div>
+ <div class="install-code"><div><span>01</span><code>git clone https://github.com/Aetherdz/telecode.git</code></div><div><span>02</span><code>cd telecode &amp;&amp; ./install.sh</code></div><div><span>03</span><code>chmod 600 ~/.config/telegram-bridge/telegram.env</code></div><div><span>04</span><code>Restart your CLI, then send /start to your bot.</code></div><a href="docs/INSTALL.md">Full installation guide <span>↗</span></a></div>
+</section>
+</main>
+<footer class="footer wrap"><a class="brand" href="#top"><img src="assets/brand/telecode-mark.svg" alt=""><span>TeleCode</span></a><p>Local sessions, reachable by design.</p><div><a href="https://github.com/Aetherdz/telecode">GitHub</a><a href="SECURITY.md">Security</a><a href="LICENSE">MIT license</a></div></footer>
+<script src="assets/site.js" defer></script>
+</body>
+</html>

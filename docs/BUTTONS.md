@@ -1,0 +1,115 @@
+# Buttons and commands
+
+TeleCode uses two Telegram UI surfaces: a persistent reply keyboard for top-level
+navigation and an inline keyboard for model selection. Session selection uses a
+temporary reply keyboard because the labels must also be typed, not only tapped.
+
+## Persistent reply keyboard
+
+The keyboard is sent on listener start and after `/start`, `/help`, `Help`, a
+completed session switch, or `Cancel`. It has two rows and is resized and persistent:
+
+```text
+[ Sessions ]        [ Current session ]
+[ Models ]          [ Help ]
+```
+
+Labels are English text only. There is no emoji in the keyboard. Each label is
+matched exactly after stripping surrounding whitespace. The session-picker body and
+Markdown-formatted status messages use Telegram `MarkdownV2`; dynamic values are
+escaped before insertion. Reply-keyboard and inline-keyboard button labels are plain
+text and do not use message parse mode.
+
+| Label | Routes to | Effect |
+| --- | --- | --- |
+| `Sessions` | `/session` | Sends the paginated session picker. |
+| `Current session` | `/current` | Reports the active session title and ID. |
+| `Models` | `/models` | Sends the inline provider/model picker. |
+| `Help` | `/help` | Restores this keyboard and prints command help. |
+
+The help text is fixed: it lists `/session`, `/current`, and `/models`, states that
+plain text is routed to the active session, and notes that replies arrive through
+`tg_send` and `tg_sendfile`.
+
+## Session picker
+
+`/session` or `Sessions` replaces the reply keyboard with a temporary one.
+
+- Sessions are root, non-archived sessions in the current home directory, ordered by
+  the API's descending update order. The bridge requests up to 100.
+- Page size is 8.
+- Each session row is a button labelled with its title. The title is truncated to 36
+  characters and newlines are removed. A short session-ID suffix is added only when
+  titles collide.
+- The message body lists each session name with its full ID and marks the active target.
+- `Previous` and `Next` appear only when a previous or next page exists.
+- `Cancel` restores the persistent keyboard without changing the target.
+
+Selecting a row validates the ID against `ses[0-9A-Za-z_-]{6,80}`, resolves it
+against the current session list, writes `active-session.json` atomically with mode
+`0600`, resets pagination, confirms the switch, and restores the persistent
+keyboard. If the label no longer uniquely matches a live session, the bridge asks
+you to reopen the list; it does not guess. A stale label ending in `[ses...]` is
+consumed as a control message and never forwarded to the agent.
+
+Only one session is active at a time. Session selection is global to the bridge, not
+per chat.
+
+## Current session
+
+`/current` or `Current session` resolves the active target in this order:
+
+1. `active-session.json`, if the ID is valid and still present.
+2. `OPENCODE_SESSION_ID` when `OPENCODE_SESSION_MODE=pin`.
+3. The most recently updated root session in the home directory.
+
+The reply contains the session label and full ID. If discovery finds nothing, the
+reply says the target is unset.
+
+## Model picker
+
+`/models` or `/model` or `Models` sends an inline keyboard. The command is handled
+before agent routing, so it is never stored as a prompt.
+
+1. The bridge loads the catalogue from `GET /api/model` and writes a local cache on
+   success. If the request fails, it reads `models-cache.json`; if that is empty it
+   replies that OpenCode is unreachable.
+2. Providers are grouped and sorted by model count descending, then by provider ID.
+   Each provider button is `providerID (count)`. The message also shows the current
+   model when it can be read from the active session.
+3. Choosing a provider lists its models, 8 per page, sorted by display name. The
+   current model is prefixed with `Current:`.
+4. `Previous` and `Next` move within the provider's pages. `Providers` returns to the
+   provider list. `Close` dismisses the picker without changing anything.
+5. Choosing a model calls `POST /api/session/{sessionID}/model` for the active
+   session and confirms with the model name, provider ID, and session ID.
+
+Callback data carries only indices and an action prefix. A selection uses the
+cached catalogue by index. If the cache was replaced or the index no longer exists,
+the bridge replies that the list expired and asks you to send `/models` again; it does not change the model.
+
+Inline menus do not replace the persistent reply keyboard. See
+[MODELS.md](MODELS.md) for endpoints, persistence, and failure handling.
+
+## Files
+
+`/files` lists up to 20 regular files in `files/<session-id>/`, newest first. It does
+not include subdirectories and does not list files for other sessions. `Files` is accepted, but it is not on the persistent keyboard.
+
+## Routing rules
+
+1. The update's chat ID must equal `TG_CHAT_ID`.
+2. The sender ID must equal `TG_CHAT_ID` when Telegram supplies one.
+3. Control inputs are matched in this order: help, session picker, model picker,
+   files, current session, cancel, next page, previous page, session label, stale
+   session label.
+4. Anything else is stored in `inbox.jsonl` and queued for the active session.
+5. Documents and photos are downloaded before storage and placed under
+   `files/<session-at-receive>/`. The record carries that session ID, so a later
+   switch does not reroute a queued item. If the original session no longer exists
+   when the queue reaches it, the bridge reports the loss and leaves the item in the
+   inbox rather than sending it elsewhere.
+
+A slash command with a bot mention suffix, such as `/current@my_bot`, is normalized
+by removing the suffix before matching. Unrecognized slash commands are not special
+cased; they are routed to the agent as text.

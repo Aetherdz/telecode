@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "servers": {
+      "telegram": {
+        "type": "local",
+        "command": ["python3", "/home/USER/.local/share/telegram-bridge/tg_mcp.py"],
+        "environment": {
+          "TELEGRAM_BRIDGE_HOME": "/home/USER/.config/telegram-bridge",
+          "TG_SEND_ROOTS": "/absolute/path/to/project/output"
+        }
+      }
+    }
+  }
+}

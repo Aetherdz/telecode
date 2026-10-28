@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "telegram-bridge": {
+      "type": "stdio",
+      "command": "/home/USER/.local/share/telegram-bridge/.venv/bin/python",
+      "args": ["/home/USER/.local/share/telegram-bridge/tg_mcp.py"],
+      "env": {
+        "TELEGRAM_BRIDGE_HOME": "/home/USER/.config/telegram-bridge",
+        "TG_SEND_ROOTS": "/home/USER/Downloads"
+      }
+    }
+  }
+}
