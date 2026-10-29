@@ -28,8 +28,10 @@ control plane; it does not interpret prompts.
 3. For each update it compares the chat ID with `TG_CHAT_ID`. Callback queries also
    compare the sender ID. Messages compare the sender ID when one is present.
 4. Control inputs are handled in-process and never reach the agent. This includes
-   help, session picker, model picker, file list, current session, pagination, and
-   session selection. A normal successfully routed message receives no extra
+   help, session picker, new-session naming prompt, model picker, file list, current
+   session, pagination, and session selection. Creating a session calls OpenCode's
+   `POST /api/session`, verifies the returned session, then persists it as the active
+   target. A normal successfully routed message receives no extra
    acknowledgement; control commands may still produce their own response.
 5. Other owner messages resolve the active session, download any document or photo
    into `files/<session-id>/`, append a record to `inbox.jsonl`, persist the Telegram

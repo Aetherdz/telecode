@@ -60,6 +60,9 @@ MODEL_BACK = "Back to providers"
 MODEL_PREVIOUS = "Previous"
 MODEL_NEXT = "Next"
 MODEL_CLOSE = "Cancel"
+NEW_SESSION = "New session"
+CREATE_SESSION = "Create session"
+SESSION_NAME_MAX_LENGTH = 80
 MODEL_SELECTION = {"provider": None, "page": 0, "labels": {}}
 SESSION_BUTTONS = {}
 ACTIVE_PICKER = None
@@ -156,6 +159,32 @@ def _opencode_api(cfg, method, path, body=None, timeout=60):
         raise RuntimeError(f"api {method} {path} rc={r.returncode}: {detail}")
     txt = (r.stdout or "").strip()
     return json.loads(txt) if txt else None
+
+
+def create_session(cfg, title):
+    """Create a root OpenCode session in the user's home directory."""
+    title = " ".join(str(title or "").split())
+    if not title:
+        raise ValueError("Session name is required.")
+    if len(title) > SESSION_NAME_MAX_LENGTH:
+        raise ValueError(f"Session name must be {SESSION_NAME_MAX_LENGTH} characters or fewer.")
+    result = _opencode_api(
+        cfg, "post", "/api/session",
+        {"title": title, "directory": str(pathlib.Path.home().resolve())}, timeout=30)
+    session = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), dict) else result
+    if not isinstance(session, dict):
+        raise RuntimeError("OpenCode did not return the created session.")
+    sid = str(session.get("id") or "")
+    if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", sid):
+        raise RuntimeError("OpenCode returned an invalid session ID.")
+    directory = str(session.get("directory") or pathlib.Path.home().resolve())
+    home = pathlib.Path.home().resolve()
+    try:
+        if pathlib.Path(directory).resolve() != home:
+            raise RuntimeError("OpenCode created the session outside the configured home directory.")
+    except (OSError, RuntimeError) as e:
+        raise RuntimeError("OpenCode created the session outside the configured home directory.") from e
+    return {"id": sid, "title": str(session.get("title") or title), "directory": str(home)}
 
 
 def start_opencode_listener(cfg):
@@ -260,8 +289,10 @@ def _set_active_session(session):
 
 def _keyboard(cfg):
     return {"keyboard": [[{"text": "Sessions"}, {"text": "Current session"}],
-                         [{"text": "Models"}, {"text": "Help"}],
-                         [{"text": "/menu"}, {"text": "/session"}, {"text": "/models"}]],
+                         [{"text": "New session"}, {"text": "Models"}],
+                         [{"text": "Help"}],
+                         [{"text": "/menu"}, {"text": "/session"},
+                          {"text": "/newsession"}, {"text": "/models"}]],
             "resize_keyboard": True, "one_time_keyboard": True}
 
 
@@ -270,6 +301,7 @@ def _configure_commands(cfg):
         api(cfg["TG_BOT_TOKEN"], "setMyCommands", {"commands": json.dumps([
             {"command": "menu", "description": "Show the TeleCode keyboard"},
             {"command": "session", "description": "Choose the active session"},
+            {"command": "newsession", "description": "Create and select a session"},
             {"command": "models", "description": "Choose a model"},
             {"command": "model", "description": "Choose a model"},
             {"command": "current", "description": "Show the active session"},
@@ -338,10 +370,11 @@ def _session_buttons(sessions):
         if label in used:
             label = f"{title} [{sid}]"
         if label in {"Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK,
-                     MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
-                     "Current session", "Menu", "Show menu", "Files",
-                     "/menu", "/session", "/models", "/model", "/current",
-                     "/help", "/files"}:
+                      MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
+                      "Current session", NEW_SESSION, CREATE_SESSION,
+                      "Menu", "Show menu", "Files", "/menu", "/session",
+                      "/newsession", "/models", "/model", "/current",
+                      "/help", "/files"}:
             label = f"{label} [{sid}]"
         used.add(label)
         labels[sid] = label
@@ -352,9 +385,13 @@ def _send_session_picker(cfg, page=0, sessions=None):
     global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER
     sessions = list_sessions(cfg) if sessions is None else sessions
     if not sessions:
-        ACTIVE_PICKER = None
+        global SESSION_SNAPSHOT, ACTIVE_PICKER
+        SESSION_SNAPSHOT = []
         SESSION_BUTTONS.clear()
-        send_text(cfg, "No OpenCode sessions were found. Check that the OpenCode service is running and that its session database is available.")
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        ACTIVE_PICKER = "sessions"
+        text = "No OpenCode sessions were found. Create one, or check that the OpenCode service is running."
+        _send_reply_picker(cfg, text, [[{"text": NEW_SESSION}], [{"text": "Cancel"}]], notify=False)
         return
     SESSION_SNAPSHOT = list(sessions)
     MODEL_SELECTION.update(provider=None, page=0, labels={})
@@ -364,6 +401,7 @@ def _send_session_picker(cfg, page=0, sessions=None):
     labels = _session_buttons(sessions)
     rows = [[{"text": labels[str(s.get("id") or "")]}]
             for s in visible[start:start + SESSION_PAGE_SIZE]]
+    rows.append([{"text": NEW_SESSION}])
     SESSION_BUTTONS.clear()
     SESSION_BUTTONS.update({labels[str(s.get("id") or "")]: str(s.get("id") or "")
                             for s in visible[start:start + SESSION_PAGE_SIZE]})
@@ -389,6 +427,36 @@ def _send_session_picker(cfg, page=0, sessions=None):
         + (" <i>(active)</i>" if s.get("id") == active else "")
         for index, s in enumerate(page_sessions, start=1))
     _send_reply_picker(cfg, text, rows, notify=False)
+
+
+def _begin_new_session(cfg):
+    global ACTIVE_PICKER, SESSION_SNAPSHOT
+    if ACTIVE_PICKER in ("models", "providers"):
+        _invalidate_model_message_ref()
+    ACTIVE_PICKER = "new-session-name"
+    SESSION_SNAPSHOT = []
+    SESSION_BUTTONS.clear()
+    MODEL_SELECTION.update(provider=None, page=0, labels={})
+    MODEL_PAGE_STATE.update(provider_index=None, page=0)
+    _send_reply_picker(
+        cfg,
+        f"<b>New OpenCode session</b>\nSend the session name as your next message (up to {SESSION_NAME_MAX_LENGTH} characters). Send Cancel to stop.",
+        [[{"text": "Cancel"}], [{"text": "/menu"}, {"text": "/session"},
+         {"text": "/models"}, {"text": "/model"}, {"text": "/help"},
+         {"text": "/current"}, {"text": "/files"}]],
+        notify=False,
+    )
+
+
+def _restore_primary_controls():
+    """Discard temporary picker state before routing to another control."""
+    global ACTIVE_PICKER
+    ACTIVE_PICKER = None
+    SESSION_BUTTONS.clear()
+    SESSION_SNAPSHOT.clear()
+    MODEL_SELECTION.update(provider=None, page=0, labels={})
+    MODEL_SELECTION.pop("models", None)
+    MODEL_PAGE_STATE.update(provider_index=None, page=0)
 
 
 def _send_reply_picker(cfg, text, rows, notify=True):
@@ -786,19 +854,83 @@ def handle_callback(cfg, cb):
 def handle_control_message(cfg, msg, text):
     """Handle Telegram keyboard commands before normal agent injection."""
     global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER
-    cmd = (text or "").strip()
-    cmd = cmd.replace("\ufe0e", "").replace("\ufe0f", "").strip()
+    cmd = (text or "").strip().replace("\ufe0e", "").replace("\ufe0f", "").strip()
     if cmd.startswith("/") and "@" in cmd:
         cmd = cmd.split("@", 1)[0]
-    if cmd == MODEL_CLOSE and ACTIVE_PICKER in ("providers", "models"):
-        ACTIVE_PICKER = None
-        MODEL_SELECTION.update(provider=None, page=0, labels={})
+
+    # Handle the name-entry state first so ordinary text is never mistaken for a
+    # command and create-session actions can never become the title themselves.
+    if ACTIVE_PICKER == "new-session-name":
+        if cmd in ("Cancel", MODEL_CLOSE):
+            _restore_primary_controls()
+            _send_keyboard(cfg)
+            send_text(cfg, "Session creation cancelled.")
+            return True
+        if cmd in ("/menu", "Menu", "Show menu"):
+            _restore_primary_controls()
+            _send_keyboard(cfg)
+            return True
+        if cmd in (NEW_SESSION, CREATE_SESSION, "/newsession"):
+            _begin_new_session(cfg)
+            return True
+        if cmd in ("Next", "Previous"):
+            return True
+        controls = {
+            "/session", "Sessions", "/models", "/model", "Models", "/start",
+            "/help", "Help", "/current", "Current session", "/files", "Files",
+        }
+        if cmd in controls:
+            _restore_primary_controls()
+            return handle_control_message(cfg, msg, cmd)
+        if msg.get("photo") or msg.get("document"):
+            send_text(cfg, "Send a text name for the session, or Cancel. Attachments are not accepted as names.")
+            return True
+        title = " ".join(cmd.split())
+        if not title:
+            send_text(cfg, "Session name cannot be empty. Send a name, or Cancel.")
+            return True
+        if title.startswith("/"):
+            send_text(cfg, "That command is not a session name. Send a name, or Cancel.")
+            return True
+        if len(title) > SESSION_NAME_MAX_LENGTH:
+            send_text(cfg, f"Session name is too long. Use {SESSION_NAME_MAX_LENGTH} characters or fewer.")
+            _begin_new_session(cfg)
+            return True
+        try:
+            session = create_session(cfg, title)
+            if not _session_by_id(cfg, session["id"]):
+                raise RuntimeError("The new session was created but could not be verified in the session list.")
+            _set_active_session(session)
+        except Exception as e:
+            log(f"[{ts()}] session creation failed: {e!r}", flush=True)
+            send_text(cfg, "Could not create the session. Check that OpenCode is running and try again.")
+            _begin_new_session(cfg)
+            return True
+        _restore_primary_controls()
+        send_text(cfg, f"<b>Session created and selected:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(session['id'])}</code>", parse_mode="HTML")
+        _send_keyboard(cfg)
+        return True
+
+    # New-session actions work from the main keyboard and any active picker.
+    if cmd in (NEW_SESSION, "/newsession", CREATE_SESSION):
+        if ACTIVE_PICKER in ("models", "providers", "sessions"):
+            _restore_primary_controls()
+            _invalidate_model_message_ref()
+        _begin_new_session(cfg)
+        return True
+
+    if cmd == "Cancel" and ACTIVE_PICKER == "sessions":
+        _restore_primary_controls()
+        _send_keyboard(cfg)
+        return True
+    if cmd == "Cancel" and ACTIVE_PICKER in ("providers", "models"):
+        _restore_primary_controls()
         _invalidate_model_message_ref()
-        SESSION_BUTTONS.clear()
+        _send_keyboard(cfg)
         return True
     if cmd in ("Next", "Previous") and ACTIVE_PICKER == "sessions":
-        cached_sessions = SESSION_SNAPSHOT or list_sessions(cfg)
-        _send_session_picker(cfg, SESSION_PAGE + (1 if cmd == "Next" else -1), cached_sessions)
+        if SESSION_SNAPSHOT:
+            _send_session_picker(cfg, SESSION_PAGE + (1 if cmd == "Next" else -1), SESSION_SNAPSHOT)
         return True
     if cmd in ("Previous", "Next") and ACTIVE_PICKER in ("providers", "models"):
         if ACTIVE_PICKER == "models":
@@ -808,26 +940,28 @@ def handle_control_message(cfg, msg, text):
                 _models_menu(cfg, provider_index=provider_index, page=page,
                              models_snapshot=_read_models_cache())
         return True
-    if cmd in ("Previous", "Next") and ACTIVE_PICKER is None:
-        return True
     if cmd in ("/start", "/help", "Help"):
+        if ACTIVE_PICKER is not None:
+            _invalidate_model_message_ref()
+        _restore_primary_controls()
         MODEL_PAGE_STATE.update(provider_index=None, page=0)
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         SESSION_SNAPSHOT = []
         SESSION_PAGE = 0
         SESSION_BUTTONS.clear()
         ACTIVE_PICKER = None
-        if cmd == "/start":
-            _send_keyboard(cfg, configure=True)
-        else:
-            _send_keyboard(cfg)
-        send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+        _send_keyboard(cfg, configure=(cmd == "/start"))
+        send_text(cfg, "<b>Commands</b>\n/session selects a session\n/newsession creates and selects a named session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+        return True
+    if cmd == "Cancel" and ACTIVE_PICKER == "sessions":
+        _restore_primary_controls()
+        _send_keyboard(cfg)
         return True
     if cmd in ("/files", "Files"):
-        if ACTIVE_PICKER in ("models", "providers"):
+        if ACTIVE_PICKER is not None:
             _invalidate_model_message_ref()
-            ACTIVE_PICKER = None
-            MODEL_SELECTION.update(provider=None, page=0, labels={})
+            _restore_primary_controls()
+            _send_keyboard(cfg)
         sid, _ = resolve_session(cfg)
         directory = FILES / (sid if sid else "unassigned")
         entries = sorted((p for p in directory.iterdir() if p.is_file()),
@@ -838,10 +972,10 @@ def handle_control_message(cfg, msg, text):
             send_text(cfg, "Files for this session:\n" + "\n".join(str(p) for p in entries[:20]))
         return True
     if cmd in ("/current", "Current session"):
-        if ACTIVE_PICKER in ("models", "providers"):
+        if ACTIVE_PICKER is not None:
             _invalidate_model_message_ref()
-            ACTIVE_PICKER = None
-            MODEL_SELECTION.update(provider=None, page=0, labels={})
+            _restore_primary_controls()
+            _send_keyboard(cfg)
         sid, _ = resolve_session(cfg)
         session = _session_by_id(cfg, sid) if sid else None
         if session:
@@ -850,25 +984,22 @@ def handle_control_message(cfg, msg, text):
             send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
         return True
     if cmd in ("/session", "Sessions"):
-        _invalidate_model_message_ref()
+        if ACTIVE_PICKER is not None:
+            _invalidate_model_message_ref()
+        _restore_primary_controls()
         MODEL_PAGE_STATE.update(provider_index=None, page=0)
-        MODEL_SELECTION.update(provider=None, page=0, labels={})
-        SESSION_SNAPSHOT = []
         SESSION_PAGE = 0
-        SESSION_BUTTONS.clear()
-        ACTIVE_PICKER = None
         _send_session_picker(cfg)
         return True
     if cmd in ("/menu", "Menu", "Show menu"):
-        ACTIVE_PICKER = None
+        _restore_primary_controls()
         _invalidate_model_message_ref()
-        SESSION_SNAPSHOT = []
-        SESSION_BUTTONS.clear()
-        MODEL_SELECTION.update(provider=None, page=0, labels={})
-        MODEL_PAGE_STATE.update(provider_index=None, page=0)
         _send_keyboard(cfg)
         return True
     if cmd in ("/models", "/model", "Models"):
+        if ACTIVE_PICKER is not None:
+            _invalidate_model_message_ref()
+        _restore_primary_controls()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         MODEL_PAGE_STATE.update(provider_index=None, page=0)
         SESSION_BUTTONS.clear()
@@ -897,22 +1028,13 @@ def handle_control_message(cfg, msg, text):
         send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(selected_sid)}</code>", parse_mode="HTML")
         _send_keyboard(cfg)
         return True
-    if ACTIVE_PICKER in ("models", "providers") and (msg.get("photo") or msg.get("document")):
+    if ACTIVE_PICKER in ("models", "providers", "sessions") and (msg.get("photo") or msg.get("document")):
         send_text(cfg, "Attachment was not delivered because this message was a picker control. Send it again without a picker caption.")
         return True
-    if cmd == "Cancel" and ACTIVE_PICKER == "sessions" and cmd not in SESSION_BUTTONS:
-        ACTIVE_PICKER = None
-        SESSION_BUTTONS.clear()
-        _send_keyboard(cfg)
-        return True
-    if cmd == "Cancel" and ACTIVE_PICKER in ("providers", "models"):
-        ACTIVE_PICKER = None
-        MODEL_SELECTION.update(provider=None, page=0, labels={})
-        _invalidate_model_message_ref()
-        SESSION_BUTTONS.clear()
-        _send_keyboard(cfg)
-        return True
-    stale_session_label = re.search(r"\[[0-9A-Za-z_-]{6,80}\]$", cmd)
+    stale_session_label = (
+        (ACTIVE_PICKER == "sessions" and re.fullmatch(r".+ \[[0-9A-Za-z_-]{6,80}\]", cmd))
+        or (ACTIVE_PICKER is None and re.fullmatch(r".+ \[ses[0-9A-Za-z_-]{6,80}\]", cmd))
+    )
     if stale_session_label:
         send_text(cfg, "That session picker has expired. Open /session and choose again.")
         return True
@@ -920,10 +1042,8 @@ def handle_control_message(cfg, msg, text):
         _models_menu(cfg, models_snapshot=_read_models_cache())
         return True
     if ACTIVE_PICKER in ("models", "providers") and cmd in (
-            "Sessions", "Current session", "Help", "Files", "/session", "/current", "/help", "/files"):
-        ACTIVE_PICKER = None
-        _invalidate_model_message_ref()
-        MODEL_SELECTION.update(provider=None, page=0, labels={})
+            "Sessions", "Current session", "Help", "Files", "/session", "/newsession",
+            "/current", "/help", "/files"):
         if cmd in ("Current session", "/current"):
             sid, _ = resolve_session(cfg)
             session = _session_by_id(cfg, sid) if sid else None
@@ -933,7 +1053,7 @@ def handle_control_message(cfg, msg, text):
                 send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
             return True
         if cmd in ("Help", "/help"):
-            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/newsession creates and selects a named session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
             return True
         if cmd in ("Files", "/files"):
             sid, _ = resolve_session(cfg)
@@ -948,10 +1068,6 @@ def handle_control_message(cfg, msg, text):
             SESSION_SNAPSHOT = []
             SESSION_BUTTONS.clear()
             _send_session_picker(cfg)
-            return True
-        elif cmd in ("Help", "/help"):
-            cmd = "/help"
-            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
             return True
     if ACTIVE_PICKER == "providers" and cmd in ("Previous", MODEL_BACK, MODEL_CLOSE):
         return True
@@ -983,11 +1099,6 @@ def handle_control_message(cfg, msg, text):
                 _invalidate_model_message_ref()
                 _send_keyboard(cfg)
             return True
-    if ACTIVE_PICKER is None and (cmd in MODEL_SELECTION.get("labels", {})
-                                  or cmd in MODEL_SELECTION.get("models", {})):
-        return True
-    if ACTIVE_PICKER is None and cmd in ("Cancel", "Back to providers"):
-        return True
     return False
 
 

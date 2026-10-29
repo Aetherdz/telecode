@@ -26,6 +26,8 @@ provide:
 ## Interaction behavior
 
 The Telegram keyboard is persistent. `/session` opens a paginated list; choosing
-one session stores it as the active target. Subsequent messages and attachments
-are bound to the session selected when received, so switching sessions does not
-silently reroute queued messages. `/current` reports the active ID.
+one session stores it as the active target. `New session` or `/newsession` asks for
+a title, creates a root OpenCode session, verifies it, and selects it. Subsequent
+messages and attachments are bound to the session selected when received, so
+switching sessions does not silently reroute queued messages. `/current` reports
+the active ID.

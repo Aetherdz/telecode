@@ -32,6 +32,7 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 ## Highlights
 
 - **Control your OpenCode sessions from Telegram:** browse sessions, see the active target, and switch sessions without editing config files.
+- **Create sessions on the go:** start a named OpenCode session from Telegram and immediately make it the active target.
 - **Choose a model on the go:** browse providers and paginated model lists; apply a choice to the active OpenCode session.
 - **Send context both ways:** route text, photos, and documents into the selected session; let the agent send text or approved local files back.
 - **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound session routing currently requires OpenCode.
@@ -74,7 +75,7 @@ flowchart LR
     M -->|Reply or approved file| TG
 ```
 
-The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`.
+The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`. Create a session with `New session` or `/newsession`; after you provide a name, TeleCode creates it through OpenCode and selects it for subsequent messages.
 
 ## Telegram controls
 
@@ -82,12 +83,13 @@ The listener long-polls Telegram, checks incoming messages against the configure
 | --- | --- |
 | `Sessions` / `/session` | Browse available sessions and select the active target. |
 | `Current session` / `/current` | Show the active session and its ID. |
+| `New session` / `/newsession` | Enter a name, create an OpenCode session, and select it for subsequent messages. `Create session` also starts this flow. |
 | `Models` / `/models` | Browse providers and models, then switch the active OpenCode session. |
 | `Help` / `/help` | Show available controls. |
 | `/files` | List recent files received for the active session. |
 | Any other text | Route the message to the active session. |
 
-The keyboard labels are exact-match English text. Session selection is global to this bridge instance. See [Buttons and commands](docs/BUTTONS.md) for picker behavior and edge cases.
+The keyboard labels are exact-match English text. The main keyboard uses Telegram's one-time hint; Telegram controls when keyboards are hidden, and `/menu` re-sends the main keyboard at any time. Closing or leaving a picker restores the main controls. Session selection is global to this bridge instance. Creating sessions requires the OpenCode API to be reachable. See [Buttons and commands](docs/BUTTONS.md) for picker behavior and edge cases.
 
 ## MCP tools
 
@@ -129,8 +131,8 @@ Read [SECURITY.md](SECURITY.md) for the full threat model and hardening guidance
 - [Installation and startup](docs/INSTALL.md)
 - [CLI integrations and configuration](docs/CLI.md)
 - [Buttons and commands](docs/BUTTONS.md)
-- [Model catalogue and switching](docs/MODELS.md)
 - [Architecture and local state](docs/ARCHITECTURE.md)
+- [Model catalogue and switching](docs/MODELS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Project website](https://aetherdz.github.io/telecode/)

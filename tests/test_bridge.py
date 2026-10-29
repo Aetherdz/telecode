@@ -78,11 +78,19 @@ class SessionRoutingTests(unittest.TestCase):
     def test_stale_unique_session_label_is_never_forwarded_as_prompt(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = None
+        tb.ACTIVE_PICKER = "sessions"
         label = tb._session_buttons([{"id": "ses_abcdef123456", "title": "work"}])["ses_abcdef123456"]
         self.assertFalse(label == "work")
         with patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard"):
             self.assertTrue(tb.handle_control_message(cfg, {}, label))
         send.assert_called_once()
+
+    def test_non_session_bracket_suffix_is_not_mistaken_for_stale_session_button(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        tb.ACTIVE_PICKER = None
+        with patch.object(tb, "send_text") as send:
+            self.assertFalse(tb.handle_control_message(cfg, {}, "review the patch [feature123]"))
+        send.assert_not_called()
 
     def test_html_escape_handles_markup_characters(self):
         self.assertEqual(tb._html_escape("A&B <x>"), "A&amp;B &lt;x&gt;")
@@ -126,7 +134,363 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(api.call_args.args[1], "sendMessage")
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
         self.assertEqual(markup["keyboard"][0][0]["text"], "work [cdefgh]")
+        self.assertIn([{"text": tb.NEW_SESSION}], markup["keyboard"])
         top_keyboard.assert_not_called()
+
+    def test_empty_session_list_still_offers_create_session_action(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        with patch.object(tb, "list_sessions", return_value=[]), \
+             patch.object(tb, "_send_reply_picker") as picker:
+            tb._send_session_picker(cfg)
+        self.assertEqual(picker.call_args.args[2], [[{"text": tb.NEW_SESSION}], [{"text": "Cancel"}]])
+        self.assertEqual(tb.ACTIVE_PICKER, "sessions")
+        self.assertEqual(tb.SESSION_BUTTONS, {})
+        with patch.object(tb, "_send_reply_picker"):
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_empty_session_picker_cancel_restores_main_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "sessions"
+        tb.SESSION_SNAPSHOT = []
+        with patch.object(tb, "_send_keyboard") as keyboard:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+        keyboard.assert_called_once_with(cfg)
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_session_picker_attachment_is_consumed_without_prompting_name(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "sessions"
+        with patch.object(tb, "create_session") as create, patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.handle_control_message(cfg, {"document": {"file_id": "x"}}, "an upload"))
+        create.assert_not_called()
+        send.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "sessions")
+
+    def test_new_session_action_in_session_picker_is_not_treated_as_name(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "sessions"
+        with patch.object(tb, "create_session") as create, \
+             patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
+        create.assert_not_called()
+        prompt.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_create_session_posts_title_and_home_directory(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        created = {"id": "ses_created1", "title": "A new session"}
+        with patch.object(tb.pathlib.Path, "home", return_value=pathlib.Path("/tmp")), \
+             patch.object(tb, "_opencode_api", return_value={"data": created}) as call:
+            session = tb.create_session(cfg, "  A   new session  ")
+        self.assertEqual(session["title"], "A new session")
+        self.assertEqual(session["id"], "ses_created1")
+        self.assertEqual(call.call_args.args[1:3], ("post", "/api/session"))
+        self.assertEqual(call.call_args.args[3], {"title": "A new session", "directory": "/tmp"})
+
+    def test_session_picker_attaches_create_action_to_every_page(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(25)]
+        with patch.object(tb, "_active_session_id", return_value=""), patch.object(tb, "api"):
+            for page in (0, 1):
+                with self.subTest(page=page), patch.object(tb, "_send_reply_picker") as picker:
+                    tb._send_session_picker(cfg, page=page, sessions=sessions)
+                self.assertIn([{"text": tb.NEW_SESSION}], picker.call_args.args[2])
+
+    def test_new_session_button_and_slash_command_aliases_always_start_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        for picker_state in (None, "sessions", "models", "providers"):
+            for command in (tb.NEW_SESSION, "/newsession"):
+                tb.ACTIVE_PICKER = picker_state
+                with self.subTest(state=picker_state, command=command), \
+                     patch.object(tb, "_send_reply_picker") as prompt, \
+                     patch.object(tb, "_invalidate_model_message_ref"), \
+                     patch.object(tb, "create_session") as create, patch.object(tb, "send_text"):
+                    self.assertTrue(tb.handle_control_message(cfg, {}, command))
+                create.assert_not_called()
+                prompt.assert_called_once()
+                self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_create_session_rejects_api_response_from_another_directory(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        created = {"id": "ses_created1", "title": "A new session", "directory": "/tmp/elsewhere"}
+        with patch.object(tb.pathlib.Path, "home", return_value=pathlib.Path("/tmp/home")), \
+             patch.object(tb, "_opencode_api", return_value={"data": created}):
+            with self.assertRaisesRegex(RuntimeError, "outside the configured home directory"):
+                tb.create_session(cfg, "A new session")
+
+    def test_create_session_uses_api_directory_field(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        home = pathlib.Path.home().resolve()
+        created = {"id": "ses_created1", "title": "session", "directory": str(home)}
+        with patch.object(tb, "_opencode_api", return_value=created):
+            session = tb.create_session(cfg, "session")
+        self.assertEqual(session["directory"], str(home))
+
+    def test_create_session_rejects_empty_and_long_names_before_api(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        with patch.object(tb, "_opencode_api") as api:
+            for title in ("  \n ", "x" * (tb.SESSION_NAME_MAX_LENGTH + 1)):
+                with self.assertRaises(ValueError):
+                    tb.create_session(cfg, title)
+        api.assert_not_called()
+
+    def test_create_session_rejects_invalid_api_session_id(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        with patch.object(tb, "_opencode_api", return_value={"id": "not-a-session"}):
+            with self.assertRaisesRegex(RuntimeError, "invalid session ID"):
+                tb.create_session(cfg, "valid title")
+
+    def test_new_session_flow_creates_verifies_and_selects(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = None
+        session = {"id": "ses_created1", "title": "Review task", "directory": str(pathlib.Path.home().resolve())}
+        with patch.object(tb, "_send_reply_picker") as prompt, \
+             patch.object(tb, "create_session", return_value=session) as create, \
+             patch.object(tb, "_session_by_id", return_value=session) as verify, \
+             patch.object(tb, "_set_active_session") as select, \
+             patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard") as keyboard:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "New session"))
+            self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+            self.assertTrue(tb.handle_control_message(cfg, {}, "  Review   task  "))
+        prompt.assert_called_once()
+        create.assert_called_once_with(cfg, "Review task")
+        verify.assert_called_once_with(cfg, "ses_created1")
+        select.assert_called_once_with(session)
+        self.assertIn("Review task", send.call_args.args[1])
+        keyboard.assert_called_once_with(cfg)
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_unverified_session_is_not_selected(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        session = {"id": "ses_created1", "title": "Review task", "directory": str(pathlib.Path.home().resolve())}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session", return_value=session), \
+             patch.object(tb, "_session_by_id", return_value=None), \
+             patch.object(tb, "_set_active_session") as select, \
+             patch.object(tb, "send_text") as send, patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Review task"))
+        select.assert_not_called()
+        send.assert_called_once()
+        prompt.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_new_session_cancel_does_not_create(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session") as create, \
+             patch.object(tb, "send_text"), patch.object(tb, "_send_keyboard"):
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+        create.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_model_picker_cancel_label_cancels_session_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session") as create, patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
+        create.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+        send.assert_called_once()
+
+    def test_repeated_navigation_buttons_do_not_create_a_session(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        for text in ("Next", "Previous"):
+            tb.ACTIVE_PICKER = "new-session-name"
+            with self.subTest(text=text), patch.object(tb, "create_session") as create, \
+                 patch.object(tb, "send_text") as send:
+                self.assertTrue(tb.handle_control_message(cfg, {}, text))
+                create.assert_not_called()
+                send.assert_not_called()
+
+    def test_cancel_alias_restores_keyboard_from_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session") as create, \
+             patch.object(tb, "_send_keyboard") as keyboard, \
+             patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
+        create.assert_not_called()
+        keyboard.assert_called_once_with(cfg)
+        send.assert_called_once()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_name_prompt_treats_model_alias_command_as_control(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session") as create, \
+             patch.object(tb, "_models_from_api", return_value=[]), \
+             patch.object(tb, "_read_models_cache", return_value=[]), \
+             patch.object(tb, "_send_keyboard"), patch.object(tb, "send_text"):
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/model"))
+        create.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_command_precedence_routes_menu_and_session_commands_not_to_creation(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        for command in ("/menu", "/session", "/models", "/model", "/current", "/files", "/help", "/start"):
+            tb.ACTIVE_PICKER = "new-session-name"
+            with self.subTest(command=command), patch.object(tb, "create_session") as create, \
+                 patch.object(tb, "_send_keyboard"), patch.object(tb, "send_text"), \
+                 patch.object(tb, "_send_reply_picker"), patch.object(tb, "_invalidate_model_message_ref"), \
+                 patch.object(tb, "_models_from_api", return_value=[]), patch.object(tb, "_read_models_cache", return_value=[]), \
+                 patch.object(tb, "resolve_session", return_value=(None, "none")), \
+                 patch.object(tb, "_session_by_id", return_value=None):
+                self.assertTrue(tb.handle_control_message(cfg, {}, command))
+            create.assert_not_called()
+
+    def test_create_session_label_is_treated_as_name_from_session_picker(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "sessions"
+        with patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.CREATE_SESSION))
+        prompt.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_create_session_label_from_model_picker_starts_prompt_not_create(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "models"
+        with patch.object(tb, "create_session") as create, \
+             patch.object(tb, "_send_reply_picker") as prompt, \
+             patch.object(tb, "_invalidate_model_message_ref"):
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
+        create.assert_not_called()
+        prompt.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_new_session_alias_from_model_picker_starts_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "models"
+        with patch.object(tb, "_invalidate_model_message_ref"), \
+             patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+        prompt.assert_called_once()
+
+    def test_new_session_button_from_model_picker_starts_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "models"
+        with patch.object(tb, "_invalidate_model_message_ref"), \
+             patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+        prompt.assert_called_once()
+
+    def test_new_session_button_starts_name_prompt_from_provider_picker(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "providers"
+        with patch.object(tb, "_invalidate_model_message_ref"), \
+             patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+        prompt.assert_called_once()
+
+    def test_start_command_cancels_pending_session_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "_send_keyboard"), patch.object(tb, "send_text") as send, \
+             patch.object(tb, "create_session") as create:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/start"))
+        create.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+        send.assert_called_once()
+
+    def test_start_help_control_is_not_used_as_a_session_title(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        for command in ("/help", "Help"):
+            tb.ACTIVE_PICKER = "new-session-name"
+            with self.subTest(command=command), patch.object(tb, "create_session") as create, \
+                 patch.object(tb, "_send_keyboard"), patch.object(tb, "send_text"):
+                self.assertTrue(tb.handle_control_message(cfg, {}, command))
+                create.assert_not_called()
+                self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_start_at_bot_alias_cancels_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "_send_keyboard"), patch.object(tb, "send_text"), \
+             patch.object(tb, "create_session") as create:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/start@telecode_bot"))
+        create.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_new_session_can_be_started_from_model_picker(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "models"
+        with patch.object(tb, "_invalidate_model_message_ref"), \
+             patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "New session"))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+        prompt.assert_called_once()
+
+    def test_cancel_label_closes_model_and_new_session_pickers(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        for picker_name in ("models", "new-session-name"):
+            tb.ACTIVE_PICKER = picker_name
+            with self.subTest(picker=picker_name), patch.object(tb, "_invalidate_model_message_ref"), \
+                 patch.object(tb, "create_session") as create, patch.object(tb, "_send_keyboard"), \
+                 patch.object(tb, "send_text"):
+                self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+                create.assert_not_called()
+                self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_create_session_alias_is_prompt_action_not_session_title(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.CREATE_SESSION))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+        prompt.assert_called_once()
+
+    def test_create_session_text_alias_starts_prompt_from_main_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = None
+        with patch.object(tb, "create_session") as create, \
+             patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.CREATE_SESSION))
+        create.assert_not_called()
+        prompt.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_menu_command_cancels_new_session_prompt_and_clears_picker_state(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        tb.SESSION_BUTTONS["stale"] = "ses_abcdef123456"
+        with patch.object(tb, "_send_keyboard"), patch.object(tb, "create_session") as create:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/menu"))
+        create.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+        self.assertEqual(tb.SESSION_BUTTONS, {})
+
+    def test_starting_session_picker_cancels_name_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "_send_reply_picker"), patch.object(tb, "_invalidate_model_message_ref"):
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/session"))
+        self.assertEqual(tb.ACTIVE_PICKER, "sessions")
+
+    def test_session_creation_failure_keeps_name_prompt_active(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session", side_effect=RuntimeError("api down")), \
+             patch.object(tb, "send_text") as send, patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Try again"))
+        send.assert_called_once()
+        prompt.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+
+    def test_slash_command_during_session_name_prompt_does_not_create_session(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session") as create, patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/nonsense"))
+        create.assert_not_called()
+        send.assert_called_once()
+
+    def test_new_session_command_is_registered_in_main_keyboard(self):
+        markup = tb._keyboard({})["keyboard"]
+        self.assertIn({"text": "New session"}, [item for row in markup for item in row])
+        self.assertIn({"text": "/newsession"}, [item for row in markup for item in row])
 
     def test_session_picker_button_caption_with_photo_is_consumed_as_control(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -225,12 +589,12 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertNotIn("input_field_placeholder", markup)
         self.assertEqual(markup["keyboard"][0][0]["text"], "test (1)")
 
-    def test_model_close_does_not_resend_keyboard(self):
+    def test_model_close_restores_keyboard_after_picker(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
         with patch.object(tb, "_send_keyboard") as show:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
-        show.assert_not_called()
+        show.assert_called_once_with(cfg)
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_close_removes_saved_model_message_reference(self):
@@ -239,6 +603,45 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "_send_keyboard"), patch.object(tb, "_invalidate_model_message_ref") as save:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
         save.assert_called_once()
+
+    def test_cancel_command_is_consumed_in_all_session_picker_variants(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        for picker in ("sessions", "models", "providers"):
+            tb.ACTIVE_PICKER = picker
+            with self.subTest(picker=picker), patch.object(tb, "create_session") as create, \
+                 patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard") as keyboard:
+                self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+            create.assert_not_called()
+            send.assert_not_called()
+            keyboard.assert_called_once_with(cfg)
+            self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_model_labels_are_not_consumed_when_no_model_picker_is_active(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        tb.ACTIVE_PICKER = None
+        tb.MODEL_SELECTION["models"] = {"review": ("p", "review")}
+        tb.MODEL_SELECTION["labels"] = {"review": 0}
+        self.assertFalse(tb.handle_control_message(cfg, {}, "review"))
+
+    def test_non_session_bracket_suffix_is_not_mistaken_for_stale_session_button(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        tb.ACTIVE_PICKER = None
+        self.assertFalse(tb.handle_control_message(cfg, {}, "review the patch [feature123]"))
+
+    def test_picker_reset_clears_previous_model_label_map(self):
+        tb.ACTIVE_PICKER = "models"
+        tb.MODEL_SELECTION["models"] = {"review": ("p", "review")}
+        tb._restore_primary_controls()
+        self.assertNotIn("models", tb.MODEL_SELECTION)
+
+    def test_picker_failure_reissues_name_prompt_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "new-session-name"
+        with patch.object(tb, "create_session", side_effect=RuntimeError("API down")), \
+             patch.object(tb, "send_text"), patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Retry title"))
+        self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
+        prompt.assert_called_once()
 
     def test_startup_keyboard_has_model_selection_controls(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -254,22 +657,36 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIn("/models", labels)
         configure.assert_not_called()
 
+    def test_main_keyboard_uses_one_time_hint_without_remove_markup(self):
+        markup = tb._keyboard({})
+        self.assertTrue(markup["one_time_keyboard"])
+        self.assertNotIn("is_persistent", markup)
+        self.assertNotIn("remove_keyboard", markup)
+
+    def test_new_session_picker_preserves_main_keyboard_and_one_time_hint(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        with patch.object(tb, "_send_reply_picker") as picker:
+            tb._begin_new_session(cfg)
+        self.assertFalse(picker.call_args.kwargs.get("notify", True))
+        self.assertEqual(picker.call_args.args[2][0], [{"text": "Cancel"}])
+        self.assertIn({"text": "/menu"}, picker.call_args.args[2][1])
     def test_session_picker_empty_results_do_not_reissue_main_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         with patch.object(tb, "list_sessions", return_value=[]), \
-             patch.object(tb, "send_text") as message, \
+             patch.object(tb, "_send_reply_picker") as message, \
              patch.object(tb, "_send_keyboard") as keyboard:
             tb._send_session_picker(cfg)
         message.assert_called_once()
+        self.assertEqual(message.call_args.args[2], [[{"text": tb.NEW_SESSION}], [{"text": "Cancel"}]])
         keyboard.assert_not_called()
 
-    def test_files_command_exits_model_picker_without_resending_keyboard(self):
+    def test_files_command_exits_model_picker_and_restores_main_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
         with patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", None)), \
              patch.object(tb, "send_text"), patch.object(tb, "_send_keyboard") as keyboard:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Files"))
-        keyboard.assert_not_called()
+        keyboard.assert_called_once_with(cfg)
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_startup_configures_commands_only_when_requested(self):
@@ -323,6 +740,7 @@ class SessionRoutingTests(unittest.TestCase):
         commands = __import__("json").loads(api.call_args.args[2]["commands"])
         self.assertIn({"command": "models", "description": "Choose a model"}, commands)
         self.assertIn({"command": "model", "description": "Choose a model"}, commands)
+        self.assertIn({"command": "newsession", "description": "Create and select a session"}, commands)
         self.assertIn({"command": "files", "description": "List received files"}, commands)
         self.assertIn({"command": "start", "description": "Show TeleCode controls"}, commands)
         self.assertIn({"command": "current", "description": "Show the active session"}, commands)
@@ -386,11 +804,11 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIn("work", send.call_args.args[1])
         self.assertIsNone(tb.ACTIVE_PICKER)
 
-    def test_orphaned_pagination_control_is_consumed(self):
+    def test_orphaned_pagination_text_is_not_consumed_as_control(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = None
         with patch.object(tb, "send_text") as send:
-            self.assertTrue(tb.handle_control_message(cfg, {}, "Next"))
+            self.assertFalse(tb.handle_control_message(cfg, {}, "Next"))
         send.assert_not_called()
 
     def test_files_command_is_registered_and_consumed_from_model_picker(self):
@@ -648,7 +1066,7 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg, page=1)
         payload = api.call_args.args[2]
         keyboard = __import__("json").loads(payload["reply_markup"])["keyboard"]
-        labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel", "/menu")]
+        labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel", "/menu", tb.NEW_SESSION)]
         self.assertEqual(len(labels), 20)
         body = payload["text"]
         self.assertIn("25. <b>session 24 [000024]</b>", body)
@@ -663,9 +1081,11 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "list_sessions", return_value=sessions) as listing, \
              patch.object(tb, "_active_session_id", return_value=""), \
              patch.object(tb, "discover_session", return_value=""), \
-             patch.object(tb, "api"):
+             patch.object(tb, "api"), patch.object(tb, "_send_reply_picker"):
+            tb.ACTIVE_PICKER = "sessions"
+            tb.SESSION_SNAPSHOT = list(sessions)
             self.assertTrue(tb.handle_control_message(cfg, {}, "Next"))
-        listing.assert_called_once()
+        listing.assert_not_called()
         self.assertEqual(tb.SESSION_PAGE, 1)
 
     def test_keyboard_button_ignores_unicode_variation_selector(self):
@@ -676,8 +1096,8 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
-        self.assertEqual(buttons, ["Sessions", "Current session", "Models", "Help",
-                                   "/menu", "/session", "/models"])
+        self.assertEqual(buttons, ["Sessions", "Current session", "New session", "Models", "Help",
+                                   "/menu", "/session", "/newsession", "/models"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}

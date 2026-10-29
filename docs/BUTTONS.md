@@ -8,12 +8,16 @@ selection. Telegram's client controls whether the user hides or reopens the keyb
 The keyboard is sent when the listener starts and on `/start` or `/help`. Its markup
 sets `one_time_keyboard: true`, requesting that Telegram hide it after a button is
 pressed while retaining the client's ability to reopen it. TeleCode never sends
-`ReplyKeyboardRemove` for normal navigation. The keyboard has these rows:
+`ReplyKeyboardRemove`; users can hide and reopen the keyboard using Telegram's own
+keyboard controls. Closing a temporary picker sends the main keyboard again with
+the one-time hint. Temporary picker keyboards are shown while a picker is open. The
+keyboard has these rows:
 
 ```text
 [ Sessions ]        [ Current session ]
-[ Models ]          [ Help ]
-[ /menu ] [ /session ] [ /models ]
+[ New session ]     [ Models ]
+[ Help ]
+[ /menu ] [ /session ] [ /newsession ] [ /models ]
 ```
 
 Labels are English text only. There is no emoji in the keyboard. Each label is
@@ -27,16 +31,17 @@ text and do not use message parse mode.
 | --- | --- | --- |
 | `Sessions` | `/session` | Sends the paginated session picker. |
 | `Current session` | `/current` | Reports the active session title and ID. |
+| `New session` | `/newsession` | Prompts for a name, creates a root OpenCode session, and selects it as the active target. |
 | `Models` | `/models` | Sends the bottom reply-keyboard provider/model picker. |
 | `Help` | `/help` | Restores this keyboard and prints command help. |
 
-The help text is fixed: it lists `/session`, `/current`, and `/models`, states that
+The help text is fixed: it lists `/session`, `/newsession`, `/current`, and `/models`, states that
 plain text is routed to the active session, and notes that replies arrive through
 `tg_send` and `tg_sendfile`.
 
 ## Session picker
 
-`/session` or `Sessions` shows a temporary bottom reply keyboard with session choices.
+`/session` or `Sessions` shows a temporary bottom reply keyboard with session choices and a `New session` action. The action remains available even when the session list is empty.
 
 - Sessions are root, non-archived sessions in the current home directory, ordered by
   the API's descending update order. The bridge requests up to 1,000 and retries
@@ -50,13 +55,32 @@ plain text is routed to the active session, and notes that replies arrive throug
   IDs and marks the active target. The reply keyboard is also paginated because
   Telegram limits a keyboard to 100 buttons per message.
 - `Previous` and `Next` appear only when a previous or next page exists.
-- `Cancel` exits the session picker without changing the target. `/menu` restores the
-  main keyboard after any temporary picker.
+- `Cancel` exits a session or model picker without changing the target. `/menu` restores
+  the main keyboard after any temporary picker. During the new-session name prompt,
+  `Cancel` abandons creation; `/menu` restores the main keyboard. Other control
+  commands, including `/model`, exit the prompt and are handled as controls rather
+  than being used as a session title.
+
+## Create a session
+
+Choose `New session` from the main keyboard or session picker, or send `/newsession`.
+`Create session` is also recognized as a text alias for this action.
+TeleCode asks for a name and creates an OpenCode root session using `POST /api/session`
+with the current user's home directory as the API working directory. Names are
+trimmed, whitespace is collapsed, and names longer than 80 characters are rejected.
+After creation, TeleCode verifies
+that the returned session appears in the available session list, saves it as the
+active target, and confirms its title and ID. New messages and attachments are then
+captured against this session. `Cancel` abandons the prompt; `/menu` returns to the
+main keyboard. Closing a temporary picker sends the main keyboard again with Telegram's
+one-time hint. The temporary keyboard retains `/session`, `/models`, `/model`,
+`/current`, `/files`, and `/help`; selecting one exits name entry and handles it as a
+control command. Session creation requires the OpenCode service/API to be reachable.
 
 Selecting a row resolves its exact displayed button label against the picker snapshot,
 validates the ID against `ses[0-9A-Za-z_-]{6,80}`, and writes
 `active-session.json` atomically with mode
-`0600`, resets pagination, and confirms the switch without re-sending the keyboard.
+`0600`, resets pagination, confirms the switch, and restores the main keyboard.
 If the label no longer uniquely matches a live session, the bridge asks
 you to reopen the list; it does not guess. A stale label ending in a session-ID
 suffix is consumed as a control message and never forwarded to the agent.
@@ -78,8 +102,9 @@ reply says the target is unset.
 ## Model picker
 
 `/models` or `/model` or `Models` sends a bottom reply keyboard. Provider/model pages
-update the same menu message when Telegram allows editing; otherwise a replacement
-picker is sent. The keyboard uses Telegram's one-time hint and has no custom input placeholder.
+use Telegram's one-time hint and have no custom input placeholder. The keyboard
+stays available through Telegram's keyboard controls; `/menu` always re-sends the
+main navigation keyboard.
 The command is handled
 before agent routing, so it is never stored as a prompt.
 
@@ -99,7 +124,8 @@ before agent routing, so it is never stored as a prompt.
 Reply-keyboard selections are accepted only for the active picker and current page;
 starting a different picker invalidates the previous picker state. `/menu` closes the
 temporary picker, and the main keyboard can open sessions, current-session details,
-help, or the model picker from either model-selection page. See
+help, or the model picker from either model-selection page. Leaving a picker for
+`/current` or `/files` also restores the main keyboard. See
 [MODELS.md](MODELS.md) for endpoints, persistence, and failure handling.
 
 ## Files
