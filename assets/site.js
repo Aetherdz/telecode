@@ -236,6 +236,7 @@ languageButton?.addEventListener('click', () => {
   const open = languageButton.getAttribute('aria-expanded') !== 'true';
   languageButton.setAttribute('aria-expanded', String(open));
   if (languageOptions) languageOptions.hidden = !open;
+  if (open) languageOptions?.querySelector('[data-language][aria-pressed="true"]')?.focus();
 });
 languageOptions?.querySelectorAll('[data-language]').forEach(option => {
   option.addEventListener('click', () => {
@@ -249,6 +250,13 @@ document.addEventListener('click', event => {
   if (!event.target.closest('.language-menu')) {
     if (languageOptions) languageOptions.hidden = true;
     languageButton?.setAttribute('aria-expanded', 'false');
+  }
+});
+languageOptions?.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    languageOptions.hidden = true;
+    languageButton?.setAttribute('aria-expanded', 'false');
+    languageButton?.focus();
   }
 });
 languageButton?.addEventListener('keydown', event => {

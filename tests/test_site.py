@@ -17,6 +17,14 @@ class SiteTests(unittest.TestCase):
             self.assertIn(f"{language}: {{", js)
         self.assertIn("pageTitle: 'TeleCode — vos sessions de code", js)
         self.assertIn("copySuccess: 'Commande copiée.'", js)
+        self.assertIn('class="language-chevron"', html)
+        self.assertIn("querySelector('[data-language][aria-pressed=\"true\"]')?.focus()", js)
+
+    def test_language_control_has_mobile_target_size_and_visible_dropdown(self):
+        css = (ROOT / "assets/site.css").read_text()
+        self.assertIn(".language-toggle { display: inline-flex; min-width: 68px; min-height: 44px", css)
+        self.assertIn(".language-options { position: absolute", css)
+        self.assertIn(".language-toggle[aria-expanded=\"true\"] .language-chevron", css)
 
     def test_mobile_install_panel_stacks_long_command_and_copy_control(self):
         css = (ROOT / "assets/site.css").read_text()
