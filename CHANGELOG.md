@@ -5,6 +5,45 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to semantic versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- The interactive CLI selector no longer overwrites its own header: redraws move
+  up exactly the number of menu lines, and cancellation restores the cursor.
+- The selector renders as an aligned box with numbered rows, detection labels,
+  arrow-key navigation, direct 1-9 jumps, and a plain numbered fallback.
+- `telecode` with no arguments now opens the documented Setup/Exit menu instead
+  of printing a usage error; non-interactive runs still print usage and exit 2.
+- The installer no longer fails on machines without a reachable systemd user
+  bus (Docker, WSL, macOS). `--enable` explains the situation and suggests
+  `telecode listen`, while guided setup completes without enabling a service.
+- Setup prompts treat EOF and Ctrl-C as a clean cancellation instead of raising
+  a traceback, and the manual-setup hint prints the real runtime path.
+- The session picker now uses a short, separator-based header followed by a
+  blank line, so chat-list previews no longer read as one concatenated line.
+- Control buttons no longer re-send the main keyboard or a status sentence after
+  every action. Session selection and session creation send one confirmation,
+  cancels close silently (except the name prompt), and `Help`/`/start` send one
+  combined keyboard message instead of two messages.
+- Session buttons use clean titles instead of ID suffixes such as `[9E0eHj]`;
+  a numeric suffix appears only when two sessions share the same title.
+- The session picker is a single short `Sessions` message (with page info) and
+  replaces the previous picker message instead of stacking new ones.
+- Session titles keep up to 60 characters instead of being cut at 36.
+- The model-provider page now has a `Back` button instead of `Cancel`, and both
+  `Back` and `Cancel` restore the main keyboard instead of leaving the picker
+  keyboard visible.
+- Removed the `/newsession` slash command from the keyboard, bot command menu,
+  and help text. Old `/newsession` buttons are ignored instead of starting a
+  name prompt; the `New session` button remains.
+- Removed the redundant `/session` and `/models` slash buttons from the main
+  keyboard. Their actions already exist as `Sessions` and `Models`.
+- `Help` and `menu` now share the last keyboard row, and the button label drops
+  the slash (`menu`); the `/menu` command still works when typed.
+- Documentation no longer claims a Rich dependency or a local browser wizard
+  that the project does not ship.
+
 ## [0.1.0] - 2026-10-28
 
 First public release. TeleCode provides an owner-only Telegram control surface for
