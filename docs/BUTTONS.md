@@ -17,7 +17,7 @@ keyboard has these rows:
 [ Sessions ]        [ Current session ]
 [ New session ]     [ Models ]
 [ Help ]
-[ /menu ] [ /session ] [ /models ]
+[ /menu ]
 ```
 
 Labels are English text only. There is no emoji in the keyboard. Each label is

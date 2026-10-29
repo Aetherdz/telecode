@@ -674,7 +674,7 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertNotIn("input_field_placeholder", markup)
         labels = [button["text"] for row in markup["keyboard"] for button in row]
         self.assertIn("Models", labels)
-        self.assertIn("/models", labels)
+        self.assertNotIn("/models", labels)
         configure.assert_not_called()
 
     def test_main_keyboard_uses_one_time_hint_without_remove_markup(self):
@@ -1124,7 +1124,7 @@ class SessionRoutingTests(unittest.TestCase):
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
         self.assertEqual(buttons, ["Sessions", "Current session", "New session", "Models", "Help",
-                                   "/menu", "/session", "/models"])
+                                   "/menu"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}

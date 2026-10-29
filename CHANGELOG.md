@@ -37,6 +37,9 @@ and this project adheres to semantic versioning.
 - Removed the `/newsession` slash command from the keyboard, bot command menu,
   and help text. Old `/newsession` buttons are ignored instead of starting a
   name prompt; the `New session` button remains.
+- Removed the redundant `/session` and `/models` slash buttons from the main
+  keyboard. Their actions already exist as `Sessions` and `Models`; only
+  `/menu` remains on the shortcut row.
 - Documentation no longer claims a Rich dependency or a local browser wizard
   that the project does not ship.
 

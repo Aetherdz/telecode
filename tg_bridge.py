@@ -294,8 +294,7 @@ def _keyboard(cfg):
     return {"keyboard": [[{"text": "Sessions"}, {"text": "Current session"}],
                          [{"text": "New session"}, {"text": "Models"}],
                          [{"text": "Help"}],
-                         [{"text": "/menu"}, {"text": "/session"},
-                          {"text": "/models"}]],
+                         [{"text": "/menu"}]],
             "resize_keyboard": True, "one_time_keyboard": True}
 
 
