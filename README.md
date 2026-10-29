@@ -1,29 +1,54 @@
-<p align="center"><img src="assets/brand/telecode-logo-horizontal.svg" alt="TeleCode — Telegram to OpenCode and any CLI" width="760"></p>
+<p align="center">
+  <img src="assets/brand/telecode-logo-horizontal.svg" alt="TeleCode — Telegram bridge for coding-agent sessions" width="720">
+</p>
 
-# TeleCode
+<p align="center">
+  <strong>Take your local coding-agent session with you.</strong><br>
+  Send prompts from Telegram, choose a session, and receive agent replies in your owner chat.
+</p>
 
-TeleCode is an owner-only Telegram control surface for local coding-agent CLI sessions.
-It routes Telegram messages and attachments into the session you select, and lets the
-agent reply through MCP tools.
+<p align="center">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-171717.svg"></a>
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white">
+  <img alt="MCP stdio" src="https://img.shields.io/badge/MCP-stdio-6B7280.svg">
+  <img alt="Linux and systemd" src="https://img.shields.io/badge/platform-Linux%20%7C%20systemd-333333.svg">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-![MCP](https://img.shields.io/badge/MCP-stdio-informational.svg)
-![Platform](https://img.shields.io/badge/platform-Linux%20(systemd)-lightgrey.svg)
+<p align="center">
+  <a href="https://aetherdz.github.io/telecode/">Website</a> ·
+  <a href="docs/INSTALL.md">Installation</a> ·
+  <a href="docs/CLI.md">CLI support</a> ·
+  <a href="SECURITY.md">Security</a>
+</p>
 
-## Why TeleCode
+---
 
-Coding-agent CLIs are excellent at long-running local work, but they keep you at the
-terminal. TeleCode gives one owner chat a narrow, explicit control channel: pick a
-session, send text or files, and receive the agent's output without exposing a shell
-or a web endpoint. There is no prompt router and no second model in the path. The
-message goes to the local session, and the agent decides how to answer.
+## What is TeleCode?
 
-## Features
+TeleCode connects your private Telegram chat to local coding-agent CLI workflows. Send a message or attachment to your bot, route it to the session you selected, and let the agent reply using the included MCP tools.
 
-## Install
+It is a deliberately narrow bridge: **no public web endpoint, no shell exposed to Telegram, and no extra model or prompt router in the message path.**
 
-Clone the source so you can inspect it before running the installer:
+## Highlights
+
+- **Control your OpenCode sessions from Telegram:** browse sessions, see the active target, and switch sessions without editing config files.
+- **Choose a model on the go:** browse providers and paginated model lists; apply a choice to the active OpenCode session.
+- **Send context both ways:** route text, photos, and documents into the selected session; let the agent send text or approved local files back.
+- **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound session routing currently requires OpenCode.
+- **Keep the boundary local and private:** only the configured owner chat is accepted; credentials live in a private runtime config.
+- **Install without a build step:** Python 3.11+ standard library runtime, guided setup, and optional systemd user service.
+
+## Quick start
+
+### Requirements
+
+- Linux with systemd user services for the guided service setup.
+- Python 3.11 or newer and Git.
+- A Telegram bot token from [@BotFather](https://t.me/BotFather).
+- Your numeric Telegram chat ID, or the option to detect it by messaging your bot.
+- OpenCode for Telegram-to-session prompt routing. Other MCP clients can use outbound tools; see [CLI support](docs/CLI.md).
+
+### Install from source
 
 ```sh
 git clone https://github.com/Aetherdz/telecode.git
@@ -31,164 +56,96 @@ cd telecode
 ./install.sh
 ```
 
-The guided setup uses arrow keys and Enter to choose a detected CLI. It then
-asks for a Telegram token from **@BotFather** and your numeric owner ID (available
-from **@Getmyid_bot**) or offers automatic detection through your own bot. See
-[the full installation guide](docs/INSTALL.md) for supported platforms and details.
+The installer guides you through CLI selection, MCP registration, bot credentials, and service setup. Review the source and the [installation guide](docs/INSTALL.md) before running it. For an update from a source checkout, use `./install.sh --update`.
 
-- Owner-only listener: the configured chat is checked on all messages; sender
-  identity is checked when present, and both chat and sender are checked for callbacks.
-- Telegram reply keyboard with session, current-session, model,
-  and help controls.
-- Paginated session picker that lists all available sessions in batches and switches
-  a single active target without editing environment files or source.
-- Bottom reply-keyboard model picker for providers and paginated model lists, then
-  applies a model switch to the active session through OpenCode.
-- Inbound text, documents, and photos routed into the selected session; attachments
-  are captured against the session that was active when they arrived.
-- Outbound MCP tools for the agent: `tg_send`, `tg_sendfile`, `tg_read`,
-  `tg_status`, `tg_sessions`, `tg_select_session`, `tg_open_session_picker`.
-- Backup-first installer with atomic writes, mode preservation, and an explicit
-  confirmation before any CLI config is changed.
-- Stdlib-only Python 3.11+ runtime with no build step; optional systemd user service
-  for autostart.
+After setup, restart your coding-agent CLI so it loads the MCP server. Check the bridge with:
+
+```sh
+telecode status
+```
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[Owner chat] -->|text or attachment| B[tg_bridge.py listener]
-    B --> C{Active session}
-    C -->|opencode api POST prompt| D[Local CLI session]
-    D -->|MCP stdio| E[tg_mcp.py]
-    E -->|tg_send / tg_sendfile| A
+    TG[Your Telegram chat] -->|Text or attachment| L[Local TeleCode listener]
+    L -->|Authorized update| S[Selected OpenCode session]
+    S -->|MCP tool call| M[Local stdio MCP server]
+    M -->|Reply or approved file| TG
 ```
 
-The listener long-polls Telegram. Owner messages are appended to `inbox.jsonl` and
-queued for injection into the active session. The agent reaches the owner through
-the MCP server, which runs as a stdio subprocess of the CLI.
+The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`.
 
-## Quick start
+## Telegram controls
 
-```sh
-git clone https://github.com/aetherdz/telecode.git
-cd telecode
-./install.sh
-```
+| Control | What it does |
+| --- | --- |
+| `Sessions` / `/session` | Browse available sessions and select the active target. |
+| `Current session` / `/current` | Show the active session and its ID. |
+| `Models` / `/models` | Browse providers and models, then switch the active OpenCode session. |
+| `Help` / `/help` | Show available controls. |
+| `/files` | List recent files received for the active session. |
+| Any other text | Route the message to the active session. |
 
-For a scripted, non-interactive file install, use `./install.sh --bootstrap`.
-For a full terminal onboarding, run `./install.sh` directly. The installer copies the runtime into
-`${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge`, creates a private
-`${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge/telegram.env`, asks before
-registering MCP with the selected CLI, securely prompts for a BotFather token, then asks for your numeric owner ID or
-automatically detects it when you send `/start` to your own bot. Add `~/.local/bin` to `PATH`
-if necessary. Setup enables the TeleCode listener as a user service at login.
-Use `telecode status` to inspect it or `telecode setup` to rerun onboarding.
+The keyboard labels are exact-match English text. Session selection is global to this bridge instance. See [Buttons and commands](docs/BUTTONS.md) for picker behavior and edge cases.
 
-Then restart the coding-agent CLI so it loads the MCP server. The listener is
-started by the systemd user service; the MCP server can also autostart it when
-`TG_AUTOSTART=1` (default), guarded against duplicate listeners by a process lock.
+## MCP tools
 
-See [docs/INSTALL.md](docs/INSTALL.md) for the full sequence, including the
-credential checks the installer performs.
+| Tool | Purpose |
+| --- | --- |
+| `tg_send` | Send a text reply to the configured owner chat. |
+| `tg_sendfile` | Send a local file from the configured `TG_SEND_ROOTS` allowlist. |
+| `tg_read` | Read a bounded number of unread owner messages. |
+| `tg_status` | Report bot, listener, session target, delivery mode, and unread count. |
+| `tg_sessions` | List available OpenCode sessions. |
+| `tg_select_session` | Select a session by its exact ID. |
+| `tg_open_session_picker` | Send the session picker to Telegram. |
 
-## Commands and buttons
+For safety, `tg_sendfile` rejects paths outside the configured allowlist and blocks sensitive locations. Telegram's hosted Bot API currently limits new uploads to **10 MB for photos** and **50 MB for other files**; a self-hosted Local Bot API Server can raise uploads to **2000 MB**, with additional hosting and bandwidth requirements. See [Telegram's official Bot API documentation](https://core.telegram.org/bots/api#using-a-local-bot-api-server) and TeleCode's [security notes](SECURITY.md).
 
-| Input | Type | Effect |
-| --- | --- | --- |
-| `Sessions` | Reply keyboard | Same as `/session`: send the paginated session picker. |
-| `Current session` | Reply keyboard | Same as `/current`: report the active session title and ID. |
-| `Models` | Reply keyboard | Same as `/models`: send the bottom provider/model picker. |
-| `Help` | Reply keyboard | Same as `/help`: restore the keyboard and print command help. |
-| `/session` | Slash command | Paginated session picker, 8 sessions per page. |
-| `/current` | Slash command | Active target, resolved through discovery if unset. |
-| `/models` | Slash command | Bottom-keyboard model picker; the switch applies to the active session. |
-| `/files` | Slash command | Up to 20 received files for the active session, newest first. |
-| `/help`, `/start` | Slash command | Send the navigation keyboard and print help. |
+## CLI support
 
-Buttons are exact-match English text. Successfully routed messages do not generate a
-separate acknowledgement, so the chat stays focused on the agent's replies. Any
-other text is routed to the active session.
-Formatted picker and status messages use Telegram HTML parse mode with a plain-text
-fallback if formatting is rejected. Telegram messages do not support Markdown-style
-headings or tables; the UI uses supported inline formatting only.
-Full semantics are in [docs/BUTTONS.md](docs/BUTTONS.md).
+| Client | Outbound MCP tools | Inbound session routing |
+| --- | :---: | :---: |
+| OpenCode | Yes | Yes — current supported adapter |
+| Claude Code | Yes | No — adapter intentionally fails closed |
+| Codex CLI, Cursor, Gemini CLI, Cline, Roo Code, Amazon Q | Yes | No |
+| Continue, Aider, other MCP clients | Manual setup | No |
 
-## Model switching
+MCP support and session-routing support are separate capabilities. Installing the MCP server in another client does **not** make that client an inbound Telegram target. Check [CLI integrations](docs/CLI.md) for setup details.
 
-`/models` loads the catalogue from `GET /api/model` through the OpenCode CLI's
-`opencode api` command. Provider, model-page, and Back navigation edit the same
-Telegram message rather than adding a new one. Choosing a model calls
-`POST /api/session/{sessionID}/model` with
-`{"model": {"id": "...", "providerID": "..."}}`. The selection is stored in the
-session by the OpenCode server and applies to subsequent turns. The bridge uses a
-local cache only when the catalogue request fails.
+## Security model
 
-See [docs/MODELS.md](docs/MODELS.md).
+- Incoming messages are accepted only from the configured owner chat; callback actions also verify the sender.
+- The bot token and chat ID are kept in a user-owned `telegram.env` file with mode `0600`.
+- `tg_sendfile` is confined to `TG_SEND_ROOTS` and a sensitive-path deny list.
+- The listener uses a process lock to prevent competing Telegram pollers.
+- Telegram messages and attachments are untrusted input; content is routed to the agent, not treated as trusted instructions by the bridge.
 
-## Supported CLIs
-
-| CLI | Outbound MCP tools | Targeted Telegram-to-session routing |
-| --- | --- | --- |
-| OpenCode | Yes | Yes, verified |
-| Claude Code | Yes | No; adapter fails closed |
-| Cursor | Yes | No |
-| Gemini CLI | Yes | No |
-| Cline | Yes | No |
-| Roo Code | Yes | No |
-| Continue | Yes, manual config | No |
-| Aider | Yes, manual config | No |
-| Amazon Q Developer | Yes | No |
-| Codex CLI | Yes | No |
-
-Targeted routing requires a stable, supported session-listing and prompt-delivery
-API. MCP support alone does not provide one. Configuration paths and exact snippets
-are in [docs/CLI.md](docs/CLI.md).
-
-## Security
-
-Only the configured owner chat is always checked; sender ID is checked when present, and callbacks require both. `telegram.env` must be a
-regular file, mode `0600`, owned by the current user, and not a symlink.
-`tg_sendfile` is limited to `TG_SEND_ROOTS` and refuses a hard deny list. The
-listener enforces a single instance with `fcntl.flock`.
-
-Read [SECURITY.md](SECURITY.md) for the threat model, reporting process, and
-hardening checklist.
+Read [SECURITY.md](SECURITY.md) for the full threat model and hardening guidance. Report vulnerabilities privately using the process described there.
 
 ## Documentation
 
-- [Installation](docs/INSTALL.md): prerequisites, credential setup, service install.
-- [CLI integrations](docs/CLI.md): per-client config paths, snippets, verification.
-- [Buttons and commands](docs/BUTTONS.md): keyboard behavior and pagination.
-- [Models](docs/MODELS.md): catalogue, switching, failure modes, privacy.
-- [Architecture](docs/ARCHITECTURE.md): components, state files, concurrency.
-- [Contributing](CONTRIBUTING.md): development workflow and review checklist.
-- [Changelog](CHANGELOG.md): release history.
-- [Project website](index.html): landing page served by GitHub Pages.
+- [Installation and startup](docs/INSTALL.md)
+- [CLI integrations and configuration](docs/CLI.md)
+- [Buttons and commands](docs/BUTTONS.md)
+- [Model catalogue and switching](docs/MODELS.md)
+- [Architecture and local state](docs/ARCHITECTURE.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
+- [Project website](https://aetherdz.github.io/telecode/)
 
 ## Development
+
+The runtime has no third-party Python dependency. Run the repository checks before submitting changes:
 
 ```sh
 make check
 make test
 ```
 
-The Makefile defines two convenience targets:
-
-| Target | Command | Purpose |
-| --- | --- | --- |
-| `make check` | Python compile, shell syntax, Node syntax, and HTML parse | Static checks for runtime, installer, and site. |
-| `make test` | `python3 -m unittest discover -s tests -v` | Run the full test suite. |
-
-`make check` does not run the test suite or a general-purpose linter. Run `make test`
-before sending a change.
-
-## Website
-
-The project website is the static landing page at [index.html](index.html), published
-at the GitHub Pages address <https://aetherdz.github.io/telecode/>. The repository
-root is the Pages source.
+`make check` runs Python compilation, shell and JavaScript syntax checks, and an HTML parse. `make test` runs the unittest suite.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+TeleCode is released under the [MIT License](LICENSE).
