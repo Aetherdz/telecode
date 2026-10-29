@@ -111,8 +111,8 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(api.call_args.args[2]["text"], "models")
         self.assertNotIn("parse_mode", api.call_args.args[2])
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
-        self.assertFalse(markup["is_persistent"])
-        self.assertFalse(markup["one_time_keyboard"])
+        self.assertTrue(markup["one_time_keyboard"])
+        self.assertNotIn("is_persistent", markup)
         self.assertNotIn("input_field_placeholder", markup)
 
     def test_session_picker_uses_one_bottom_keyboard_message_only(self):
@@ -188,8 +188,8 @@ class SessionRoutingTests(unittest.TestCase):
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
         self.assertIn("keyboard", markup)
         self.assertNotIn("inline_keyboard", markup)
-        self.assertFalse(markup["is_persistent"])
-        self.assertFalse(markup["one_time_keyboard"])
+        self.assertTrue(markup["one_time_keyboard"])
+        self.assertNotIn("is_persistent", markup)
         self.assertNotIn("input_field_placeholder", markup)
         self.assertEqual(markup["keyboard"][0][0]["text"], "test (1)")
 
@@ -214,8 +214,8 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_keyboard(cfg)
         import json
         markup = json.loads(api.call_args.args[2]["reply_markup"])
-        self.assertFalse(markup["is_persistent"])
-        self.assertFalse(markup["one_time_keyboard"])
+        self.assertTrue(markup["one_time_keyboard"])
+        self.assertNotIn("is_persistent", markup)
         self.assertNotIn("input_field_placeholder", markup)
         labels = [button["text"] for row in markup["keyboard"] for button in row]
         self.assertIn("Models", labels)

@@ -5,6 +5,10 @@ const languageButton = document.querySelector('#language-toggle');
 const navToggle = document.querySelector('.nav-toggle');
 const nav = document.querySelector('#nav');
 const preview = document.querySelector('#model-preview');
+try {
+  const savedTheme = localStorage.getItem('telecode-theme');
+  if (!savedTheme && matchMedia('(prefers-color-scheme: dark)').matches) root.dataset.theme = 'dark';
+} catch (_) {}
 let previewState = { type: 'provider', value: document.querySelector('.provider.selected')?.dataset.provider || '' };
 
 const messages = {
@@ -39,7 +43,7 @@ const messages = {
     kbLabel: 'Telegram keyboard options', kbSessions: 'Sessions', kbCurrent: 'Current session', kbModels: 'Models', kbHelp: 'Help',
     previewLabel: 'MODEL PICKER PREVIEW', providerTitle: 'CHOOSE A MODEL PROVIDER', preview: 'PREVIEW', chooseProvider: 'Choose a provider',
     previous: 'Previous', next: 'Next', providers: 'Providers', close: 'Close',
-    intEyebrow: '04 / INTEGRATIONS', intTitle: 'Clear support boundaries.',
+    intEyebrow: '04 / INTEGRATIONS', intTitle: 'Clear support boundaries.', tableCaption: 'Coding-agent integration support',
     intText: 'OpenCode has targeted Telegram-to-session routing. Other listed clients can use outbound MCP tools where their configuration supports them.',
     opencode: 'OpenCode', claudeCode: 'Claude Code', cursor: 'Cursor', gemini: 'Gemini CLI', clineRoo: 'Cline / Roo Code', continueAider: 'Continue / Aider', amazonCodex: 'Amazon Q / Codex CLI',
     thClient: 'Client', thMcp: 'Outbound MCP tools', thRouting: 'Targeted inbound routing', supported: 'Supported',
@@ -97,7 +101,7 @@ const messages = {
     kbLabel: 'خيارات لوحة مفاتيح تيليجرام', kbSessions: 'الجلسات', kbCurrent: 'الجلسة الحالية', kbModels: 'النماذج', kbHelp: 'مساعدة',
     previewLabel: 'معاينة اختيار النموذج', providerTitle: 'اختر مزوّد نموذج', preview: 'معاينة', chooseProvider: 'اختر مزوّدًا',
     previous: 'السابق', next: 'التالي', providers: 'المزوّدون', close: 'إغلاق',
-    intEyebrow: '04 / التكاملات', intTitle: 'حدود دعم واضحة.',
+    intEyebrow: '04 / التكاملات', intTitle: 'حدود دعم واضحة.', tableCaption: 'دعم التكامل مع وكلاء البرمجة',
     intText: 'يدعم OpenCode توجيه رسائل تيليجرام إلى جلسة محددة. ويمكن للعملاء الآخرين استخدام أدوات MCP الصادرة حسب دعم إعداداتهم.',
     opencode: 'OpenCode', claudeCode: 'Claude Code', cursor: 'Cursor', gemini: 'Gemini CLI', clineRoo: 'Cline / Roo Code', continueAider: 'Continue / Aider', amazonCodex: 'Amazon Q / Codex CLI',
     thClient: 'العميل', thMcp: 'أدوات MCP الصادرة', thRouting: 'توجيه الرسائل الواردة', supported: 'مدعوم',
@@ -160,9 +164,6 @@ function applyLanguage(next) {
   });
   const copyStatus = document.querySelector('#copy-status');
   if (copyStatus) copyStatus.textContent = '';
-  document.querySelectorAll('[data-copy]').forEach(button => {
-    if (button.dataset.copyOriginalText) button.textContent = button.dataset.copyOriginalText;
-  });
   const description = document.querySelector('[data-i18n-content="metaDescription"]');
   if (description) description.content = dict.metaDescription;
   if (languageButton) languageButton.setAttribute('lang', language === 'ar' ? 'en' : 'ar');
@@ -173,7 +174,7 @@ function applyLanguage(next) {
   const themeColor = document.querySelector('#theme-color-meta');
   if (themeColor) themeColor.content = root.dataset.theme === 'dark' ? '#171817' : '#F6F3EA';
   if (languageButton) languageButton.textContent = dict.switchLanguage;
-  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 760px)').matches) closeNavigation();
+  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
   try { localStorage.setItem('telecode-language', language); } catch (_) {}
   updateThemeButton();
   updateNavigationLabel();
@@ -199,18 +200,18 @@ applyLanguage(language);
 setTheme(root.dataset.theme || 'light');
 languageButton?.addEventListener('click', () => {
   applyLanguage(language === 'ar' ? 'en' : 'ar');
-  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 760px)').matches) closeNavigation();
+  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
 });
 themeButton?.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 function closeNavigation() {
   nav?.classList.remove('open');
-  if (window.matchMedia('(max-width: 760px)').matches) nav?.setAttribute('inert', '');
+  if (window.matchMedia('(max-width: 900px)').matches) nav?.setAttribute('inert', '');
   else nav?.removeAttribute('inert');
   navToggle?.setAttribute('aria-expanded', 'false');
   updateNavigationLabel();
 }
-if (window.matchMedia('(max-width: 760px)').matches) closeNavigation();
+if (window.matchMedia('(max-width: 900px)').matches) closeNavigation();
 else nav?.removeAttribute('inert');
 navToggle?.addEventListener('click', () => {
   const open = navToggle.getAttribute('aria-expanded') !== 'true';
@@ -220,8 +221,8 @@ navToggle?.addEventListener('click', () => {
   if (open) nav?.removeAttribute('inert');
   else nav?.setAttribute('inert', '');
 });
-  nav?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
-  if (!window.matchMedia('(max-width: 760px)').matches) return;
+nav?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
+  if (!window.matchMedia('(max-width: 900px)').matches) return;
   const destination = link.getAttribute('href');
   closeNavigation();
   if (destination?.startsWith('#')) {
@@ -236,11 +237,11 @@ navToggle?.addEventListener('click', () => {
 document.querySelectorAll('a[href^="#"]').forEach(link => {
   if (nav?.contains(link)) return;
   link.addEventListener('click', () => {
-    if (nav?.classList.contains('open') && window.matchMedia('(max-width: 760px)').matches) closeNavigation();
+    if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
   });
 });
 document.querySelector('.skip')?.addEventListener('click', () => {
-  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 760px)').matches) closeNavigation();
+  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && nav?.classList.contains('open')) {
@@ -248,7 +249,7 @@ document.addEventListener('keydown', event => {
     navToggle?.focus();
   }
 });
-const desktopQuery = window.matchMedia('(min-width: 761px)');
+const desktopQuery = window.matchMedia('(min-width: 901px)');
 const syncNavigationBreakpoint = event => {
   if (event.matches) {
     nav?.classList.remove('open');
@@ -259,6 +260,11 @@ const syncNavigationBreakpoint = event => {
 };
 if (desktopQuery.addEventListener) desktopQuery.addEventListener('change', syncNavigationBreakpoint);
 else desktopQuery.addListener?.(syncNavigationBreakpoint);
+document.addEventListener('pointerdown', event => {
+  if (!nav?.classList.contains('open') || !window.matchMedia('(max-width: 900px)').matches) return;
+  if (nav.contains(event.target) || navToggle?.contains(event.target)) return;
+  closeNavigation();
+});
 
 function updatePreview() {
   if (!preview || !previewState.value) return;
@@ -287,8 +293,6 @@ document.querySelectorAll('[data-copy]').forEach(button => button.addEventListen
     const previousFocus = document.activeElement;
     const label = dict[button.dataset.copyAria] || dict.copyAria;
     button.setAttribute('aria-label', label);
-    const originalText = button.dataset.copyOriginalText || button.textContent;
-    button.dataset.copyOriginalText = originalText;
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(button.dataset.copy);
@@ -305,19 +309,13 @@ document.querySelectorAll('[data-copy]').forEach(button => button.addEventListen
       finally { field.remove(); previousFocus?.focus?.(); }
       if (!copied) throw new Error('Copy unavailable');
     }
-    button.textContent = dict.copySuccess;
     if (status) status.textContent = dict.copySuccess;
     window.setTimeout(() => {
-      button.textContent = originalText;
-      button.setAttribute('aria-label', messages[language][button.dataset.copyAria] || messages[language].copyAria);
       if (status) status.textContent = '';
     }, 2400);
   } catch (_) {
-    button.textContent = dict.copyFailure;
     if (status) status.textContent = dict.copyFailure;
     window.setTimeout(() => {
-      button.textContent = originalText;
-      button.setAttribute('aria-label', messages[language][button.dataset.copyAria] || messages[language].copyAria);
       if (status) status.textContent = '';
     }, 4000);
   }

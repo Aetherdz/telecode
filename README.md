@@ -23,7 +23,7 @@ message goes to the local session, and the agent decides how to answer.
 
 - Owner-only listener: the configured chat is checked on all messages; sender
   identity is checked when present, and both chat and sender are checked for callbacks.
-- Hideable, text-only Telegram reply keyboard with session, current-session, model,
+- Telegram reply keyboard with session, current-session, model,
   and help controls.
 - Paginated session picker that lists all available sessions in batches and switches
   a single active target without editing environment files or source.
@@ -89,7 +89,7 @@ credential checks the installer performs.
 | `/current` | Slash command | Active target, resolved through discovery if unset. |
 | `/models` | Slash command | Bottom-keyboard model picker; the switch applies to the active session. |
 | `/files` | Slash command | Up to 20 received files for the active session, newest first. |
-| `/help`, `/start` | Slash command | Restore the persistent keyboard and print help. |
+| `/help`, `/start` | Slash command | Send the navigation keyboard and print help. |
 
 Buttons are exact-match English text. Successfully routed messages do not generate a
 separate acknowledgement, so the chat stays focused on the agent's replies. Any

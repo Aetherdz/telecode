@@ -1,13 +1,14 @@
 # Buttons and commands
 
-TeleCode uses Telegram's persistent reply keyboard for top-level navigation and
-temporary bottom reply keyboards for session and model selection.
+TeleCode uses ordinary reply keyboards for top-level navigation and session/model
+selection. Telegram's client controls whether the user hides or reopens the keyboard.
 
 ## Persistent reply keyboard
 
-The keyboard is sent when the listener starts and on `/start` or `/help`. It has
-two main rows and command shortcuts. Telegram can hide/show this ordinary reply
-keyboard using its own control beside the message field:
+The keyboard is sent when the listener starts and on `/start` or `/help`. Its markup
+sets `one_time_keyboard: true`, requesting that Telegram hide it after a button is
+pressed while retaining the client's ability to reopen it. TeleCode never sends
+`ReplyKeyboardRemove` for normal navigation. The keyboard has these rows:
 
 ```text
 [ Sessions ]        [ Current session ]
@@ -78,7 +79,7 @@ reply says the target is unset.
 
 `/models` or `/model` or `Models` sends a bottom reply keyboard. Provider/model pages
 update the same menu message when Telegram allows editing; otherwise a replacement
-picker is sent. The keyboard is non-persistent and has no custom input placeholder.
+picker is sent. The keyboard uses Telegram's one-time hint and has no custom input placeholder.
 The command is handled
 before agent routing, so it is never stored as a prompt.
 

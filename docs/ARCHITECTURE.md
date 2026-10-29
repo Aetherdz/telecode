@@ -22,7 +22,7 @@ control plane; it does not interpret prompts.
 ### Inbound
 
 1. The listener starts, acquires `.listener.lock`, records `listener.pid`, sends the
-   English persistent keyboard, and starts one injection worker thread.
+   English reply keyboard, and starts one injection worker thread.
 2. It calls `getUpdates` with a 50-second long poll and a 65-second HTTP timeout,
    accepting only `message` and `callback_query`.
 3. For each update it compares the chat ID with `TG_CHAT_ID`. Callback queries also

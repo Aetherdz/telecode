@@ -262,8 +262,7 @@ def _keyboard(cfg):
     return {"keyboard": [[{"text": "Sessions"}, {"text": "Current session"}],
                          [{"text": "Models"}, {"text": "Help"}],
                          [{"text": "/menu"}, {"text": "/session"}, {"text": "/models"}]],
-            "resize_keyboard": True, "one_time_keyboard": False,
-            "is_persistent": False}
+            "resize_keyboard": True, "one_time_keyboard": True}
 
 
 def _configure_commands(cfg):
@@ -398,8 +397,7 @@ def _send_reply_picker(cfg, text, rows, notify=True):
         "reply_markup": json.dumps({
             "keyboard": rows,
             "resize_keyboard": True,
-            "is_persistent": False,
-            "one_time_keyboard": False,
+            "one_time_keyboard": True,
         }, ensure_ascii=False),
     }
     try:
@@ -675,8 +673,8 @@ def _edit_reply_picker(cfg, message_ref, text, rows, placeholder):
     if not chat_id or not message_id:
         return False
     markup = json.dumps({
-        "keyboard": rows, "resize_keyboard": True, "is_persistent": False,
-        "one_time_keyboard": False,
+        "keyboard": rows, "resize_keyboard": True,
+        "one_time_keyboard": True,
     }, ensure_ascii=False)
     try:
         api(cfg["TG_BOT_TOKEN"], "editMessageText", {
