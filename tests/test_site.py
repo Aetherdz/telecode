@@ -1,0 +1,38 @@
+import pathlib
+import unittest
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+class SiteTests(unittest.TestCase):
+    def test_language_menu_has_requested_languages_and_persisted_options(self):
+        html = (ROOT / "index.html").read_text()
+        js = (ROOT / "assets/site.js").read_text()
+        self.assertIn('data-language="ar"', html)
+        self.assertIn('data-language="en"', html)
+        self.assertIn('data-language="fr"', html)
+        self.assertIn("const supportedLanguages = ['en', 'ar', 'fr'];", js)
+        for language in ("en", "ar", "fr"):
+            self.assertIn(f"{language}: {{", js)
+        self.assertIn("pageTitle: 'TeleCode — vos sessions de code", js)
+        self.assertIn("copySuccess: 'Commande copiée.'", js)
+
+    def test_mobile_install_panel_stacks_long_command_and_copy_control(self):
+        css = (ROOT / "assets/site.css").read_text()
+        self.assertRegex(css, r"@media \(max-width: 560px\)[\s\S]*?\.install-panel > \.install-command\s*\{[^}]*flex-direction:\s*column")
+        self.assertIn("overflow-wrap: anywhere", css)
+
+    def test_bootstrap_progress_finishes_at_100_before_install(self):
+        script = (ROOT / "install.sh").read_text()
+        self.assertIn("'[100%] Download complete.'", script)
+        self.assertIn('git clone --progress --depth 1', script)
+        self.assertLess(script.index("'[100%] Download complete.'"), script.index('exec bash "$bootstrap_dir/repo/install.sh"'))
+
+    def test_bootstrap_logo_is_defined_before_early_mode(self):
+        script = (ROOT / "install.sh").read_text()
+        self.assertLess(script.index("logo() {"), script.index('if [[ "${1:-}" == "--curl-bootstrap" ]]'))
+
+
+if __name__ == "__main__":
+    unittest.main()

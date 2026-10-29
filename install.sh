@@ -3,6 +3,19 @@ set -euo pipefail
 
 # One-line bootstrap downloads the reviewed installer from this public repository.
 # Its normal source-checkout mode still copies the full project and remains inspectable.
+logo() {
+  local main="" reset=""
+  if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    main=$'\033[38;2;48;179;239m'
+    reset=$'\033[0m'
+  fi
+  printf '%s\n' "${main}▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀${reset}"
+  printf '%s\n' "${main}  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄ ${reset}"
+  printf '%s\n' "${main}  █   █     █     █     █     █   █ █   █ █    ${reset}"
+  printf '%s\n' "${main}  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀${reset}"
+  printf '  Telegram ⇄ OpenCode & any CLI\n'
+}
+
 if [[ "${1:-}" == "--curl-bootstrap" ]]; then
   shift
   if [[ $# -gt 0 ]]; then
@@ -13,6 +26,8 @@ if [[ "${1:-}" == "--curl-bootstrap" ]]; then
     echo "git is required to fetch the TeleCode source." >&2
     exit 2
   fi
+  logo
+  printf '\n↓ Downloading TeleCode installer\n'
   bootstrap_dir="${XDG_CACHE_HOME:-$HOME/.cache}/telecode-bootstrap"
   mkdir -p "$bootstrap_dir"
   chmod 700 "$bootstrap_dir"
@@ -21,14 +36,15 @@ if [[ "${1:-}" == "--curl-bootstrap" ]]; then
     exit 2
   fi
   if ! git -C "$bootstrap_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git clone --depth 1 https://github.com/Aetherdz/telecode.git "$bootstrap_dir/repo" || {
+    git clone --progress --depth 1 https://github.com/Aetherdz/telecode.git "$bootstrap_dir/repo" || {
       rm -rf "$bootstrap_dir/repo"
       exit 2
     }
   else
-    git -C "$bootstrap_dir/repo" fetch --depth 1 origin main || exit 2
+    git -C "$bootstrap_dir/repo" fetch --progress --depth 1 origin main || exit 2
     git -C "$bootstrap_dir/repo" reset --hard FETCH_HEAD || exit 2
   fi
+  printf '\n%s\n' '[100%] Download complete.' 'Starting TeleCode setup...' ''
   exec bash "$bootstrap_dir/repo/install.sh"
 fi
 
@@ -43,19 +59,6 @@ if [[ -z "$PYTHON" ]] || ! "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_i
   echo "Python 3.11+ is required; no install changes made." >&2
   exit 1
 fi
-
-logo() {
-  local main="" reset=""
-  if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-    main=$'\033[38;2;48;179;239m'
-    reset=$'\033[0m'
-  fi
-  printf '%s\n' "${main}▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀${reset}"
-  printf '%s\n' "${main}  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄ ${reset}"
-  printf '%s\n' "${main}  █   █     █     █     █     █   █ █   █ █    ${reset}"
-  printf '%s\n' "${main}  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀${reset}"
-  printf '  Telegram ⇄ OpenCode & any CLI\n'
-}
 
 logo
 printf 'TeleCode installer %s\n\n' "$VERSION"
