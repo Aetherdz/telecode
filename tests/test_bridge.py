@@ -59,8 +59,8 @@ class SessionRoutingTests(unittest.TestCase):
             {"id": "ses_bbbbbb222222", "title": "beta"},
         ]
         labels = tb._session_buttons(sessions)
-        self.assertTrue(labels["ses_aaaaaa111111"].startswith("alpha ["))
-        self.assertTrue(labels["ses_bbbbbb222222"].startswith("beta ["))
+        self.assertEqual(labels["ses_aaaaaa111111"], "alpha")
+        self.assertEqual(labels["ses_bbbbbb222222"], "beta")
         duplicate = [{"id": "ses_aaaaaa111111", "title": "alpha"},
                      {"id": "ses_bbbbbb222222", "title": "alpha"}]
         labels = tb._session_buttons(duplicate)
@@ -71,7 +71,9 @@ class SessionRoutingTests(unittest.TestCase):
                     {"id": "ses_bbbbbb111111", "title": "alpha"}]
         labels = tb._session_buttons(sessions)
         self.assertNotEqual(labels["ses_aaaaaa111111"], labels["ses_bbbbbb111111"])
-        self.assertTrue(all("[" in label for label in labels.values()))
+        self.assertEqual(labels["ses_aaaaaa111111"], "alpha (1)")
+        self.assertEqual(labels["ses_bbbbbb111111"], "alpha (2)")
+        self.assertTrue(all("[" not in label for label in labels.values()))
 
     def test_session_title_is_single_line(self):
         self.assertEqual(tb.session_title({"title": "a\nb"}), "a b")
@@ -82,7 +84,10 @@ class SessionRoutingTests(unittest.TestCase):
         tb.ACTIVE_PICKER = None
         tb.ACTIVE_PICKER = "sessions"
         label = tb._session_buttons([{"id": "ses_abcdef123456", "title": "work"}])["ses_abcdef123456"]
-        self.assertFalse(label == "work")
+        self.assertEqual(label, "work")
+        tb.ACTIVE_PICKER = None
+        tb.LAST_SESSION_LABELS.clear()
+        tb.LAST_SESSION_LABELS.add(label)
         with patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard"):
             self.assertTrue(tb.handle_control_message(cfg, {}, label))
         send.assert_called_once()
@@ -135,7 +140,7 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(api.call_count, 1)
         self.assertEqual(api.call_args.args[1], "sendMessage")
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
-        self.assertEqual(markup["keyboard"][0][0]["text"], "work [cdefgh]")
+        self.assertEqual(markup["keyboard"][0][0]["text"], "work")
         self.assertIn([{"text": tb.NEW_SESSION}], markup["keyboard"])
         top_keyboard.assert_not_called()
 
@@ -157,7 +162,7 @@ class SessionRoutingTests(unittest.TestCase):
         tb.SESSION_SNAPSHOT = []
         with patch.object(tb, "_send_keyboard") as keyboard, patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
-        keyboard.assert_not_called()
+        keyboard.assert_called_once_with(cfg, "Menu")
         send.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
@@ -618,7 +623,10 @@ class SessionRoutingTests(unittest.TestCase):
                 self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
             create.assert_not_called()
             send.assert_not_called()
-            keyboard.assert_not_called()
+            if picker == "sessions":
+                keyboard.assert_called_once_with(cfg, "Menu")
+            else:
+                keyboard.assert_not_called()
             self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_labels_are_not_consumed_when_no_model_picker_is_active(self):
@@ -758,7 +766,7 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertTrue(handled)
         self.assertIsNone(tb.ACTIVE_PICKER)
         hide.assert_not_called()
-        keyboard.assert_not_called()
+        keyboard.assert_called_once_with(cfg, "Menu")
 
     def test_menu_command_resets_picker_state_and_restores_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -768,7 +776,7 @@ class SessionRoutingTests(unittest.TestCase):
         tb.SESSION_BUTTONS["stale"] = "ses_abcdef1"
         with patch.object(tb, "_hide_picker_keyboard"), patch.object(tb, "_send_keyboard") as show:
             self.assertTrue(tb.handle_control_message(cfg, {}, "/menu"))
-        show.assert_called_once_with(cfg)
+        show.assert_called_once_with(cfg, "Menu")
         self.assertIsNone(tb.ACTIVE_PICKER)
         self.assertEqual(tb.SESSION_SNAPSHOT, [])
         self.assertEqual(tb.SESSION_BUTTONS, {})
@@ -875,12 +883,12 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_session_label_cannot_select_outside_active_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
-        sessions = [{"id": f"ses_{n:06d}", "title": f"session {n}"} for n in range(12)]
+        sessions = [{"id": f"ses_{n:06d}", "title": f"session {n}"} for n in range(45)]
         with patch.object(tb, "list_sessions", return_value=sessions), \
              patch.object(tb, "_active_session_id", return_value=""), patch.object(tb, "api"), \
              patch.object(tb, "send_text"), patch.object(tb, "_set_active_session") as select:
             tb._send_session_picker(cfg, page=0, sessions=sessions)
-            handled = tb.handle_control_message(cfg, {}, "session 10")
+            handled = tb.handle_control_message(cfg, {}, "session 40")
         self.assertFalse(handled)
         select.assert_not_called()
 
@@ -1028,8 +1036,9 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg)
         payload = api.call_args.args[2]
         self.assertEqual(payload["parse_mode"], "HTML")
-        self.assertIn("<b>fix_auth.v2 [234567]</b>", payload["text"])
-        self.assertIn("<code>ses_abc1234567</code>", payload["text"])
+        self.assertEqual(payload["text"], "Sessions")
+        keyboard = __import__("json").loads(payload["reply_markup"])["keyboard"]
+        self.assertEqual(keyboard[0][0]["text"], "fix_auth.v2")
 
     def test_session_picker_formatted_send_falls_back_to_plain_text(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1042,7 +1051,9 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg)
         self.assertEqual(api.call_count, 2)
         self.assertNotIn("parse_mode", api.call_args.args[2])
-        self.assertIn("A < B", api.call_args.args[2]["text"])
+        self.assertEqual(api.call_args.args[2]["text"], "Sessions")
+        keyboard = __import__("json").loads(api.call_args.args[2]["reply_markup"])["keyboard"]
+        self.assertEqual(keyboard[0][0]["text"], "A < B")
 
     def test_session_listing_falls_back_when_directory_filter_is_unsupported(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
@@ -1077,8 +1088,9 @@ class SessionRoutingTests(unittest.TestCase):
         labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel", "/menu", tb.NEW_SESSION)]
         self.assertEqual(len(labels), 20)
         body = payload["text"]
-        self.assertIn("25. <b>session 24 [000024]</b>", body)
-        self.assertNotIn("1. <b>session 0</b>", body)
+        self.assertEqual(body, "Sessions 2/3")
+        self.assertIn("session 24", labels)
+        self.assertNotIn("session 0", labels)
         self.assertEqual(tb.SESSION_PAGE, 1)
 
     def test_session_page_change_reuses_one_session_snapshot(self):
@@ -1215,9 +1227,8 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "api") as api:
             tb._send_session_picker(cfg)
         body = api.call_args.args[2]["text"]
-        self.assertTrue(body.startswith("<b>Choose a session</b> \u00b7 tap a button below"))
-        self.assertIn("keyboard\n\n1. <b>", body)
-        self.assertNotIn("Choose a sessionSelect", body)
+        self.assertEqual(body, "Sessions")
+        self.assertNotIn("Choose", body)
 
 
 if __name__ == "__main__":

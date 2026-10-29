@@ -331,6 +331,27 @@ def _send_keyboard(cfg, text="TeleCode menu", *, configure=False, parse_mode=Non
         log(f"[{ts()}] keyboard setup failed: {e!r}", flush=True)
 
 
+SESSION_MESSAGE_ID = None
+LAST_SESSION_LABELS = set()
+
+
+def _delete_message(cfg, message_id):
+    """Best-effort removal of a previous picker message."""
+    if not message_id:
+        return
+    try:
+        api(cfg["TG_BOT_TOKEN"], "deleteMessage",
+            {"chat_id": cfg["TG_CHAT_ID"], "message_id": str(message_id)}, timeout=10)
+    except Exception as e:
+        log(f"[{ts()}] could not delete picker message: {e!r}", flush=True)
+
+
+def _clear_session_picker(cfg):
+    global SESSION_MESSAGE_ID
+    _delete_message(cfg, SESSION_MESSAGE_ID)
+    SESSION_MESSAGE_ID = None
+
+
 def _send_picker_notice(cfg, text):
     """Compatibility hook; avoid creating another chat message for transitions."""
     return None
@@ -351,7 +372,7 @@ def _hide_picker_keyboard(cfg):
 
 def session_title(session):
     title = str((session or {}).get("title") or "Untitled").replace("\n", " ").strip()
-    return title[:36] or "Untitled"
+    return title[:60] or "Untitled"
 
 
 def session_label(session):
@@ -359,29 +380,36 @@ def session_label(session):
 
 
 def _session_buttons(sessions):
-    """Name-first keyboard labels; codes only disambiguate duplicate names."""
+    """Use clean titles; add a numeric suffix only when titles collide."""
+    reserved = {
+        "Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK,
+        MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
+        "Current session", NEW_SESSION, CREATE_SESSION,
+        "Menu", "Show menu", "Files", "/menu", "/session",
+        "/newsession", "/models", "/model", "/current",
+        "/help", "/files",
+    }
     counts = {}
     for session in sessions:
-        counts[session_title(session)] = counts.get(session_title(session), 0) + 1
+        title = session_title(session)
+        counts[title] = counts.get(title, 0) + 1
     labels = {}
     used = set()
+    seen = {}
     for session in sessions:
         title = session_title(session)
         sid = str(session.get("id") or "")
-        label = f"{title} [{sid[-6:]}]"
-        suffix_length = 6
-        while label in used and suffix_length < len(sid):
-            suffix_length += 1
-            label = f"{title} [{sid[-suffix_length:]}]"
-        if label in used:
-            label = f"{title} [{sid}]"
-        if label in {"Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK,
-                      MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
-                      "Current session", NEW_SESSION, CREATE_SESSION,
-                      "Menu", "Show menu", "Files", "/menu", "/session",
-                      "/newsession", "/models", "/model", "/current",
-                      "/help", "/files"}:
-            label = f"{label} [{sid}]"
+        if counts[title] > 1:
+            seen[title] = seen.get(title, 0) + 1
+            label = f"{title} ({seen[title]})"
+        else:
+            label = title
+        if label in used or label in reserved:
+            base = label
+            number = 2
+            while f"{base} ({number})" in used or f"{base} ({number})" in reserved:
+                number += 1
+            label = f"{base} ({number})"
         used.add(label)
         labels[sid] = label
     return labels
@@ -396,8 +424,11 @@ def _send_session_picker(cfg, page=0, sessions=None):
         SESSION_BUTTONS.clear()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         ACTIVE_PICKER = "sessions"
-        text = "No OpenCode sessions were found. Create one, or check that the OpenCode service is running."
-        _send_reply_picker(cfg, text, [[{"text": NEW_SESSION}], [{"text": "Cancel"}]], notify=False)
+        LAST_SESSION_LABELS.clear()
+        _clear_session_picker(cfg)
+        result = _send_reply_picker(cfg, "No sessions found",
+                                    [[{"text": NEW_SESSION}], [{"text": "Cancel"}]], notify=False)
+        SESSION_MESSAGE_ID = ((result or {}).get("result") or {}).get("message_id")
         return
     SESSION_SNAPSHOT = list(sessions)
     MODEL_SELECTION.update(provider=None, page=0, labels={})
@@ -411,6 +442,9 @@ def _send_session_picker(cfg, page=0, sessions=None):
     SESSION_BUTTONS.clear()
     SESSION_BUTTONS.update({labels[str(s.get("id") or "")]: str(s.get("id") or "")
                             for s in visible[start:start + SESSION_PAGE_SIZE]})
+    LAST_SESSION_LABELS.clear()
+    LAST_SESSION_LABELS.update(labels[str(s.get("id") or "")]
+                               for s in visible[start:start + SESSION_PAGE_SIZE])
     ACTIVE_PICKER = "sessions"
     nav = []
     if SESSION_PAGE > 0:
@@ -420,23 +454,13 @@ def _send_session_picker(cfg, page=0, sessions=None):
     if nav:
         rows.append(nav)
     rows.append([{"text": "Cancel"}])
-    active = _active_session_id()
-    if not active:
-        active = (cfg.get("OPENCODE_SESSION_ID") or "").strip()
     page_count = (len(sessions) - 1) // SESSION_PAGE_SIZE + 1
-    header = "<b>Choose a session</b> \u00b7 tap a button below \u00b7 /menu restores the keyboard"
+    text = "Sessions"
     if page_count > 1:
-        header += f" \u00b7 page {SESSION_PAGE + 1}/{page_count}"
-    text = header + "\n\n"
-    page_sessions = visible[start:start + SESSION_PAGE_SIZE]
-    page_labels = {str(s.get("id") or ""): labels[str(s.get("id") or "")]
-                   for s in page_sessions}
-    text += "\n".join(
-        f"{start + index}. <b>{_html_escape(page_labels[str(s.get('id') or '')])}</b> — "
-        f"<code>{_html_escape(s.get('id', ''))}</code>"
-        + (" <i>(active)</i>" if s.get("id") == active else "")
-        for index, s in enumerate(page_sessions, start=1))
-    _send_reply_picker(cfg, text, rows, notify=False)
+        text += f" {SESSION_PAGE + 1}/{page_count}"
+    _clear_session_picker(cfg)
+    result = _send_reply_picker(cfg, text, rows, notify=False)
+    SESSION_MESSAGE_ID = ((result or {}).get("result") or {}).get("message_id")
 
 
 def _begin_new_session(cfg):
@@ -463,6 +487,7 @@ def _restore_primary_controls():
     global ACTIVE_PICKER
     ACTIVE_PICKER = None
     SESSION_BUTTONS.clear()
+    LAST_SESSION_LABELS.clear()
     SESSION_SNAPSHOT.clear()
     MODEL_SELECTION.update(provider=None, page=0, labels={})
     MODEL_SELECTION.pop("models", None)
@@ -488,6 +513,7 @@ def _send_reply_picker(cfg, text, rows, notify=True):
     if notify and result and result.get("result", {}).get("message_id"):
         _set_models_message_ref({"chat_id": cfg["TG_CHAT_ID"],
                                  "message_id": result["result"]["message_id"]})
+    return result
 
 
 def _html_escape(value):
@@ -928,6 +954,8 @@ def handle_control_message(cfg, msg, text):
 
     if cmd == "Cancel" and ACTIVE_PICKER == "sessions":
         _restore_primary_controls()
+        _clear_session_picker(cfg)
+        _send_keyboard(cfg, "Menu")
         return True
     if cmd == "Cancel" and ACTIVE_PICKER in ("providers", "models"):
         _restore_primary_controls()
@@ -993,7 +1021,8 @@ def handle_control_message(cfg, msg, text):
     if cmd in ("/menu", "Menu", "Show menu"):
         _restore_primary_controls()
         _invalidate_model_message_ref()
-        _send_keyboard(cfg)
+        _clear_session_picker(cfg)
+        _send_keyboard(cfg, "Menu")
         return True
     if cmd in ("/models", "/model", "Models"):
         if ACTIVE_PICKER is not None:
@@ -1024,7 +1053,9 @@ def handle_control_message(cfg, msg, text):
         ACTIVE_PICKER = None
         SESSION_BUTTONS.clear()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
-        send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(selected_sid)}</code>", parse_mode="HTML")
+        _clear_session_picker(cfg)
+        LAST_SESSION_LABELS.clear()
+        _send_keyboard(cfg, f"Selected: {_html_escape(session_title(session))}", parse_mode="HTML")
         return True
     if ACTIVE_PICKER in ("models", "providers", "sessions") and (msg.get("photo") or msg.get("document")):
         send_text(cfg, "Attachment was not delivered because this message was a picker control. Send it again without a picker caption.")
@@ -1032,6 +1063,7 @@ def handle_control_message(cfg, msg, text):
     stale_session_label = (
         (ACTIVE_PICKER == "sessions" and re.fullmatch(r".+ \[[0-9A-Za-z_-]{6,80}\]", cmd))
         or (ACTIVE_PICKER is None and re.fullmatch(r".+ \[ses[0-9A-Za-z_-]{6,80}\]", cmd))
+        or (ACTIVE_PICKER is None and cmd in LAST_SESSION_LABELS)
     )
     if stale_session_label:
         send_text(cfg, "That session picker has expired. Open /session and choose again.")

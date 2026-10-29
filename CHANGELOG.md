@@ -26,6 +26,11 @@ and this project adheres to semantic versioning.
   every action. Session selection and session creation send one confirmation,
   cancels close silently (except the name prompt), and `Help`/`/start` send one
   combined keyboard message instead of two messages.
+- Session buttons use clean titles instead of ID suffixes such as `[9E0eHj]`;
+  a numeric suffix appears only when two sessions share the same title.
+- The session picker is a single short `Sessions` message (with page info) and
+  replaces the previous picker message instead of stacking new ones.
+- Session titles keep up to 60 characters instead of being cut at 36.
 - Documentation no longer claims a Rich dependency or a local browser wizard
   that the project does not ship.
 
