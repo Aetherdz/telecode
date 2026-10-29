@@ -23,6 +23,23 @@
 
 ---
 
+## See it in action
+
+The responsive interface keeps the main navigation focused on the product while contact links live in a dedicated section.
+
+| Mobile preview | Desktop preview |
+| --- | --- |
+| ![TeleCode mobile preview](docs/screenshots/telecode-mobile.png) | ![TeleCode desktop preview](docs/screenshots/telecode-desktop.png) |
+
+## Feature overview
+
+- **Telegram control:** send prompts and attachments from the authorized owner chat.
+- **Session management:** browse, create, select, and inspect OpenCode sessions.
+- **Model switching:** browse providers and models without editing local configuration.
+- **MCP integration:** receive agent replies and approved files through local stdio tools.
+- **Privacy by default:** no public web endpoint, owner-chat authorization, local credentials, and an allowlist for outgoing files.
+- **Simple deployment:** Python standard library runtime, guided setup, foreground mode, and optional systemd integration.
+
 ## What is TeleCode?
 
 TeleCode connects your private Telegram chat to local coding-agent CLI workflows. Send a message or attachment to your bot, route it to the session you selected, and let the agent reply using the included MCP tools.
@@ -37,7 +54,8 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 - **Send context both ways:** route text, photos, and documents into the selected session; let the agent send text or approved local files back.
 - **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound session routing currently requires OpenCode.
 - **Keep the boundary local and private:** only the configured owner chat is accepted; credentials live in a private runtime config.
-- **Install without a build step:** Python 3.11+ standard library runtime, guided setup, and optional systemd user service.
+- **Install without a build step:** Python 3.11+ standard library runtime, guided setup, optional systemd service, or foreground listener for cloud shells.
+- **Readable terminal setup:** The packaged Python CLI uses Rich for styled menus and prompts when installed; the shell installer keeps a dependency-free fallback.
 
 ## Quick start
 
@@ -57,7 +75,9 @@ cd telecode
 ./install.sh
 ```
 
-The installer guides you through CLI selection, MCP registration, bot credentials, and service setup. Review the source and the [installation guide](docs/INSTALL.md) before running it. For an update from a source checkout, use `./install.sh --update`.
+Run `telecode` for the Setup/Exit menu, then choose terminal CLI setup or the optional local browser wizard. The HTTP wizard opens only on `127.0.0.1:8080`; it installs files and saves credentials locally but does not start the listener or systemd service. Review the source and [installation guide](docs/INSTALL.md) before running it. For a guided Linux setup from a terminal, use `curl -fsSL https://raw.githubusercontent.com/Aetherdz/telecode/main/install.sh | bash -s -- --curl-bootstrap`. For updates from a source checkout, use `./install.sh --update`.
+
+There is no published npm/Bun package or `npx`/`bunx` installer yet. TeleCode is a Python application; the guided installer installs it locally and registers its MCP server with the client you choose. Do not use `npx aetherdz/telecode` or `bunx aetherdz/telecode` as if those package names were published.
 
 After setup, restart your coding-agent CLI so it loads the MCP server. Check the bridge with:
 
@@ -75,7 +95,7 @@ flowchart LR
     M -->|Reply or approved file| TG
 ```
 
-The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`. Create a session with `New session` or `/newsession`; after you provide a name, TeleCode creates it through OpenCode and selects it for subsequent messages.
+The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`. Create a session with `New session` or `/newsession`; after you provide a name, TeleCode creates it through OpenCode and selects it for subsequent messages. Sessions from other project directories are included when visible to the OpenCode API.
 
 ## Telegram controls
 
@@ -84,12 +104,15 @@ The listener long-polls Telegram, checks incoming messages against the configure
 | `Sessions` / `/session` | Browse available sessions and select the active target. |
 | `Current session` / `/current` | Show the active session and its ID. |
 | `New session` / `/newsession` | Enter a name, create an OpenCode session, and select it for subsequent messages. `Create session` also starts this flow. |
+| `Enter session ID` / `/entersession` | Enter and verify a full OpenCode session ID, including one missing from the picker. |
 | `Models` / `/models` | Browse providers and models, then switch the active OpenCode session. |
 | `Help` / `/help` | Show available controls. |
 | `/files` | List recent files received for the active session. |
 | Any other text | Route the message to the active session. |
 
 The keyboard labels are exact-match English text. The main keyboard uses Telegram's one-time hint; Telegram controls when keyboards are hidden, and `/menu` re-sends the main keyboard at any time. Closing or leaving a picker restores the main controls. Session selection is global to this bridge instance. Creating sessions requires the OpenCode API to be reachable. See [Buttons and commands](docs/BUTTONS.md) for picker behavior and edge cases.
+
+Optional agent workflow: an OpenCode session with [`skills/telegram-interaction/SKILL.md`](skills/telegram-interaction/SKILL.md) available can be explicitly opted in by sending `/telegram` in the same authorized Telegram message as the task. It keeps work in the selected local session and routes concise responses via Telegram MCP. `/telegram` is not a bridge control command or button; without explicit opt-in in that task message, normal routing applies. See the [skill contract](skills/telegram-interaction/SKILL.md).
 
 ## MCP tools
 
@@ -131,6 +154,7 @@ Read [SECURITY.md](SECURITY.md) for the full threat model and hardening guidance
 - [Installation and startup](docs/INSTALL.md)
 - [CLI integrations and configuration](docs/CLI.md)
 - [Buttons and commands](docs/BUTTONS.md)
+- [Telegram interaction skill](skills/telegram-interaction/SKILL.md)
 - [Architecture and local state](docs/ARCHITECTURE.md)
 - [Model catalogue and switching](docs/MODELS.md)
 - [Roadmap](docs/ROADMAP.md)
