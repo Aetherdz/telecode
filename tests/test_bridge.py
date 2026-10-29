@@ -598,12 +598,12 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertNotIn("input_field_placeholder", markup)
         self.assertEqual(markup["keyboard"][0][0]["text"], "test (1)")
 
-    def test_model_close_restores_picker_without_extra_message(self):
+    def test_model_close_returns_to_main_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
         with patch.object(tb, "_send_keyboard") as show, patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
-        show.assert_not_called()
+        show.assert_called_once_with(cfg, "Menu")
         send.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
@@ -623,10 +623,7 @@ class SessionRoutingTests(unittest.TestCase):
                 self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
             create.assert_not_called()
             send.assert_not_called()
-            if picker == "sessions":
-                keyboard.assert_called_once_with(cfg, "Menu")
-            else:
-                keyboard.assert_not_called()
+            keyboard.assert_called_once_with(cfg, "Menu")
             self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_labels_are_not_consumed_when_no_model_picker_is_active(self):
@@ -1163,6 +1160,23 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertEqual(sum(1 for row in rows if row[0]["text"].startswith("Model ")), 20)
             self.assertEqual(rows[-2][0]["text"], "Next")
             self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_provider_page_has_back_instead_of_cancel(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        models = [{"id": "model-id", "providerID": "provider", "name": "Model"}]
+        with patch.object(tb, "_models_from_api", return_value=models), \
+             patch.object(tb, "_write_models_cache"), \
+             patch.object(tb, "_send_reply_picker") as picker, \
+             patch.object(tb, "_load_models_message_ref", return_value=""), \
+             patch.object(tb, "_read_models_cache", return_value=models):
+            tb._models_menu(cfg)
+        labels = [button["text"] for row in picker.call_args.args[2] for button in row]
+        self.assertIn(tb.MODEL_BACK_MAIN, labels)
+        self.assertNotIn(tb.MODEL_CLOSE, labels)
+        with patch.object(tb, "_send_keyboard") as keyboard:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_BACK_MAIN))
+        keyboard.assert_called_once_with(cfg, "Menu")
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_provider_selection_uses_bottom_keyboard(self):

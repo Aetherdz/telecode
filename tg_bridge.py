@@ -59,6 +59,7 @@ SESSION_PAGE_SIZE = 20
 MODELS_PAGE_SIZE = 20
 MODEL_PAGE_STATE = {"provider_index": None, "page": 0}
 MODEL_BACK = "Back to providers"
+MODEL_BACK_MAIN = "Back"
 MODEL_PREVIOUS = "Previous"
 MODEL_NEXT = "Next"
 MODEL_CLOSE = "Cancel"
@@ -382,7 +383,7 @@ def session_label(session):
 def _session_buttons(sessions):
     """Use clean titles; add a numeric suffix only when titles collide."""
     reserved = {
-        "Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK,
+        "Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK, MODEL_BACK_MAIN,
         MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
         "Current session", NEW_SESSION, CREATE_SESSION,
         "Menu", "Show menu", "Files", "/menu", "/session",
@@ -694,7 +695,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
             header += f"\nCurrent model: <code>{_html_escape(current)}</code>"
         rows = []
         provider_labels = {}
-        reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_PREVIOUS, MODEL_NEXT,
+        reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_BACK_MAIN, MODEL_PREVIOUS, MODEL_NEXT,
                     "Next", "Previous", "Sessions", "Models", "Help",
                     "Current session", "Cancel", "Menu", "Show menu", "Files",
                     "/menu", "/session", "/models", "/model", "/help"}
@@ -707,7 +708,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
                 suffix += 1
             provider_labels[label] = index
             rows.append([{"text": label}])
-        rows.append([{"text": MODEL_CLOSE}])
+        rows.append([{"text": MODEL_BACK_MAIN}])
         MODEL_SELECTION.update(provider=None, page=0, labels=provider_labels)
         header += "\nUse /menu to restore the primary keyboard."
         current_ref = _load_models_message_ref()
@@ -730,7 +731,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     rows = []
     seen = {}
     labels = {}
-    reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_PREVIOUS, MODEL_NEXT,
+    reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_BACK_MAIN, MODEL_PREVIOUS, MODEL_NEXT,
                 "Next", "Previous", "Sessions", "Models", "Help",
                 "Current session", "Cancel", "Menu", "Show menu", "Files",
                 "/menu", "/session", "/models", "/model", "/help"}
@@ -960,6 +961,7 @@ def handle_control_message(cfg, msg, text):
     if cmd == "Cancel" and ACTIVE_PICKER in ("providers", "models"):
         _restore_primary_controls()
         _invalidate_model_message_ref()
+        _send_keyboard(cfg, "Menu")
         return True
     if cmd in ("Next", "Previous") and ACTIVE_PICKER == "sessions":
         if SESSION_SNAPSHOT:
@@ -1099,6 +1101,11 @@ def handle_control_message(cfg, msg, text):
             SESSION_BUTTONS.clear()
             _send_session_picker(cfg)
             return True
+    if ACTIVE_PICKER in ("providers", "models") and cmd == MODEL_BACK_MAIN:
+        _restore_primary_controls()
+        _invalidate_model_message_ref()
+        _send_keyboard(cfg, "Menu")
+        return True
     if ACTIVE_PICKER == "providers" and cmd in ("Previous", MODEL_BACK, MODEL_CLOSE):
         return True
     selected_provider = MODEL_SELECTION.get("labels", {}).get(cmd)

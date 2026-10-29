@@ -31,6 +31,9 @@ and this project adheres to semantic versioning.
 - The session picker is a single short `Sessions` message (with page info) and
   replaces the previous picker message instead of stacking new ones.
 - Session titles keep up to 60 characters instead of being cut at 36.
+- The model-provider page now has a `Back` button instead of `Cancel`, and both
+  `Back` and `Cancel` restore the main keyboard instead of leaving the picker
+  keyboard visible.
 - Documentation no longer claims a Rich dependency or a local browser wizard
   that the project does not ship.
 
