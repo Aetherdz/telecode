@@ -226,8 +226,11 @@ function updateThemeButton() {
   const dark = root.dataset.theme === 'dark';
   [floatingThemeButton].forEach(button => {
     if (!button) return;
-    button.textContent = '';
+    button.innerHTML = dark
+      ? '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path></svg>'
+      : '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"></path></svg>';
     button.setAttribute('aria-label', messages[language][dark ? 'themeToLightAria' : 'themeToDarkAria']);
+    button.title = messages[language][dark ? 'themeToLightAria' : 'themeToDarkAria'];
   });
 }
 function updateNavigationLabel() {
@@ -253,10 +256,13 @@ function closeLanguageMenus(returnFocus = false) {
 [[floatingLanguageButton, floatingLanguageOptions]].forEach(([button, options]) => {
   button?.addEventListener('click', () => {
     const open = button.getAttribute('aria-expanded') !== 'true';
-    closeLanguageMenus();
-    button.setAttribute('aria-expanded', String(open));
-    if (options) options.hidden = !open;
-    if (open) button.focus();
+    if (open) {
+      closeLanguageMenus();
+      button.setAttribute('aria-expanded', 'true');
+      if (options) options.hidden = false;
+    } else {
+      closeLanguageMenus(true);
+    }
   });
   options?.querySelectorAll('[data-language]').forEach(option => {
     option.addEventListener('click', () => {

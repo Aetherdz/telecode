@@ -47,6 +47,8 @@ button { font-family: inherit; }
 .language-toggle[aria-expanded="true"] .language-chevron { transform: rotate(180deg); }
 .language-current { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
 .language-options { position: absolute; z-index: 15; top: calc(100% + 8px); inset-inline-end: 0; display: grid; width: max-content; min-width: 156px; gap: 3px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 14%, transparent); }
+.language-options[hidden] { display: none; }
+.language-options[hidden] { display: none; }
 .language-options button { position: relative; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--text); font: 500 14px var(--sans); text-align: start; cursor: pointer; }
 .language-options button:hover, .language-options button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-deep); }
 .language-options button[lang="ar"] { text-align: right; }
@@ -65,6 +67,7 @@ button { font-family: inherit; }
 .floating-tools .language-toggle svg:first-child { width: 18px; height: 18px; }
 .floating-tools .language-options { min-width: 144px; }
 .floating-tools #theme-toggle-float { padding: 0; }
+.floating-tools #theme-toggle-float svg { display: block; width: 22px; height: 22px; }
 .install-panel > .copy-status { display: none; }
 .nav button { cursor: pointer; }
 .nav-cta { padding: 8px 15px !important; border: 1px solid var(--line) !important; border-radius: 3px; color: var(--text) !important; }

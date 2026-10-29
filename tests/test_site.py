@@ -18,12 +18,14 @@ class SiteTests(unittest.TestCase):
         self.assertIn("pageTitle: 'TeleCode — vos sessions de code", js)
         self.assertIn("copySuccess: 'Commande copiée.'", js)
         self.assertIn('class="language-chevron"', html)
-        self.assertIn("if (open) button.focus();", js)
+        self.assertIn("if (options) options.hidden = false;", js)
 
     def test_language_control_has_mobile_target_size_and_visible_dropdown(self):
         css = (ROOT / "assets/site.css").read_text()
         self.assertIn(".language-toggle { display: inline-flex; min-width: 68px; min-height: 44px", css)
         self.assertIn(".language-options { position: absolute", css)
+        self.assertIn(".language-options[hidden] { display: none; }", css)
+        self.assertIn(".language-options[hidden] { display: none; }", css)
         self.assertIn(".language-toggle[aria-expanded=\"true\"] .language-chevron", css)
 
     def test_floating_bar_uses_requested_links_without_whatsapp_or_audio(self):
@@ -47,7 +49,19 @@ class SiteTests(unittest.TestCase):
 
     def test_language_menu_keeps_focus_on_toggle_when_opened(self):
         js = (ROOT / "assets/site.js").read_text()
-        self.assertIn("if (open) button.focus();", js)
+        self.assertIn("closeLanguageMenus(true);", js)
+
+    def test_language_toggle_can_close_open_menu_by_clicking_chevron(self):
+        js = (ROOT / "assets/site.js").read_text()
+        self.assertIn("const open = button.getAttribute('aria-expanded') !== 'true';", js)
+        self.assertIn("if (options) options.hidden = false;", js)
+        self.assertIn("button.setAttribute('aria-expanded', 'true');", js)
+
+    def test_theme_toggle_renders_contextual_sun_moon_icon_and_label(self):
+        js = (ROOT / "assets/site.js").read_text()
+        self.assertIn("<circle cx=\"12\" cy=\"12\" r=\"4\"></circle>", js)
+        self.assertIn("20.5 15.5A8.5 8.5", js)
+        self.assertIn("button.title = messages[language]", js)
 
     def test_mobile_install_panel_stacks_long_command_and_copy_control(self):
         css = (ROOT / "assets/site.css").read_text()
