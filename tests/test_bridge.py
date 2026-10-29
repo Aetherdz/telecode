@@ -1,5 +1,7 @@
 import importlib.util
+import os
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -1174,6 +1176,42 @@ class SessionRoutingTests(unittest.TestCase):
         source = BRIDGE.read_text(encoding="utf-8")
         emoji = [ch for ch in source if ord(ch) >= 0x1F000]
         self.assertEqual(emoji, [])
+
+    def test_menu_exits_cleanly_on_q(self):
+        with patch("builtins.input", return_value="q"), patch("builtins.print"):
+            self.assertEqual(tb.cmd_menu(), 0)
+
+    def test_no_arguments_without_tty_prints_usage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = os.environ.copy()
+            env["TELEGRAM_BRIDGE_HOME"] = tmp
+            run = subprocess.run([sys.executable, str(BRIDGE)], stdin=subprocess.DEVNULL,
+                                 capture_output=True, text=True, check=False, env=env)
+        self.assertEqual(run.returncode, 2)
+        self.assertIn("menu", run.stderr)
+
+    def test_listener_pid_file_is_removed_only_for_own_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pidfile = pathlib.Path(tmp) / "listener.pid"
+            with patch.object(tb, "PID", pidfile):
+                pidfile.write_text(str(os.getpid()))
+                tb._remove_pid_file()
+                self.assertFalse(pidfile.exists())
+                pidfile.write_text("1")
+                tb._remove_pid_file()
+                self.assertTrue(pidfile.exists())
+
+    def test_session_picker_header_is_short_and_separated_from_rows(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        sessions = [{"id": "ses_abcdefgh", "title": "work"}]
+        with patch.object(tb, "list_sessions", return_value=sessions), \
+             patch.object(tb, "_active_session_id", return_value=""), \
+             patch.object(tb, "api") as api:
+            tb._send_session_picker(cfg)
+        body = api.call_args.args[2]["text"]
+        self.assertTrue(body.startswith("<b>Choose a session</b> \u00b7 tap a button below"))
+        self.assertIn("keyboard\n\n1. <b>", body)
+        self.assertNotIn("Choose a sessionSelect", body)
 
 
 if __name__ == "__main__":

@@ -153,11 +153,16 @@ fi
 if [[ "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
   cat <<'EOF'
 TeleCode guided setup and commands:
+  telecode              open the Setup/Exit menu
   telecode setup        configure a CLI and collect Telegram credentials
   telecode get-id       detect your private chat ID through your own bot
   telecode status       show listener status
   telecode listen       run the listener in this terminal
   telecode help         show this help
+
+Automatic startup uses systemd user services. When they are unavailable
+(containers, WSL, systems without systemd), setup still completes and prints
+the foreground command instead of failing.
 
 Create a bot with @BotFather and keep its token private. For your numeric
 account ID, message @Getmyid_bot, or choose automatic detection and send /start
@@ -166,27 +171,52 @@ EOF
   exit 0
 fi
 
-if [[ "${1:-}" == "--enable" ]]; then
+have_systemd_user() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl --user show-environment >/dev/null 2>&1
+}
+
+check_credentials() {
   if [[ ! -f "$CONFIG_DIR/telegram.env" ]] || \
      ! grep -Eq '^TG_BOT_TOKEN=[0-9]{5,}:[A-Za-z0-9_-]{20,}$' "$CONFIG_DIR/telegram.env" || \
       ! grep -Eq '^TG_CHAT_ID=-?[0-9]+$' "$CONFIG_DIR/telegram.env"; then
     echo "Set a valid TG_BOT_TOKEN (from @BotFather) and numeric TG_CHAT_ID in $CONFIG_DIR/telegram.env before enabling." >&2
-    exit 1
+    return 1
   fi
+}
+
+check_service_paths() {
   if [[ "$CONFIG_DIR$APP_DIR" =~ [[:space:]] || "$CONFIG_DIR$APP_DIR" == *'|'* || "$CONFIG_DIR$APP_DIR" == *'&'* || "$CONFIG_DIR$APP_DIR" == *'\'* || "$CONFIG_DIR$APP_DIR" == *'%'* || "$CONFIG_DIR$APP_DIR" == *'"'* || "$CONFIG_DIR$APP_DIR" == *$'\n'* ]]; then
     echo 'Systemd setup does not support whitespace or |, &, backslash, %, double quote, or newline in XDG paths.' >&2
-    exit 2
+    return 2
+  fi
+}
+
+enable_user_service() {
+  check_credentials || return 1
+  check_service_paths || return 2
+  if ! have_systemd_user; then
+    echo "systemd user services are not available in this environment." >&2
+    echo "No service was enabled. Start the listener with: telecode listen" >&2
+    echo "In containers, WSL, or systems without systemd, keep that process running under your own supervisor." >&2
+    return 3
   fi
   mkdir -p "$UNIT_DIR"
-  TMP_UNIT="$(mktemp "$UNIT_DIR/.telegram-bridge.service.XXXXXX")"
+  local tmp_unit
+  tmp_unit="$(mktemp "$UNIT_DIR/.telegram-bridge.service.XXXXXX")"
   sed -e "s|%h/.config/telegram-bridge|$(printf '%s' "$CONFIG_DIR" | sed 's/[&|\\]/\\&/g')|g" \
       -e "s|%h/.local/share/telegram-bridge|$(printf '%s' "$APP_DIR" | sed 's/[&|\\]/\\&/g')|g" \
-      "$APP_DIR/telegram-bridge.service" > "$TMP_UNIT"
-  chmod 0644 "$TMP_UNIT"
-  mv -f "$TMP_UNIT" "$UNIT_DIR/telegram-bridge.service"
+      "$APP_DIR/telegram-bridge.service" > "$tmp_unit"
+  chmod 0644 "$tmp_unit"
+  mv -f "$tmp_unit" "$UNIT_DIR/telegram-bridge.service"
   systemctl --user daemon-reload
   systemctl --user enable --now telegram-bridge.service
   echo "Enabled user startup service: telegram-bridge"
+}
+
+if [[ "${1:-}" == "--enable" ]]; then
+  enable_user_service || exit $?
+  exit 0
 fi
 
 if [[ "${UPDATE_MODE:-0}" == "1" ]]; then
@@ -281,20 +311,14 @@ PY
     echo "Owner chat ID was not saved; listener will not be enabled." >&2
     exit 2
   fi
-  if [[ "$CONFIG_DIR$APP_DIR" =~ [[:space:]] || "$CONFIG_DIR$APP_DIR" == *'|'* || "$CONFIG_DIR$APP_DIR" == *'&'* || "$CONFIG_DIR$APP_DIR" == *'\'* || "$CONFIG_DIR$APP_DIR" == *'%'* || "$CONFIG_DIR$APP_DIR" == *'"'* || "$CONFIG_DIR$APP_DIR" == *$'\n'* ]]; then
-    echo 'Systemd setup does not support whitespace or |, &, backslash, %, double quote, or newline in XDG paths.' >&2
-    exit 2
+  if have_systemd_user; then
+    enable_user_service || exit $?
+    echo "Setup complete: MCP configured and TeleCode enabled at login. Restart the selected CLI to load MCP."
+  else
+    echo "Setup complete: MCP configured and credentials saved."
+    echo "systemd user services are not available here, so automatic startup was skipped."
+    echo "Start the listener with: telecode listen"
   fi
-  mkdir -p "$UNIT_DIR"
-  TMP_UNIT="$(mktemp "$UNIT_DIR/.telegram-bridge.service.XXXXXX")"
-  sed -e "s|%h/.config/telegram-bridge|$(printf '%s' "$CONFIG_DIR" | sed 's/[&|\\]/\\&/g')|g" \
-      -e "s|%h/.local/share/telegram-bridge|$(printf '%s' "$APP_DIR" | sed 's/[&|\\]/\\&/g')|g" \
-      "$APP_DIR/telegram-bridge.service" > "$TMP_UNIT"
-  chmod 0644 "$TMP_UNIT"
-  mv -f "$TMP_UNIT" "$UNIT_DIR/telegram-bridge.service"
-  systemctl --user daemon-reload
-  systemctl --user enable --now telegram-bridge.service
-  echo "Setup complete: MCP configured and TeleCode enabled at login. Restart the selected CLI to load MCP."
   exit 0
 fi
 

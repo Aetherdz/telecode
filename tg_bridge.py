@@ -25,12 +25,14 @@ Security:
   - Config lives in telegram.env (chmod 600).
   - Injection can be disabled with OPENCODE_INJECT=0 in telegram.env.
 """
+import atexit
 import json
 import os
 import pathlib
 import queue
 import re
 import secrets
+import signal
 import stat
 import subprocess
 import sys
@@ -417,11 +419,15 @@ def _send_session_picker(cfg, page=0, sessions=None):
     active = _active_session_id()
     if not active:
         active = (cfg.get("OPENCODE_SESSION_ID") or "").strip()
-    text = "<b>Choose a session</b>\nSelect the destination for your Telegram messages. Use /menu to restore the main keyboard."
+    page_count = (len(sessions) - 1) // SESSION_PAGE_SIZE + 1
+    header = "<b>Choose a session</b> \u00b7 tap a button below \u00b7 /menu restores the keyboard"
+    if page_count > 1:
+        header += f" \u00b7 page {SESSION_PAGE + 1}/{page_count}"
+    text = header + "\n\n"
     page_sessions = visible[start:start + SESSION_PAGE_SIZE]
     page_labels = {str(s.get("id") or ""): labels[str(s.get("id") or "")]
                    for s in page_sessions}
-    text += "\n" + "\n".join(
+    text += "\n".join(
         f"{start + index}. <b>{_html_escape(page_labels[str(s.get('id') or '')])}</b> — "
         f"<code>{_html_escape(s.get('id', ''))}</code>"
         + (" <i>(active)</i>" if s.get("id") == active else "")
@@ -1236,6 +1242,28 @@ def _inject_worker(cfg: dict) -> None:
             INJECT_Q.task_done()
 
 
+def _remove_pid_file():
+    """Remove listener.pid only when it belongs to this process."""
+    try:
+        if PID.exists() and PID.read_text().strip() == str(os.getpid()):
+            PID.unlink()
+    except (OSError, ValueError):
+        pass
+
+
+def _install_listener_cleanup():
+    atexit.register(_remove_pid_file)
+
+    def _stop(_signum, _frame):
+        raise SystemExit(0)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, _stop)
+        except (ValueError, OSError):
+            pass
+
+
 def cmd_listen():
     cfg = load_env()
     token = cfg["TG_BOT_TOKEN"]
@@ -1501,6 +1529,65 @@ def cmd_status():
     return 0
 
 
+USAGE = ("usage: telecode {menu|setup|listen|read|wait SECONDS|send TEXT|"
+         "sendfile PATH [CAPTION]|status|get-id|--enable|--configure-cli}")
+
+
+def cmd_help():
+    print(USAGE)
+    print()
+    print("Run telecode with no arguments for the interactive menu.")
+    print("Documentation: https://github.com/Aetherdz/telecode#readme")
+    return 0
+
+
+def cmd_setup():
+    """Run the guided installer from the current checkout."""
+    script = pathlib.Path(__file__).resolve().parent / "install.sh"
+    if not script.is_file():
+        print("installer not found; use the release install.sh", file=sys.stderr)
+        return 2
+    return subprocess.call(["bash", str(script)])
+
+
+def cmd_configure_cli():
+    """Run only the MCP registration step from the installer."""
+    script = pathlib.Path(__file__).resolve().parent / "install.sh"
+    if not script.is_file():
+        print("installer not found; use the release install.sh", file=sys.stderr)
+        return 2
+    return subprocess.call(["bash", str(script), "--configure-cli"])
+
+
+def cmd_menu():
+    """Small Setup/Exit menu used when telecode runs without arguments."""
+    options = [
+        ("Full setup (MCP registration, credentials, startup)", cmd_setup),
+        ("Configure a coding-agent CLI only", cmd_configure_cli),
+        ("Enable login service (systemd)", cmd_install),
+        ("Show status", cmd_status),
+        ("Run the listener in this terminal", cmd_listen),
+        ("Show help", cmd_help),
+    ]
+    while True:
+        print()
+        print("TeleCode - Telegram bridge for coding-agent sessions")
+        print()
+        for index, (label, _) in enumerate(options, 1):
+            print(f"  {index}. {label}")
+        print("  q. Exit")
+        try:
+            choice = input("\nSelect an option: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if choice in ("q", "quit", "exit", ""):
+            return 0
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            return options[int(choice) - 1][1]() or 0
+        print("Choose a listed number, or q to exit.")
+
+
 def cmd_install():
     """Install the current checkout as a user-level systemd service."""
     source = pathlib.Path(__file__).resolve().parent
@@ -1526,11 +1613,17 @@ def main():
         args = ["bash", str(pathlib.Path(__file__).resolve().parent / "install.sh"), sys.argv[1]]
         return subprocess.call(args)
     cmds = {
-        "listen": cmd_listen, "read": cmd_read, "wait": cmd_wait,
-        "send": cmd_send, "sendfile": cmd_sendfile, "status": cmd_status,
+        "menu": cmd_menu, "help": cmd_help, "listen": cmd_listen,
+        "read": cmd_read, "wait": cmd_wait, "send": cmd_send,
+        "sendfile": cmd_sendfile, "status": cmd_status,
     }
-    if len(sys.argv) < 2 or sys.argv[1] not in cmds:
-        print("usage: telecode {setup|listen|read|wait SECONDS|send TEXT|sendfile PATH [CAPTION]|status|get-id|--enable|--configure-cli}", file=sys.stderr)
+    if len(sys.argv) < 2:
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            return cmd_menu()
+        print(USAGE, file=sys.stderr)
+        return 2
+    if sys.argv[1] not in cmds:
+        print(USAGE, file=sys.stderr)
         return 2
     return cmds[sys.argv[1]]() or 0
 

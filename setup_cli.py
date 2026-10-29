@@ -72,71 +72,188 @@ def selectable_hosts():
     return detected
 
 
-def choose(options):
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        try:
-            import termios
-            import tty
-            fd = sys.stdin.fileno()
-            old = termios.tcgetattr(fd)
-            selected = 0
-            color = sys.platform != "win32" and "NO_COLOR" not in os.environ
-            print("\nSelect the coding-agent CLI to configure (↑/↓, Enter; q to cancel):", flush=True)
-            lines = []
-            for host in options:
-                found, config, supported = discover(host)
-                suffix = "detected" if found or config else "manual setup"
-                if not supported:
-                    suffix += "; manual config"
-                lines.append(f"  {host[0]} ({suffix})")
-            print("\n".join(lines), flush=True)
-            for _ in lines:
-                sys.stdout.write("\033[1A")
-            sys.stdout.flush()
-            try:
-                tty.setraw(fd)
-                while True:
-                    sys.stdout.write("\033[1A" * len(lines))
-                    for i, line in enumerate(lines):
-                        if i == selected:
-                            marker = "\033[1;38;2;48;179;239m❯\033[0m " if color else "❯ "
-                            label = f"\033[1;38;2;48;179;239m{line.strip()}\033[0m" if color else line.strip()
-                        else:
-                            marker, label = "  ", line.strip()
-                        sys.stdout.write("\033[2K" + marker + label + "\n")
-                    sys.stdout.flush()
-                    key = sys.stdin.read(1)
-                    if key == "\x1b":
-                        seq = sys.stdin.read(2)
-                        if seq == "[A": selected = (selected - 1) % len(options)
-                        elif seq == "[B": selected = (selected + 1) % len(options)
-                    elif key in ("\r", "\n"):
-                        return options[selected]
-                    elif key.lower() == "q":
-                        return None
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
-        except (ImportError, OSError, AttributeError):
-            pass
-    print("\nSelect the coding-agent CLI to configure:")
-    color = sys.stdout.isatty() and sys.platform != "win32" and "NO_COLOR" not in os.environ
-    for i, host in enumerate(options, 1):
-        found, config, supported = discover(host)
-        suffix = "detected" if found or config else "manual setup"
-        if not supported:
-            suffix += "; manual config"
-        mark = "●" if i == 1 else "○"
-        line = f"  {mark} {host[0]} ({suffix})"
-        if color and i == 1:
-            line = f"\033[1;38;2;48;179;239m{line}\033[0m"
-        print(line)
+def _color_enabled():
+    return (sys.stdout.isatty() and sys.platform != "win32"
+            and "NO_COLOR" not in os.environ
+            and os.environ.get("TERM", "") != "dumb")
+
+
+def _paint(text, code):
+    return f"\033[{code}m{text}\033[0m" if _color_enabled() else text
+
+
+def _accent(text):
+    return _paint(text, "1;38;2;48;179;239")
+
+
+def _dim(text):
+    return _paint(text, "2")
+
+
+def _green(text):
+    return _paint(text, "32")
+
+
+def _yellow(text):
+    return _paint(text, "33")
+
+
+def host_state(host):
+    """Human-readable detection state used by both menu styles."""
+    _, executable, _, supported = host
+    if executable is None:
+        return "manual setup", "dim"
+    found_cli, found_config, _ = discover(host)
+    if found_cli and found_config:
+        state, tone = "CLI + config found", "ok"
+    elif found_cli:
+        state, tone = "CLI found", "ok"
+    elif found_config:
+        state, tone = "config found", "warn"
+    else:
+        state, tone = "not detected", "dim"
+    if not supported:
+        state += " - manual config"
+        tone = "warn"
+    return state, tone
+
+
+def _state_text(state, tone):
+    if tone == "ok":
+        return _green(state)
+    if tone == "warn":
+        return _yellow(state)
+    return _dim(state)
+
+
+def _menu_rows(options):
+    labels = [f"{index}. {host[0]}" for index, host in enumerate(options, 1)]
+    states = [host_state(host) for host in options]
+    label_width = max(len(label) for label in labels)
+    state_width = max(len(state) for state, _ in states)
+    return labels, states, label_width, state_width
+
+
+def _box(title, rows, width):
+    inner = width - 2
+    heading = f"\u2500 {title} "
+    top = "\u250c" + heading + "\u2500" * max(0, inner - len(heading)) + "\u2510"
+    body = ["\u2502" + row.ljust(inner) + "\u2502" for row in rows]
+    bottom = "\u2514" + "\u2500" * inner + "\u2518"
+    return [_dim(top)] + body + [_dim(bottom)]
+
+
+def _menu_lines(options, selected):
+    labels, states, label_width, state_width = _menu_rows(options)
+    rows = []
+    for index, (label, (state, tone)) in enumerate(zip(labels, states)):
+        plain = f" {label:<{label_width}}  {state:<{state_width}} "
+        if index == selected:
+            rows.append(_accent(("\u276f " + label).ljust(label_width + 2)
+                                + "  " + state.ljust(state_width) + " "))
+        else:
+            rows.append("  " + label.ljust(label_width)
+                        + "  " + _state_text(state.ljust(state_width), tone) + " ")
+    title = "Select the coding-agent CLI to configure"
+    width = max(label_width + state_width + 8, len(title) + 6)
+    lines = _box(title, rows, width)
+    lines.append(_dim("\u2191/\u2193 move \u00b7 1-9 jump \u00b7 Enter select \u00b7 q cancel"))
+    return lines
+
+
+def _write_lines(lines):
+    sys.stdout.write("\n".join(lines) + "\n")
+    sys.stdout.flush()
+
+
+def _redraw(lines):
+    sys.stdout.write(f"\033[{len(lines)}A")
+    for line in lines:
+        sys.stdout.write("\r\033[2K" + line + "\n")
+    sys.stdout.flush()
+
+
+def _choose_numbered(options):
+    labels, states, label_width, state_width = _menu_rows(options)
+    print()
+    print(_accent("Select the coding-agent CLI to configure"))
+    print(_dim("-" * (label_width + state_width + 6)))
+    for label, (state, tone) in zip(labels, states):
+        row = f"  {label:<{label_width}}  {_state_text(state.ljust(state_width), tone)}"
+        print(row.rstrip())
+    print(_dim("-" * (label_width + state_width + 6)))
     while True:
-        answer = input("Enter a listed number (or q to cancel): ").strip().lower()
+        try:
+            answer = input("Enter a number (or q to cancel): ").strip().lower()
+        except EOFError:
+            return None
         if answer in ("q", "quit", "skip"):
             return None
         if answer.isdigit() and 1 <= int(answer) <= len(options):
             return options[int(answer) - 1]
         print("Choose one of the listed numbers.")
+
+
+def ask(prompt):
+    """input() that treats EOF and Ctrl-C as a clean cancellation."""
+    try:
+        return input(prompt)
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return None
+
+
+def _choose_arrow(options):
+    import termios
+    import tty
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    selected = 0
+    lines = _menu_lines(options, selected)
+    try:
+        tty.setraw(fd)
+        sys.stdout.write("\033[?25l")
+        _write_lines(lines)
+        while True:
+            key = sys.stdin.read(1)
+            if key == "\x1b":
+                # Arrow keys arrive as one escape sequence in a single read burst.
+                seq = sys.stdin.read(2)
+                if seq == "[A":
+                    selected = (selected - 1) % len(options)
+                elif seq == "[B":
+                    selected = (selected + 1) % len(options)
+                else:
+                    _redraw(_menu_lines(options, None))
+                    return None
+            elif key in ("\r", "\n"):
+                _redraw(lines)
+                print(_green("Selected: ") + options[selected][0])
+                return options[selected]
+            elif key in ("q", "Q", "\x03", "\x04"):
+                _redraw(_menu_lines(options, None))
+                return None
+            elif key.isdigit() and 1 <= int(key) <= len(options):
+                selected = int(key) - 1
+                lines = _menu_lines(options, selected)
+                _redraw(lines)
+                print(_green("Selected: ") + options[selected][0])
+                return options[selected]
+            lines = _menu_lines(options, selected)
+            _redraw(lines)
+    finally:
+        sys.stdout.write("\033[?25h")
+        sys.stdout.flush()
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def choose(options):
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            return _choose_arrow(options)
+        except (ImportError, OSError, AttributeError, ValueError):
+            pass
+    return _choose_numbered(options)
 
 
 def backup(path):
@@ -281,11 +398,12 @@ def main():
             print("Choose Claude Code config scope:")
             for idx, path in enumerate(candidates, 1):
                 print(f"  {idx}. {path}")
-            choice = input("Enter number: ").strip()
-            if not choice.isdigit() or not 1 <= int(choice) <= len(candidates):
+            choice = ask("Enter number: ")
+            if choice is None or not choice.strip().isdigit() or \
+                    not 1 <= int(choice.strip()) <= len(candidates):
                 print("Cancelled; no files changed.")
                 return 2
-            config = candidates[int(choice) - 1]
+            config = candidates[int(choice.strip()) - 1]
     if host[1] == "codex" and supported and config and config.suffix == ".toml":
         try:
             new_content = register_codex_toml(config)
@@ -293,8 +411,8 @@ def main():
             print(f"Cannot configure Codex: {e}; no files changed.")
             return 2
         print(f"Target: {config}")
-        confirm = input("Back up and add Telegram Bridge to this config? [y/N] ").strip().lower()
-        if confirm != "y":
+        confirm = ask("Back up and add Telegram Bridge to this config? [y/N] ")
+        if confirm is None or confirm.strip().lower() != "y":
             print("Cancelled; no files changed.")
             return 2
         if config.exists():
@@ -310,8 +428,8 @@ def main():
             print(f"Cannot configure Codex: {e}; no files changed.")
             return 2
         print(f"Target: {config}")
-        confirm = input("Create Codex MCP config? [y/N] ").strip().lower()
-        if confirm != "y":
+        confirm = ask("Create Codex MCP config? [y/N] ")
+        if confirm is None or confirm.strip().lower() != "y":
             print("Cancelled; no files changed.")
             return 2
         config.parent.mkdir(parents=True, exist_ok=True)
@@ -337,8 +455,8 @@ def main():
         return 2
     print(f"Target: {config}")
     print(f"MCP server command: {MCP_COMMAND[0]} {' '.join(MCP_COMMAND[1:])}")
-    confirm = input("Back up and add Telegram Bridge to this config? [y/N] ").strip().lower()
-    if confirm != "y":
+    confirm = ask("Back up and add Telegram Bridge to this config? [y/N] ")
+    if confirm is None or confirm.strip().lower() != "y":
         print("Cancelled; no files changed.")
         return 2
     config.parent.mkdir(parents=True, exist_ok=True)

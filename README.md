@@ -55,7 +55,7 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 - **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound session routing currently requires OpenCode.
 - **Keep the boundary local and private:** only the configured owner chat is accepted; credentials live in a private runtime config.
 - **Install without a build step:** Python 3.11+ standard library runtime, guided setup, optional systemd service, or foreground listener for cloud shells.
-- **Readable terminal setup:** The packaged Python CLI uses Rich for styled menus and prompts when installed; the shell installer keeps a dependency-free fallback.
+- **Readable terminal setup:** The Python CLI renders an aligned, keyboard-driven menu with plain ANSI styling and no third-party dependency; the shell installer keeps the same dependency-free approach.
 
 ## Quick start
 
@@ -75,7 +75,7 @@ cd telecode
 ./install.sh
 ```
 
-Run `telecode` for the Setup/Exit menu, then choose terminal CLI setup or the optional local browser wizard. The HTTP wizard opens only on `127.0.0.1:8080`; it installs files and saves credentials locally but does not start the listener or systemd service. Review the source and [installation guide](docs/INSTALL.md) before running it. For a guided Linux setup from a terminal, use `curl -fsSL https://raw.githubusercontent.com/Aetherdz/telecode/main/install.sh | bash -s -- --curl-bootstrap`. For updates from a source checkout, use `./install.sh --update`.
+Run `telecode` with no arguments for the Setup/Exit menu, or run `./install.sh` for the full guided setup. Setup registers the MCP server, stores credentials locally, and enables the systemd user service when systemd is available. On containers, WSL, or other systems without systemd user services, setup completes without enabling a service and prints the foreground command (`telecode listen`) instead. Review the source and [installation guide](docs/INSTALL.md) before running it. For a guided Linux setup from a terminal, use `curl -fsSL https://raw.githubusercontent.com/Aetherdz/telecode/main/install.sh | bash -s -- --curl-bootstrap`. For updates from a source checkout, use `./install.sh --update`.
 
 There is no published npm/Bun package or `npx`/`bunx` installer yet. TeleCode is a Python application; the guided installer installs it locally and registers its MCP server with the client you choose. Do not use `npx aetherdz/telecode` or `bunx aetherdz/telecode` as if those package names were published.
 
