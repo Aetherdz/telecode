@@ -26,6 +26,17 @@ class SiteTests(unittest.TestCase):
         self.assertIn(".language-options { position: absolute", css)
         self.assertIn(".language-toggle[aria-expanded=\"true\"] .language-chevron", css)
 
+    def test_floating_bar_uses_requested_links_without_whatsapp_or_audio(self):
+        html = (ROOT / "index.html").read_text()
+        self.assertIn('class="floating-tools"', html)
+        self.assertIn('href="https://github.com/Aetherdz"', html)
+        self.assertIn('href="https://www.linkedin.com/in/aether-dz"', html)
+        self.assertIn('href="https://t.me/PP9PS"', html)
+        self.assertNotIn('wa.me/', html)
+        self.assertNotIn('whatsapp', html.lower())
+        self.assertNotIn('audio', html.lower())
+        self.assertIn(".floating-tools { position: fixed", (ROOT / "assets/site.css").read_text())
+
     def test_mobile_install_panel_stacks_long_command_and_copy_control(self):
         css = (ROOT / "assets/site.css").read_text()
         self.assertRegex(css, r"@media \(max-width: 560px\)[\s\S]*?\.install-panel > \.install-command\s*\{[^}]*flex-direction:\s*column")

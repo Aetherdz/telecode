@@ -1,8 +1,8 @@
 'use strict';
 const root = document.documentElement;
-const themeButton = document.querySelector('#theme-toggle');
-const languageButton = document.querySelector('#language-toggle');
-const languageOptions = document.querySelector('#language-options');
+const floatingThemeButton = document.querySelector('#theme-toggle-float');
+const floatingLanguageButton = document.querySelector('#language-toggle-float');
+const floatingLanguageOptions = document.querySelector('#language-options-float');
 const navToggle = document.querySelector('.nav-toggle');
 const nav = document.querySelector('#nav');
 const preview = document.querySelector('#model-preview');
@@ -16,8 +16,8 @@ const messages = {
   en: {
     pageTitle: 'TeleCode — your coding sessions, within reach',
     metaDescription: 'TeleCode connects Telegram to local OpenCode sessions and coding-agent MCP tools.',
-    skip: 'Skip to content', homeAria: 'TeleCode home', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'TeleCode repository on GitHub (opens in a new tab)', navOpen: 'Open navigation', navClose: 'Close navigation', mainNav: 'Main navigation',
-    switchLanguageAria: 'Choose language', phonePreview: 'Illustrative model picker preview', switchTheme: 'Switch color theme', mapScrollAria: 'Scrollable routing diagram. Use left and right arrow keys to explore.',
+    skip: 'Skip to content', homeAria: 'TeleCode home', repositoryLink: 'AetherDz', repositoryAria: 'AetherDz on GitHub (opens in a new tab)', navOpen: 'Open navigation', navClose: 'Close navigation', mainNav: 'Main navigation',
+    switchLanguageAria: 'Choose language', quickLinksAria: 'Quick links and display controls', linkedinAria: 'LinkedIn: Aether DZ', telegramAria: 'Telegram: PP9PS', githubAria: 'AetherDz on GitHub', phonePreview: 'Illustrative model picker preview', switchTheme: 'Switch color theme', mapScrollAria: 'Scrollable routing diagram. Use left and right arrow keys to explore.',
     themeToDarkAria: 'Switch to dark mode', themeToLightAria: 'Switch to light mode',
     providerAria: 'Choose {provider} as the model provider', previewButtonAria: '{action} preview',
     navFlow: 'How it works', navIntegrations: 'Integrations', navCommands: 'Commands', navSecurity: 'Security', navInstall: 'Install',
@@ -75,8 +75,8 @@ const messages = {
   ar: {
     pageTitle: 'TeleCode — جلسات البرمجة في متناولك',
     metaDescription: 'يربط TeleCode تيليجرام بجلسات OpenCode المحلية وأدوات MCP لوكلاء البرمجة.',
-    skip: 'انتقل إلى المحتوى', homeAria: 'الصفحة الرئيسية لـ TeleCode', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'مستودع TeleCode على GitHub (يفتح في علامة تبويب جديدة)', navOpen: 'فتح التنقل', navClose: 'إغلاق التنقل', mainNav: 'التنقل الرئيسي',
-    switchLanguageAria: 'اختيار اللغة', phonePreview: 'معاينة توضيحية لاختيار النموذج', switchTheme: 'تغيير مظهر الألوان', mapScrollAria: 'مخطط مسار قابل للتمرير. استخدم السهمين الأيمن والأيسر لاستعراضه.',
+    skip: 'انتقل إلى المحتوى', homeAria: 'الصفحة الرئيسية لـ TeleCode', repositoryLink: 'AetherDz', repositoryAria: 'حساب AetherDz على GitHub (يفتح في علامة تبويب جديدة)', navOpen: 'فتح التنقل', navClose: 'إغلاق التنقل', mainNav: 'التنقل الرئيسي',
+    switchLanguageAria: 'اختيار اللغة', quickLinksAria: 'روابط سريعة وأدوات العرض', linkedinAria: 'لينكد إن: Aether DZ', telegramAria: 'تيليجرام: PP9PS', githubAria: 'حساب AetherDz على GitHub', phonePreview: 'معاينة توضيحية لاختيار النموذج', switchTheme: 'تغيير مظهر الألوان', mapScrollAria: 'مخطط مسار قابل للتمرير. استخدم السهمين الأيمن والأيسر لاستعراضه.',
     languageName: 'العربية',
     themeToDarkAria: 'التبديل إلى الوضع الليلي', themeToLightAria: 'التبديل إلى الوضع النهاري',
     providerAria: 'اختيار {provider} كمزوّد للنموذج', previewButtonAria: '{action} المعاينة',
@@ -135,8 +135,8 @@ const messages = {
   fr: {
     pageTitle: 'TeleCode — vos sessions de code, à portée de main',
     metaDescription: 'TeleCode relie Telegram aux sessions OpenCode locales et aux outils MCP pour les agents de programmation.',
-    skip: 'Aller au contenu', homeAria: 'Accueil TeleCode', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'Dépôt TeleCode sur GitHub (s’ouvre dans un nouvel onglet)', navOpen: 'Ouvrir la navigation', navClose: 'Fermer la navigation', mainNav: 'Navigation principale',
-    switchLanguageAria: 'Choisir la langue', phonePreview: 'Aperçu illustratif du sélecteur de modèles', switchTheme: 'Changer le thème de couleur', mapScrollAria: 'Schéma de routage défilant. Utilisez les flèches gauche et droite pour le parcourir.',
+    skip: 'Aller au contenu', homeAria: 'Accueil TeleCode', repositoryLink: 'AetherDz', repositoryAria: 'Profil AetherDz sur GitHub (s’ouvre dans un nouvel onglet)', navOpen: 'Ouvrir la navigation', navClose: 'Fermer la navigation', mainNav: 'Navigation principale',
+    switchLanguageAria: 'Choisir la langue', quickLinksAria: 'Liens rapides et affichage', linkedinAria: 'LinkedIn : Aether DZ', telegramAria: 'Telegram : PP9PS', githubAria: 'AetherDz sur GitHub', phonePreview: 'Aperçu illustratif du sélecteur de modèles', switchTheme: 'Changer le thème de couleur', mapScrollAria: 'Schéma de routage défilant. Utilisez les flèches gauche et droite pour le parcourir.',
     themeToDarkAria: 'Passer au thème sombre', themeToLightAria: 'Passer au thème clair', providerAria: 'Choisir {provider} comme fournisseur du modèle', previewButtonAria: 'Aperçu de {action}',
     navFlow: 'Fonctionnement', navIntegrations: 'Intégrations', navCommands: 'Commandes', navSecurity: 'Sécurité', navInstall: 'Installation', darkMode: 'Thème sombre', lightMode: 'Thème clair',
     heroEyebrow: 'DE TELEGRAM AUX SESSIONS LOCALES', heroTitle: 'Votre session de code,<br><em>à portée de main.</em>', heroLede: 'Choisissez une session OpenCode, écrivez-lui depuis Telegram et recevez ses réponses via des outils MCP locaux.', getStarted: 'Commencer', viewSource: 'Voir le code', selectedTarget: 'Cible sélectionnée : session OpenCode', localListener: 'Service local', pythonVersion: 'Python 3.11+', stdlib: 'Bibliothèque standard', mitLicense: 'Licence MIT', github: 'GitHub',
@@ -192,15 +192,24 @@ function applyLanguage(next) {
   if (copyStatus) copyStatus.textContent = '';
   const description = document.querySelector('[data-i18n-content="metaDescription"]');
   if (description) description.content = dict.metaDescription;
-  if (languageButton) {
-    languageButton.setAttribute('aria-label', dict.switchLanguageAria);
-    languageButton.setAttribute('lang', language);
-    languageButton.querySelector('.language-current').textContent = language.toUpperCase();
-  }
-  languageOptions?.querySelectorAll('[data-language]').forEach(option => {
-    option.setAttribute('aria-pressed', String(option.dataset.language === language));
+  [floatingLanguageButton].forEach(button => {
+    if (!button) return;
+    button.setAttribute('aria-label', dict.switchLanguageAria);
+    button.setAttribute('lang', language);
+    const currentLabel = button.querySelector('.language-current');
+    if (currentLabel) currentLabel.textContent = language.toUpperCase();
   });
-  if (languageOptions) languageOptions.setAttribute('aria-label', dict.switchLanguageAria);
+  const floatingTools = document.querySelector('.floating-tools');
+  if (floatingTools) floatingTools.setAttribute('aria-label', dict.quickLinksAria);
+  document.querySelector('.floating-link-github')?.setAttribute('aria-label', dict.githubAria);
+  document.querySelector('.floating-link-linkedin')?.setAttribute('aria-label', dict.linkedinAria);
+  document.querySelector('.floating-link-telegram')?.setAttribute('aria-label', dict.telegramAria);
+  [floatingLanguageOptions].forEach(options => {
+    options?.querySelectorAll('[data-language]').forEach(option => {
+      option.setAttribute('aria-pressed', String(option.dataset.language === language));
+    });
+    if (options) options.setAttribute('aria-label', dict.switchLanguageAria);
+  });
   document.querySelectorAll('.provider').forEach(button => button.setAttribute('aria-label', dict.providerAria.replace('{provider}', button.dataset.provider)));
   document.querySelectorAll('[data-preview-key]').forEach(button => button.setAttribute('aria-label', dict.previewButtonAria.replace('{action}', dict[button.dataset.previewKey])));
   document.querySelectorAll('[data-copy-aria]').forEach(button => button.setAttribute('aria-label', dict[button.dataset.copyAria] || dict.copyAria));
@@ -214,10 +223,12 @@ function applyLanguage(next) {
   updateNavigationLabel();
 }
 function updateThemeButton() {
-  if (!themeButton) return;
   const dark = root.dataset.theme === 'dark';
-  themeButton.textContent = messages[language][dark ? 'lightMode' : 'darkMode'];
-  themeButton.setAttribute('aria-label', messages[language][dark ? 'themeToLightAria' : 'themeToDarkAria']);
+  [floatingThemeButton].forEach(button => {
+    if (!button) return;
+    button.textContent = '';
+    button.setAttribute('aria-label', messages[language][dark ? 'themeToLightAria' : 'themeToDarkAria']);
+  });
 }
 function updateNavigationLabel() {
   if (!navToggle) return;
@@ -232,41 +243,39 @@ function setTheme(theme) {
 }
 applyLanguage(language);
 setTheme(root.dataset.theme || 'light');
-languageButton?.addEventListener('click', () => {
-  const open = languageButton.getAttribute('aria-expanded') !== 'true';
-  languageButton.setAttribute('aria-expanded', String(open));
-  if (languageOptions) languageOptions.hidden = !open;
-  if (open) languageOptions?.querySelector('[data-language][aria-pressed="true"]')?.focus();
-});
-languageOptions?.querySelectorAll('[data-language]').forEach(option => {
-  option.addEventListener('click', () => {
-    applyLanguage(option.dataset.language);
-    languageOptions.hidden = true;
-    languageButton?.setAttribute('aria-expanded', 'false');
-    languageButton?.focus();
+function closeLanguageMenus(returnFocus = false) {
+  [[floatingLanguageButton, floatingLanguageOptions]].forEach(([button, options]) => {
+    if (options) options.hidden = true;
+    button?.setAttribute('aria-expanded', 'false');
+  });
+  if (returnFocus) document.activeElement?.closest('.language-menu')?.querySelector('button[id^="language-toggle"]')?.focus();
+}
+[[floatingLanguageButton, floatingLanguageOptions]].forEach(([button, options]) => {
+  button?.addEventListener('click', () => {
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    closeLanguageMenus();
+    button.setAttribute('aria-expanded', String(open));
+    if (options) options.hidden = !open;
+    if (open) options?.querySelector('[data-language][aria-pressed="true"]')?.focus();
+  });
+  options?.querySelectorAll('[data-language]').forEach(option => {
+    option.addEventListener('click', () => {
+      applyLanguage(option.dataset.language);
+      closeLanguageMenus();
+      button?.focus();
+    });
+  });
+  options?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closeLanguageMenus(true);
+      event.preventDefault();
+    }
   });
 });
 document.addEventListener('click', event => {
-  if (!event.target.closest('.language-menu')) {
-    if (languageOptions) languageOptions.hidden = true;
-    languageButton?.setAttribute('aria-expanded', 'false');
-  }
+  if (!event.target.closest('.language-menu')) closeLanguageMenus();
 });
-languageOptions?.addEventListener('keydown', event => {
-  if (event.key === 'Escape') {
-    languageOptions.hidden = true;
-    languageButton?.setAttribute('aria-expanded', 'false');
-    languageButton?.focus();
-  }
-});
-languageButton?.addEventListener('keydown', event => {
-  if (event.key === 'Escape') {
-    if (languageOptions) languageOptions.hidden = true;
-    languageButton.setAttribute('aria-expanded', 'false');
-    languageButton.focus();
-  }
-});
-themeButton?.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+floatingThemeButton?.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 function closeNavigation() {
   nav?.classList.remove('open');
