@@ -208,7 +208,7 @@ class SessionRoutingTests(unittest.TestCase):
     def test_new_session_button_and_slash_command_aliases_always_start_name_prompt(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         for picker_state in (None, "sessions", "models", "providers"):
-            for command in (tb.NEW_SESSION, "/newsession"):
+            for command in (tb.NEW_SESSION,):
                 tb.ACTIVE_PICKER = picker_state
                 with self.subTest(state=picker_state, command=command), \
                      patch.object(tb, "_send_reply_picker") as prompt, \
@@ -499,7 +499,17 @@ class SessionRoutingTests(unittest.TestCase):
     def test_new_session_command_is_registered_in_main_keyboard(self):
         markup = tb._keyboard({})["keyboard"]
         self.assertIn({"text": "New session"}, [item for row in markup for item in row])
-        self.assertIn({"text": "/newsession"}, [item for row in markup for item in row])
+        self.assertNotIn({"text": "/newsession"}, [item for row in markup for item in row])
+
+    def test_retired_newsession_command_is_ignored(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = None
+        with patch.object(tb, "_send_reply_picker") as prompt, \
+             patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/newsession"))
+        prompt.assert_not_called()
+        send.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_session_picker_button_caption_with_photo_is_consumed_as_control(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -750,7 +760,7 @@ class SessionRoutingTests(unittest.TestCase):
         commands = __import__("json").loads(api.call_args.args[2]["commands"])
         self.assertIn({"command": "models", "description": "Choose a model"}, commands)
         self.assertIn({"command": "model", "description": "Choose a model"}, commands)
-        self.assertIn({"command": "newsession", "description": "Create and select a session"}, commands)
+        self.assertNotIn({"command": "newsession", "description": "Create and select a session"}, commands)
         self.assertIn({"command": "files", "description": "List received files"}, commands)
         self.assertIn({"command": "start", "description": "Show TeleCode controls"}, commands)
         self.assertIn({"command": "current", "description": "Show the active session"}, commands)
@@ -1114,7 +1124,7 @@ class SessionRoutingTests(unittest.TestCase):
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
         self.assertEqual(buttons, ["Sessions", "Current session", "New session", "Models", "Help",
-                                   "/menu", "/session", "/newsession", "/models"])
+                                   "/menu", "/session", "/models"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}

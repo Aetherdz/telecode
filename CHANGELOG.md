@@ -34,6 +34,9 @@ and this project adheres to semantic versioning.
 - The model-provider page now has a `Back` button instead of `Cancel`, and both
   `Back` and `Cancel` restore the main keyboard instead of leaving the picker
   keyboard visible.
+- Removed the `/newsession` slash command from the keyboard, bot command menu,
+  and help text. Old `/newsession` buttons are ignored instead of starting a
+  name prompt; the `New session` button remains.
 - Documentation no longer claims a Rich dependency or a local browser wizard
   that the project does not ship.
 

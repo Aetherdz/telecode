@@ -95,7 +95,7 @@ flowchart LR
     M -->|Reply or approved file| TG
 ```
 
-The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`. Create a session with `New session` or `/newsession`; after you provide a name, TeleCode creates it through OpenCode and selects it for subsequent messages. Sessions from other project directories are included when visible to the OpenCode API.
+The listener long-polls Telegram, checks incoming messages against the configured owner chat, stores accepted messages in the local inbox, and injects them into the selected session. The coding agent replies through `tg_send` or `tg_sendfile`. Create a session with `New session`; after you provide a name, TeleCode creates it through OpenCode and selects it for subsequent messages. Sessions from other project directories are included when visible to the OpenCode API.
 
 ## Telegram controls
 
@@ -103,7 +103,7 @@ The listener long-polls Telegram, checks incoming messages against the configure
 | --- | --- |
 | `Sessions` / `/session` | Browse available sessions and select the active target. |
 | `Current session` / `/current` | Show the active session and its ID. |
-| `New session` / `/newsession` | Enter a name, create an OpenCode session, and select it for subsequent messages. `Create session` also starts this flow. |
+| `New session` | Enter a name, create an OpenCode session, and select it for subsequent messages. |
 | `Enter session ID` / `/entersession` | Enter and verify a full OpenCode session ID, including one missing from the picker. |
 | `Models` / `/models` | Browse providers and models, then switch the active OpenCode session. |
 | `Help` / `/help` | Show available controls. |

@@ -19,7 +19,7 @@ description: Use the Telegram bridge to deliver user-facing answers and requeste
 
 - Use Telegram's persistent **Sessions** keyboard or `/session` to choose the
   target. `/current` reports the selected session ID.
-- Use **New session** or `/newsession` to create a named OpenCode session. The bot
+- Use **New session** to create a named OpenCode session. The bot
   asks for a name; after creation, that session becomes the active target for new
   inbound messages and attachments.
 - During the name prompt, send `Cancel` or `/menu` to stop. Other control commands

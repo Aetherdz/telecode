@@ -295,7 +295,7 @@ def _keyboard(cfg):
                          [{"text": "New session"}, {"text": "Models"}],
                          [{"text": "Help"}],
                          [{"text": "/menu"}, {"text": "/session"},
-                          {"text": "/newsession"}, {"text": "/models"}]],
+                          {"text": "/models"}]],
             "resize_keyboard": True, "one_time_keyboard": True}
 
 
@@ -304,7 +304,6 @@ def _configure_commands(cfg):
         api(cfg["TG_BOT_TOKEN"], "setMyCommands", {"commands": json.dumps([
             {"command": "menu", "description": "Show the TeleCode keyboard"},
             {"command": "session", "description": "Choose the active session"},
-            {"command": "newsession", "description": "Create and select a session"},
             {"command": "models", "description": "Choose a model"},
             {"command": "model", "description": "Choose a model"},
             {"command": "current", "description": "Show the active session"},
@@ -893,6 +892,9 @@ def handle_control_message(cfg, msg, text):
     cmd = (text or "").strip().replace("\ufe0e", "").replace("\ufe0f", "").strip()
     if cmd.startswith("/") and "@" in cmd:
         cmd = cmd.split("@", 1)[0]
+    if cmd == "/newsession":
+        # Retired from the keyboard; ignore old buttons instead of starting a prompt.
+        return True
 
     # Handle the name-entry state first so ordinary text is never mistaken for a
     # command and create-session actions can never become the title themselves.
@@ -905,7 +907,7 @@ def handle_control_message(cfg, msg, text):
             _restore_primary_controls()
             _send_keyboard(cfg)
             return True
-        if cmd in (NEW_SESSION, CREATE_SESSION, "/newsession"):
+        if cmd in (NEW_SESSION, CREATE_SESSION):
             _begin_new_session(cfg)
             return True
         if cmd in ("Next", "Previous"):
@@ -946,7 +948,7 @@ def handle_control_message(cfg, msg, text):
         return True
 
     # New-session actions work from the main keyboard and any active picker.
-    if cmd in (NEW_SESSION, "/newsession", CREATE_SESSION):
+    if cmd in (NEW_SESSION, CREATE_SESSION):
         if ACTIVE_PICKER in ("models", "providers", "sessions"):
             _restore_primary_controls()
             _invalidate_model_message_ref()
@@ -985,7 +987,7 @@ def handle_control_message(cfg, msg, text):
         SESSION_PAGE = 0
         SESSION_BUTTONS.clear()
         ACTIVE_PICKER = None
-        _send_keyboard(cfg, "<b>Commands</b>\n/session selects a session\n/newsession creates and selects a named session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.",
+        _send_keyboard(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.",
                        configure=(cmd == "/start"), parse_mode="HTML")
         return True
     if cmd in ("/files", "Files"):
@@ -1074,7 +1076,7 @@ def handle_control_message(cfg, msg, text):
         _models_menu(cfg, models_snapshot=_read_models_cache())
         return True
     if ACTIVE_PICKER in ("models", "providers") and cmd in (
-            "Sessions", "Current session", "Help", "Files", "/session", "/newsession",
+            "Sessions", "Current session", "Help", "Files", "/session",
             "/current", "/help", "/files"):
         if cmd in ("Current session", "/current"):
             sid, _ = resolve_session(cfg)
@@ -1085,7 +1087,7 @@ def handle_control_message(cfg, msg, text):
                 send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
             return True
         if cmd in ("Help", "/help"):
-            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/newsession creates and selects a named session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
             return True
         if cmd in ("Files", "/files"):
             sid, _ = resolve_session(cfg)
