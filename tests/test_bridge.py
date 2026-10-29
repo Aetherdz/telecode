@@ -151,13 +151,14 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
         self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
 
-    def test_empty_session_picker_cancel_restores_main_keyboard(self):
+    def test_empty_session_picker_cancel_closes_without_extra_message(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         tb.ACTIVE_PICKER = "sessions"
         tb.SESSION_SNAPSHOT = []
-        with patch.object(tb, "_send_keyboard") as keyboard:
+        with patch.object(tb, "_send_keyboard") as keyboard, patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
+        send.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_session_picker_attachment_is_consumed_without_prompting_name(self):
@@ -260,7 +261,7 @@ class SessionRoutingTests(unittest.TestCase):
         verify.assert_called_once_with(cfg, "ses_created1")
         select.assert_called_once_with(session)
         self.assertIn("Review task", send.call_args.args[1])
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_unverified_session_is_not_selected(self):
@@ -294,6 +295,7 @@ class SessionRoutingTests(unittest.TestCase):
         create.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
         send.assert_called_once()
+        self.assertIn("cancelled", send.call_args.args[1].lower())
 
     def test_repeated_navigation_buttons_do_not_create_a_session(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -313,7 +315,7 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
         create.assert_not_called()
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
         send.assert_called_once()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
@@ -395,7 +397,7 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, "/start"))
         create.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
-        send.assert_called_once()
+        send.assert_not_called()
 
     def test_start_help_control_is_not_used_as_a_session_title(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -591,12 +593,13 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertNotIn("input_field_placeholder", markup)
         self.assertEqual(markup["keyboard"][0][0]["text"], "test (1)")
 
-    def test_model_close_restores_keyboard_after_picker(self):
+    def test_model_close_restores_picker_without_extra_message(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
-        with patch.object(tb, "_send_keyboard") as show:
+        with patch.object(tb, "_send_keyboard") as show, patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
-        show.assert_called_once_with(cfg)
+        show.assert_not_called()
+        send.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_close_removes_saved_model_message_reference(self):
@@ -615,7 +618,7 @@ class SessionRoutingTests(unittest.TestCase):
                 self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
             create.assert_not_called()
             send.assert_not_called()
-            keyboard.assert_called_once_with(cfg)
+            keyboard.assert_not_called()
             self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_labels_are_not_consumed_when_no_model_picker_is_active(self):
@@ -688,7 +691,7 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", None)), \
              patch.object(tb, "send_text"), patch.object(tb, "_send_keyboard") as keyboard:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Files"))
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_startup_configures_commands_only_when_requested(self):
@@ -755,7 +758,7 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertTrue(handled)
         self.assertIsNone(tb.ACTIVE_PICKER)
         hide.assert_not_called()
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
 
     def test_menu_command_resets_picker_state_and_restores_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -781,11 +784,14 @@ class SessionRoutingTests(unittest.TestCase):
     def test_help_controls_escape_model_picker_and_show_help(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
-        with patch.object(tb, "_hide_picker_keyboard"), patch.object(tb, "_send_keyboard"), \
+        with patch.object(tb, "_hide_picker_keyboard"), \
+             patch.object(tb, "_send_keyboard") as keyboard, \
              patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Help"))
         self.assertIsNone(tb.ACTIVE_PICKER)
-        send.assert_called_once()
+        send.assert_not_called()
+        keyboard.assert_called_once()
+        self.assertEqual(keyboard.call_args.kwargs.get("parse_mode"), "HTML")
 
     def test_sessions_button_escapes_model_picker(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}

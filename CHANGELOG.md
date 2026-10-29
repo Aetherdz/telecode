@@ -22,6 +22,10 @@ and this project adheres to semantic versioning.
   a traceback, and the manual-setup hint prints the real runtime path.
 - The session picker now uses a short, separator-based header followed by a
   blank line, so chat-list previews no longer read as one concatenated line.
+- Control buttons no longer re-send the main keyboard or a status sentence after
+  every action. Session selection and session creation send one confirmation,
+  cancels close silently (except the name prompt), and `Help`/`/start` send one
+  combined keyboard message instead of two messages.
 - Documentation no longer claims a Rich dependency or a local browser wizard
   that the project does not ship.
 

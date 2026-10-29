@@ -315,14 +315,18 @@ def _configure_commands(cfg):
         log(f"[{ts()}] bot command menu setup failed: {e!r}", flush=True)
 
 
-def _send_keyboard(cfg, text="TeleCode is ready. Select a session, then send a message.", *, configure=False):
+def _send_keyboard(cfg, text="TeleCode menu", *, configure=False, parse_mode=None):
     try:
         if configure:
             _configure_commands(cfg)
-        api(cfg["TG_BOT_TOKEN"], "sendMessage", {
+        params = {
             "chat_id": cfg["TG_CHAT_ID"],
             "text": text,
-            "reply_markup": json.dumps(_keyboard(cfg), ensure_ascii=False)}, timeout=15)
+            "reply_markup": json.dumps(_keyboard(cfg), ensure_ascii=False),
+        }
+        if parse_mode:
+            params["parse_mode"] = parse_mode
+        api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
     except Exception as e:
         log(f"[{ts()}] keyboard setup failed: {e!r}", flush=True)
 
@@ -642,7 +646,6 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
         ACTIVE_PICKER = None
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         send_text(cfg, "Unable to load models from OpenCode. Check that the service is running, then send /models again.")
-        _send_keyboard(cfg, "Model list unavailable. Use Models or /models to retry.")
         return
     groups = _group_models(models)
     providers = _ordered_providers(groups)
@@ -869,7 +872,6 @@ def handle_control_message(cfg, msg, text):
     if ACTIVE_PICKER == "new-session-name":
         if cmd in ("Cancel", MODEL_CLOSE):
             _restore_primary_controls()
-            _send_keyboard(cfg)
             send_text(cfg, "Session creation cancelled.")
             return True
         if cmd in ("/menu", "Menu", "Show menu"):
@@ -914,7 +916,6 @@ def handle_control_message(cfg, msg, text):
             return True
         _restore_primary_controls()
         send_text(cfg, f"<b>Session created and selected:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(session['id'])}</code>", parse_mode="HTML")
-        _send_keyboard(cfg)
         return True
 
     # New-session actions work from the main keyboard and any active picker.
@@ -927,12 +928,10 @@ def handle_control_message(cfg, msg, text):
 
     if cmd == "Cancel" and ACTIVE_PICKER == "sessions":
         _restore_primary_controls()
-        _send_keyboard(cfg)
         return True
     if cmd == "Cancel" and ACTIVE_PICKER in ("providers", "models"):
         _restore_primary_controls()
         _invalidate_model_message_ref()
-        _send_keyboard(cfg)
         return True
     if cmd in ("Next", "Previous") and ACTIVE_PICKER == "sessions":
         if SESSION_SNAPSHOT:
@@ -956,18 +955,13 @@ def handle_control_message(cfg, msg, text):
         SESSION_PAGE = 0
         SESSION_BUTTONS.clear()
         ACTIVE_PICKER = None
-        _send_keyboard(cfg, configure=(cmd == "/start"))
-        send_text(cfg, "<b>Commands</b>\n/session selects a session\n/newsession creates and selects a named session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
-        return True
-    if cmd == "Cancel" and ACTIVE_PICKER == "sessions":
-        _restore_primary_controls()
-        _send_keyboard(cfg)
+        _send_keyboard(cfg, "<b>Commands</b>\n/session selects a session\n/newsession creates and selects a named session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.",
+                       configure=(cmd == "/start"), parse_mode="HTML")
         return True
     if cmd in ("/files", "Files"):
         if ACTIVE_PICKER is not None:
             _invalidate_model_message_ref()
             _restore_primary_controls()
-            _send_keyboard(cfg)
         sid, _ = resolve_session(cfg)
         directory = FILES / (sid if sid else "unassigned")
         entries = sorted((p for p in directory.iterdir() if p.is_file()),
@@ -981,7 +975,6 @@ def handle_control_message(cfg, msg, text):
         if ACTIVE_PICKER is not None:
             _invalidate_model_message_ref()
             _restore_primary_controls()
-            _send_keyboard(cfg)
         sid, _ = resolve_session(cfg)
         session = _session_by_id(cfg, sid) if sid else None
         if session:
@@ -1032,7 +1025,6 @@ def handle_control_message(cfg, msg, text):
         SESSION_BUTTONS.clear()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(selected_sid)}</code>", parse_mode="HTML")
-        _send_keyboard(cfg)
         return True
     if ACTIVE_PICKER in ("models", "providers", "sessions") and (msg.get("photo") or msg.get("document")):
         send_text(cfg, "Attachment was not delivered because this message was a picker control. Send it again without a picker caption.")
@@ -1103,7 +1095,6 @@ def handle_control_message(cfg, msg, text):
                 ACTIVE_PICKER = None
                 MODEL_SELECTION.update(provider=None, page=0, labels={})
                 _invalidate_model_message_ref()
-                _send_keyboard(cfg)
             return True
     return False
 
