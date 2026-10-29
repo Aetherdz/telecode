@@ -18,7 +18,7 @@ class SiteTests(unittest.TestCase):
         self.assertIn("pageTitle: 'TeleCode — vos sessions de code", js)
         self.assertIn("copySuccess: 'Commande copiée.'", js)
         self.assertIn('class="language-chevron"', html)
-        self.assertIn("querySelector('[data-language][aria-pressed=\"true\"]')?.focus()", js)
+        self.assertIn("if (open) button.focus();", js)
 
     def test_language_control_has_mobile_target_size_and_visible_dropdown(self):
         css = (ROOT / "assets/site.css").read_text()
@@ -37,6 +37,18 @@ class SiteTests(unittest.TestCase):
         self.assertNotIn('audio', html.lower())
         self.assertIn(".floating-tools { position: fixed", (ROOT / "assets/site.css").read_text())
 
+    def test_floating_tools_touch_targets_meet_44px_minimum(self):
+        css = (ROOT / "assets/site.css").read_text()
+        self.assertIn(".floating-icon { width: 40px; height: 40px; }", css)
+        self.assertIn(".floating-icon { width: 36px; height: 44px; }", css)
+        self.assertIn(".floating-tools .language-toggle { min-width: 64px; min-height: 44px; }", css)
+        self.assertIn(".floating-tools .language-toggle { min-width: 74px; min-height: 44px;", css)
+        self.assertIn("inset-inline-end: 0;", css)
+
+    def test_language_menu_keeps_focus_on_toggle_when_opened(self):
+        js = (ROOT / "assets/site.js").read_text()
+        self.assertIn("if (open) button.focus();", js)
+
     def test_mobile_install_panel_stacks_long_command_and_copy_control(self):
         css = (ROOT / "assets/site.css").read_text()
         self.assertRegex(css, r"@media \(max-width: 560px\)[\s\S]*?\.install-panel > \.install-command\s*\{[^}]*flex-direction:\s*column")
@@ -45,12 +57,19 @@ class SiteTests(unittest.TestCase):
     def test_bootstrap_progress_finishes_at_100_before_install(self):
         script = (ROOT / "install.sh").read_text()
         self.assertIn("'[100%] Download complete.'", script)
-        self.assertIn('git clone --progress --depth 1', script)
+        self.assertIn('git clone --quiet --depth 1', script)
+        self.assertIn("printf '\\r[%3d%%] [%-10s]'", script)
         self.assertLess(script.index("'[100%] Download complete.'"), script.index('exec bash "$bootstrap_dir/repo/install.sh"'))
 
     def test_bootstrap_logo_is_defined_before_early_mode(self):
         script = (ROOT / "install.sh").read_text()
         self.assertLess(script.index("logo() {"), script.index('if [[ "${1:-}" == "--curl-bootstrap" ]]'))
+
+    def test_download_progress_bar_is_fixed_length_not_page_long(self):
+        script = (ROOT / "install.sh").read_text()
+        self.assertIn("local filled=$((progress / 10))", script)
+        self.assertIn("[%-10s]", script)
+        self.assertIn("show_download_progress 100", script)
 
 
 if __name__ == "__main__":

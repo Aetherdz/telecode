@@ -16,6 +16,15 @@ logo() {
   printf '  Telegram ⇄ OpenCode & any CLI\n'
 }
 
+show_download_progress() {
+  local progress=$1
+  local filled=$((progress / 10))
+  local bar
+  printf -v bar '%*s' "$filled" ''
+  bar=${bar// /#}
+  printf '\r[%3d%%] [%-10s]' "$progress" "$bar"
+}
+
 if [[ "${1:-}" == "--curl-bootstrap" ]]; then
   shift
   if [[ $# -gt 0 ]]; then
@@ -27,7 +36,7 @@ if [[ "${1:-}" == "--curl-bootstrap" ]]; then
     exit 2
   fi
   logo
-  printf '\n↓ Downloading TeleCode installer\n'
+  printf '\n↓ Downloading TeleCode source\n'
   bootstrap_dir="${XDG_CACHE_HOME:-$HOME/.cache}/telecode-bootstrap"
   mkdir -p "$bootstrap_dir"
   chmod 700 "$bootstrap_dir"
@@ -36,14 +45,15 @@ if [[ "${1:-}" == "--curl-bootstrap" ]]; then
     exit 2
   fi
   if ! git -C "$bootstrap_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git clone --progress --depth 1 https://github.com/Aetherdz/telecode.git "$bootstrap_dir/repo" || {
+    git clone --quiet --depth 1 https://github.com/Aetherdz/telecode.git "$bootstrap_dir/repo" || {
       rm -rf "$bootstrap_dir/repo"
       exit 2
     }
   else
-    git -C "$bootstrap_dir/repo" fetch --progress --depth 1 origin main || exit 2
+    git -C "$bootstrap_dir/repo" fetch --quiet --depth 1 origin main || exit 2
     git -C "$bootstrap_dir/repo" reset --hard FETCH_HEAD || exit 2
   fi
+  show_download_progress 100
   printf '\n%s\n' '[100%] Download complete.' 'Starting TeleCode setup...' ''
   exec bash "$bootstrap_dir/repo/install.sh"
 fi

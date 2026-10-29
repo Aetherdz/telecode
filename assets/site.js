@@ -256,7 +256,7 @@ function closeLanguageMenus(returnFocus = false) {
     closeLanguageMenus();
     button.setAttribute('aria-expanded', String(open));
     if (options) options.hidden = !open;
-    if (open) options?.querySelector('[data-language][aria-pressed="true"]')?.focus();
+    if (open) button.focus();
   });
   options?.querySelectorAll('[data-language]').forEach(option => {
     option.addEventListener('click', () => {

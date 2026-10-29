@@ -46,21 +46,22 @@ button { font-family: inherit; }
 .language-toggle .language-chevron { width: 12px; height: 12px; transition: transform .16s ease; }
 .language-toggle[aria-expanded="true"] .language-chevron { transform: rotate(180deg); }
 .language-current { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
-.language-options { position: absolute; z-index: 15; top: calc(100% + 8px); inset-inline-end: 0; display: grid; width: max-content; min-width: 156px; gap: 3px; padding: 6px; border: 1px solid var(--line); background: var(--panel); box-shadow: 6px 6px 0 var(--panel2); }
-.language-options button { position: relative; min-height: 42px; padding: 8px 10px; border: 0; background: transparent; color: var(--text); font: 500 14px var(--sans); text-align: start; cursor: pointer; }
+.language-options { position: absolute; z-index: 15; top: calc(100% + 8px); inset-inline-end: 0; display: grid; width: max-content; min-width: 156px; gap: 3px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 14%, transparent); }
+.language-options button { position: relative; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--text); font: 500 14px var(--sans); text-align: start; cursor: pointer; }
 .language-options button:hover, .language-options button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-deep); }
 .language-options button[lang="ar"] { text-align: right; }
 .language-options button[aria-pressed="true"]::after { content: "✓"; position: absolute; inset-inline-end: 16px; font-size: 12px; }
 .language-options button:focus-visible { outline-offset: -2px; }
 .floating-tools { position: fixed; z-index: 30; inset-inline-end: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--panel) 94%, transparent); box-shadow: 0 8px 28px color-mix(in srgb, var(--text) 16%, transparent); backdrop-filter: blur(12px); }
 .floating-tools { max-width: calc(100vw - 20px); }
+.floating-tools > .floating-language { flex: 0 0 auto; }
 .floating-icon { display: inline-flex; width: 44px; height: 44px; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--muted); text-decoration: none; cursor: pointer; }
 .floating-icon:hover, .floating-icon:focus-visible { border-color: var(--line); background: var(--panel2); color: var(--accent-deep); }
 .floating-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .floating-tools > .floating-language { display: block; }
 .floating-language { position: relative; }
-.floating-language .language-options { top: auto; right: auto; bottom: calc(100% + 12px); inset-inline-end: 0; border-radius: 16px; }
-.floating-tools .language-toggle { min-width: 74px; border-radius: 999px; }
+.floating-language .language-options { top: auto; right: auto; bottom: calc(100% + 12px); inset-inline-end: 0; max-width: calc(100vw - 20px); border-radius: 16px; }
+.floating-tools .language-toggle { min-width: 74px; min-height: 44px; border-radius: 999px; }
 .floating-tools .language-toggle svg:first-child { width: 18px; height: 18px; }
 .floating-tools .language-options { min-width: 144px; }
 .floating-tools #theme-toggle-float { padding: 0; }
@@ -310,15 +311,16 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
   .header-tools { gap: 5px; }
   .brand { gap: 7px; font-size: 18px; }
   .brand img { width: 29px; height: 29px; }
-  .floating-tools { inset-inline-end: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); gap: 4px; padding: 5px; }
+  .floating-tools { inset-inline-end: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); gap: 2px; padding: 4px; }
   .floating-icon { width: 40px; height: 40px; }
   .floating-icon svg { width: 19px; height: 19px; }
-  .floating-tools .language-toggle { min-width: 69px; min-height: 40px; gap: 3px; padding-inline: 6px; }
+  .floating-tools .language-toggle { min-width: 69px; min-height: 44px; gap: 3px; padding-inline: 6px; }
 }
 @media (max-width: 340px) {
-  .floating-tools { gap: 2px; padding: 4px; }
-  .floating-icon { width: 36px; height: 36px; }
-  .floating-tools .language-toggle { min-width: 64px; min-height: 36px; }
+  .floating-tools { inset-inline-end: max(8px, env(safe-area-inset-right)); gap: 2px; padding: 4px; }
+  .floating-icon { width: 36px; height: 44px; }
+  .floating-tools .language-toggle { min-width: 64px; min-height: 44px; }
+  .floating-tools .language-options { inset-inline-end: 0; }
 }
 @media (max-width: 360px) {
   .topbar { gap: 8px; padding-inline: 18px; }
