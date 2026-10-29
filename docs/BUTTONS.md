@@ -55,8 +55,8 @@ plain text is routed to the active session, and notes that replies arrive throug
 Selecting a row resolves its exact displayed button label against the picker snapshot,
 validates the ID against `ses[0-9A-Za-z_-]{6,80}`, and writes
 `active-session.json` atomically with mode
-`0600`, resets pagination, confirms the switch, and restores the persistent
-keyboard. If the label no longer uniquely matches a live session, the bridge asks
+`0600`, resets pagination, and confirms the switch without re-sending the keyboard.
+If the label no longer uniquely matches a live session, the bridge asks
 you to reopen the list; it does not guess. A stale label ending in a session-ID
 suffix is consumed as a control message and never forwarded to the agent.
 
@@ -97,14 +97,14 @@ before agent routing, so it is never stored as a prompt.
 
 Reply-keyboard selections are accepted only for the active picker and current page;
 starting a different picker invalidates the previous picker state. `/menu` closes the
-temporary picker, and persistent controls can open sessions, current-session details,
+temporary picker, and the main keyboard can open sessions, current-session details,
 help, or the model picker from either model-selection page. See
 [MODELS.md](MODELS.md) for endpoints, persistence, and failure handling.
 
 ## Files
 
 `/files` lists up to 20 regular files in `files/<session-id>/`, newest first. It does
-not include subdirectories and does not list files for other sessions. `Files` is accepted, but it is not on the persistent keyboard.
+not include subdirectories and does not list files for other sessions. `Files` is accepted as a keyboard selection while a model picker is active, but is not on the main keyboard.
 
 ## Routing rules
 

@@ -356,7 +356,6 @@ def _send_session_picker(cfg, page=0, sessions=None):
         ACTIVE_PICKER = None
         SESSION_BUTTONS.clear()
         send_text(cfg, "No OpenCode sessions were found. Check that the OpenCode service is running and that its session database is available.")
-        _send_keyboard(cfg, configure=True)
         return
     SESSION_SNAPSHOT = list(sessions)
     MODEL_SELECTION.update(provider=None, page=0, labels={})
@@ -393,7 +392,7 @@ def _send_session_picker(cfg, page=0, sessions=None):
     _send_reply_picker(cfg, text, rows, notify=False)
 
 
-def _send_reply_picker(cfg, text, rows, placeholder=None, notify=True, persist=False):
+def _send_reply_picker(cfg, text, rows, notify=True):
     params = {
         "chat_id": cfg["TG_CHAT_ID"], "text": text, "parse_mode": "HTML",
         "reply_markup": json.dumps({
@@ -612,7 +611,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
         header += "\nUse /menu to restore the primary keyboard."
         current_ref = _load_models_message_ref()
         if not _edit_reply_picker(cfg, current_ref, header, rows, "Choose a model provider"):
-            _send_reply_picker(cfg, header, rows, "Choose a model provider", notify=True, persist=False)
+            _send_reply_picker(cfg, header, rows)
         return
     provider = providers[provider_index]
     ACTIVE_PICKER = "models"
@@ -664,7 +663,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     text += "\nUse /menu to restore the primary keyboard."
     current_ref = _load_models_message_ref()
     if not _edit_reply_picker(cfg, current_ref, text, rows, "Choose a model"):
-        _send_reply_picker(cfg, text, rows, "Choose a model", notify=True, persist=False)
+        _send_reply_picker(cfg, text, rows)
 
 
 def _edit_reply_picker(cfg, message_ref, text, rows, placeholder):
@@ -904,7 +903,7 @@ def handle_control_message(cfg, msg, text):
     if ACTIVE_PICKER == "models" and cmd in ("Cancel", "Previous"):
         return True
     if ACTIVE_PICKER in ("models", "providers") and cmd in (
-            "Sessions", "Current session", "Help", "/session", "/current", "/help"):
+            "Sessions", "Current session", "Help", "Files", "/session", "/current", "/help", "/files"):
         ACTIVE_PICKER = None
         _invalidate_model_message_ref()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
@@ -918,6 +917,14 @@ def handle_control_message(cfg, msg, text):
             return True
         if cmd in ("Help", "/help"):
             send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+            return True
+        if cmd in ("Files", "/files"):
+            sid, _ = resolve_session(cfg)
+            directory = FILES / (sid if sid else "unassigned")
+            entries = sorted((p for p in directory.iterdir() if p.is_file()),
+                             key=lambda p: p.stat().st_mtime, reverse=True) if directory.exists() else []
+            send_text(cfg, "No files have been received for the active session." if not entries else
+                      "Files for this session:\n" + "\n".join(str(p) for p in entries[:20]))
             return True
         if cmd in ("Sessions", "/session"):
             SESSION_PAGE = 0

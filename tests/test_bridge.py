@@ -222,6 +222,24 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIn("/models", labels)
         configure.assert_not_called()
 
+    def test_session_picker_empty_results_do_not_reissue_main_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "list_sessions", return_value=[]), \
+             patch.object(tb, "send_text") as message, \
+             patch.object(tb, "_send_keyboard") as keyboard:
+            tb._send_session_picker(cfg)
+        message.assert_called_once()
+        keyboard.assert_not_called()
+
+    def test_files_command_exits_model_picker_without_resending_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        tb.ACTIVE_PICKER = "models"
+        with patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", None)), \
+             patch.object(tb, "send_text"), patch.object(tb, "_send_keyboard") as keyboard:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Files"))
+        keyboard.assert_not_called()
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
     def test_startup_configures_commands_only_when_requested(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         with patch.object(tb, "_configure_commands") as configure, patch.object(tb, "api"):
