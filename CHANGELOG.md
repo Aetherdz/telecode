@@ -38,8 +38,9 @@ and this project adheres to semantic versioning.
   and help text. Old `/newsession` buttons are ignored instead of starting a
   name prompt; the `New session` button remains.
 - Removed the redundant `/session` and `/models` slash buttons from the main
-  keyboard. Their actions already exist as `Sessions` and `Models`; only
-  `/menu` remains on the shortcut row.
+  keyboard. Their actions already exist as `Sessions` and `Models`.
+- `Help` and `menu` now share the last keyboard row, and the button label drops
+  the slash (`menu`); the `/menu` command still works when typed.
 - Documentation no longer claims a Rich dependency or a local browser wizard
   that the project does not ship.
 

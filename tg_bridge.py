@@ -293,8 +293,7 @@ def _set_active_session(session):
 def _keyboard(cfg):
     return {"keyboard": [[{"text": "Sessions"}, {"text": "Current session"}],
                          [{"text": "New session"}, {"text": "Models"}],
-                         [{"text": "Help"}],
-                         [{"text": "/menu"}]],
+                         [{"text": "Help"}, {"text": "menu"}]],
             "resize_keyboard": True, "one_time_keyboard": True}
 
 
@@ -384,7 +383,7 @@ def _session_buttons(sessions):
         "Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK, MODEL_BACK_MAIN,
         MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
         "Current session", NEW_SESSION, CREATE_SESSION,
-        "Menu", "Show menu", "Files", "/menu", "/session",
+        "Menu", "menu", "Show menu", "Files", "/menu", "/session",
         "/newsession", "/models", "/model", "/current",
         "/help", "/files",
     }
@@ -695,7 +694,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
         provider_labels = {}
         reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_BACK_MAIN, MODEL_PREVIOUS, MODEL_NEXT,
                     "Next", "Previous", "Sessions", "Models", "Help",
-                    "Current session", "Cancel", "Menu", "Show menu", "Files",
+                    "Current session", "Cancel", "Menu", "menu", "Show menu", "Files",
                     "/menu", "/session", "/models", "/model", "/help"}
         for index, provider in enumerate(providers):
             base = f"{provider} ({len(groups[provider])})"
@@ -731,7 +730,7 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     labels = {}
     reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_BACK_MAIN, MODEL_PREVIOUS, MODEL_NEXT,
                 "Next", "Previous", "Sessions", "Models", "Help",
-                "Current session", "Cancel", "Menu", "Show menu", "Files",
+                "Current session", "Cancel", "Menu", "menu", "Show menu", "Files",
                 "/menu", "/session", "/models", "/model", "/help"}
     for offset, model in enumerate(items[start:start + MODELS_PAGE_SIZE]):
         base = str(model.get("name") or model["id"]).replace("\n", " ").replace("\r", " ")[:28]
@@ -902,7 +901,7 @@ def handle_control_message(cfg, msg, text):
             _restore_primary_controls()
             send_text(cfg, "Session creation cancelled.")
             return True
-        if cmd in ("/menu", "Menu", "Show menu"):
+        if cmd in ("/menu", "menu", "Menu", "Show menu"):
             _restore_primary_controls()
             _send_keyboard(cfg)
             return True
@@ -1021,7 +1020,7 @@ def handle_control_message(cfg, msg, text):
         SESSION_PAGE = 0
         _send_session_picker(cfg)
         return True
-    if cmd in ("/menu", "Menu", "Show menu"):
+    if cmd in ("/menu", "menu", "Menu", "Show menu"):
         _restore_primary_controls()
         _invalidate_model_message_ref()
         _clear_session_picker(cfg)

@@ -1115,6 +1115,17 @@ class SessionRoutingTests(unittest.TestCase):
         listing.assert_not_called()
         self.assertEqual(tb.SESSION_PAGE, 1)
 
+    def test_menu_button_without_slash_restores_main_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        for picker in (None, "sessions", "models", "providers", "new-session-name"):
+            tb.ACTIVE_PICKER = picker
+            with self.subTest(picker=picker), \
+                 patch.object(tb, "_send_keyboard") as keyboard, \
+                 patch.object(tb, "send_text") as send:
+                self.assertTrue(tb.handle_control_message(cfg, {}, "menu"))
+            self.assertTrue(keyboard.called)
+            send.assert_not_called()
+
     def test_keyboard_button_ignores_unicode_variation_selector(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         with patch.object(tb, "_send_session_picker") as picker:
@@ -1124,7 +1135,8 @@ class SessionRoutingTests(unittest.TestCase):
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
         self.assertEqual(buttons, ["Sessions", "Current session", "New session", "Models", "Help",
-                                   "/menu"])
+                                   "menu"])
+        self.assertIn([{"text": "Help"}, {"text": "menu"}], tb._keyboard({})["keyboard"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
