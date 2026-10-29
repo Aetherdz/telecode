@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/telecode-wordmark.svg" alt="TeleCode" width="720"></p>
+<p align="center"><img src="assets/brand/telecode-mark.svg" alt="TeleCode app mark" width="112" height="112"></p>
 
 # TeleCode
 
@@ -21,14 +21,14 @@ message goes to the local session, and the agent decides how to answer.
 
 ## Features
 
-- Owner-only listener: both the chat ID and the sender ID must match the configured
-  owner before a message is stored or routed.
-- Persistent, text-only reply keyboard with session, current-session, model, and help
-  controls.
+- Owner-only listener: the configured chat is checked on all messages; sender
+  identity is checked when present, and both chat and sender are checked for callbacks.
+- Hideable, text-only Telegram reply keyboard with session, current-session, model,
+  and help controls.
 - Paginated session picker that lists all available sessions in batches and switches
   a single active target without editing environment files or source.
-- Paginated inline model picker that applies a model switch to the active session
-  through the local OpenCode API.
+- Bottom reply-keyboard model picker for providers and paginated model lists, then
+  applies a model switch to the active session through OpenCode.
 - Inbound text, documents, and photos routed into the selected session; attachments
   are captured against the session that was active when they arrived.
 - Outbound MCP tools for the agent: `tg_send`, `tg_sendfile`, `tg_read`,
@@ -61,15 +61,18 @@ cd telecode
 ./install.sh
 ```
 
-The installer copies the runtime into
-`${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge`, creates
-`${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge/telegram.env` on first run, and
-offers to configure a detected CLI. Edit `telegram.env` and set `TG_BOT_TOKEN` and
-`TG_CHAT_ID` before starting.
+For a scripted, non-interactive file install, use `./install.sh --bootstrap`.
+For a full terminal onboarding, run `./install.sh` directly. The installer copies the runtime into
+`${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge`, creates a private
+`${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge/telegram.env`, asks before
+registering MCP with the selected CLI, prompts for the bot token, and saves your
+owner chat ID after you send `/start` to your bot. Add `~/.local/bin` to `PATH`
+if necessary. Setup enables the TeleCode listener as a user service at login.
+Use `telecode status` to inspect it or `telecode setup` to rerun onboarding.
 
-Then restart the coding-agent CLI so it loads the MCP server, and press `/start`
-in the Telegram chat. The listener is started by the MCP server when
-`TG_AUTOSTART=1` (default), or by the systemd unit if you enabled it.
+Then restart the coding-agent CLI so it loads the MCP server. The listener is
+started by the systemd user service; the MCP server can also autostart it when
+`TG_AUTOSTART=1` (default), guarded against duplicate listeners by a process lock.
 
 See [docs/INSTALL.md](docs/INSTALL.md) for the full sequence, including the
 credential checks the installer performs.
@@ -80,11 +83,11 @@ credential checks the installer performs.
 | --- | --- | --- |
 | `Sessions` | Reply keyboard | Same as `/session`: send the paginated session picker. |
 | `Current session` | Reply keyboard | Same as `/current`: report the active session title and ID. |
-| `Models` | Reply keyboard | Same as `/models`: send the inline provider/model picker. |
+| `Models` | Reply keyboard | Same as `/models`: send the bottom provider/model picker. |
 | `Help` | Reply keyboard | Same as `/help`: restore the keyboard and print command help. |
 | `/session` | Slash command | Paginated session picker, 8 sessions per page. |
 | `/current` | Slash command | Active target, resolved through discovery if unset. |
-| `/models` | Slash command | Inline model picker; the switch applies to the active session. |
+| `/models` | Slash command | Bottom-keyboard model picker; the switch applies to the active session. |
 | `/files` | Slash command | Up to 20 received files for the active session, newest first. |
 | `/help`, `/start` | Slash command | Restore the persistent keyboard and print help. |
 
@@ -98,8 +101,9 @@ Full semantics are in [docs/BUTTONS.md](docs/BUTTONS.md).
 
 ## Model switching
 
-`/models` loads the catalogue from `GET /api/model` through the local
-`opencode api` command. Choosing a model calls
+`/models` loads the catalogue from `GET /api/model` through the OpenCode CLI's
+`opencode api` command. Provider, model-page, and Back navigation edit the same
+Telegram message rather than adding a new one. Choosing a model calls
 `POST /api/session/{sessionID}/model` with
 `{"model": {"id": "...", "providerID": "..."}}`. The selection is stored in the
 session by the OpenCode server and applies to subsequent turns. The bridge uses a

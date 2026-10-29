@@ -43,12 +43,16 @@ long-pollers.
 On Linux with systemd user services, install the provided user service:
 
 ```sh
-./install.sh
-editor "${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge/telegram.env"
-chmod 600 "${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge/telegram.env"
-telegram-bridge install --enable
+./install.sh --bootstrap
+telecode setup
 systemctl --user status telegram-bridge
 ```
+
+Interactive setup creates the private config, asks before registering MCP with
+the selected CLI, collects the bot token, waits for `/start` to save the private
+owner chat ID, and enables the systemd user service. Canceling CLI registration
+stops onboarding before credentials or service setup; run `telecode setup` again
+to retry. For config-only changes use `telecode --configure-cli`.
 
 To configure a coding-agent CLI, run the installer and choose **Configure a
 detected coding-agent CLI**. It detects installed OpenCode, Claude Code, Codex,

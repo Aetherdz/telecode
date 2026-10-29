@@ -1,17 +1,18 @@
 # Buttons and commands
 
-TeleCode uses two Telegram UI surfaces: a persistent reply keyboard for top-level
-navigation and an inline keyboard for model selection. Session selection uses a
-temporary reply keyboard because the labels must also be typed, not only tapped.
+TeleCode uses Telegram's persistent reply keyboard for top-level navigation and
+temporary bottom reply keyboards for session and model selection.
 
 ## Persistent reply keyboard
 
-The keyboard is sent on listener start and after `/start`, `/help`, `Help`, a
-completed session switch, or `Cancel`. It has two rows and is resized and persistent:
+The keyboard is sent when the listener starts and on `/start` or `/help`. It has
+two main rows and command shortcuts. Telegram can hide/show this ordinary reply
+keyboard using its own control beside the message field:
 
 ```text
 [ Sessions ]        [ Current session ]
 [ Models ]          [ Help ]
+[ /menu ] [ /session ] [ /models ]
 ```
 
 Labels are English text only. There is no emoji in the keyboard. Each label is
@@ -25,7 +26,7 @@ text and do not use message parse mode.
 | --- | --- | --- |
 | `Sessions` | `/session` | Sends the paginated session picker. |
 | `Current session` | `/current` | Reports the active session title and ID. |
-| `Models` | `/models` | Sends the inline provider/model picker. |
+| `Models` | `/models` | Sends the bottom reply-keyboard provider/model picker. |
 | `Help` | `/help` | Restores this keyboard and prints command help. |
 
 The help text is fixed: it lists `/session`, `/current`, and `/models`, states that
@@ -34,29 +35,30 @@ plain text is routed to the active session, and notes that replies arrive throug
 
 ## Session picker
 
-`/session` or `Sessions` replaces the reply keyboard with a temporary one.
+`/session` or `Sessions` shows a temporary bottom reply keyboard with session choices.
 
 - Sessions are root, non-archived sessions in the current home directory, ordered by
   the API's descending update order. The bridge requests up to 1,000 and retries
   without a directory filter if the filtered request fails or returns no sessions;
   client-side checks still exclude other directories.
 - Page size is 8.
-- Each session row is a button labelled with its title. The title is truncated to 36
-  characters and newlines are removed. A short session-ID suffix is added only when
-  titles collide.
+- Each session row is a button labelled with its title and a short session-ID suffix.
+  The title is truncated to 36 characters and newlines are removed. The suffix lets
+  the bridge recognize stale buttons after a picker is closed.
 - The message body lists the eight session names on the current page with their full
   IDs and marks the active target. The reply keyboard is also paginated because
   Telegram limits a keyboard to 100 buttons per message.
 - `Previous` and `Next` appear only when a previous or next page exists.
-- `Cancel` restores the persistent keyboard without changing the target.
+- `Cancel` exits the session picker without changing the target. `/menu` is a
+  command shortcut for refreshing controls; the bot does not remove the keyboard.
 
-Selecting a row resolves its exact displayed button label against the refreshed
-session list, validates the ID against `ses[0-9A-Za-z_-]{6,80}`, and writes
+Selecting a row resolves its exact displayed button label against the picker snapshot,
+validates the ID against `ses[0-9A-Za-z_-]{6,80}`, and writes
 `active-session.json` atomically with mode
 `0600`, resets pagination, confirms the switch, and restores the persistent
 keyboard. If the label no longer uniquely matches a live session, the bridge asks
-you to reopen the list; it does not guess. A stale label ending in `[ses...]` is
-consumed as a control message and never forwarded to the agent.
+you to reopen the list; it does not guess. A stale label ending in a session-ID
+suffix is consumed as a control message and never forwarded to the agent.
 
 Only one session is active at a time. Session selection is global to the bridge, not
 per chat.
@@ -74,7 +76,10 @@ reply says the target is unset.
 
 ## Model picker
 
-`/models` or `/model` or `Models` sends an inline keyboard. The command is handled
+`/models` or `/model` or `Models` sends a bottom reply keyboard. Provider/model pages
+update the same menu message when Telegram allows editing; otherwise a replacement
+picker is sent. The keyboard is non-persistent and has no custom input placeholder.
+The command is handled
 before agent routing, so it is never stored as a prompt.
 
 1. The bridge loads the catalogue from `GET /api/model` and writes a local cache on
@@ -85,16 +90,15 @@ before agent routing, so it is never stored as a prompt.
    model when it can be read from the active session.
 3. Choosing a provider lists its models, 8 per page, sorted by display name. The
    current model is prefixed with `Current:`.
-4. `Previous` and `Next` move within the provider's pages. `Providers` returns to the
-   provider list. `Close` dismisses the picker without changing anything.
+4. `Previous` and `Next` move within the provider's pages. `Back to providers` returns
+   to the provider list. `Close models` dismisses the picker without changing anything.
 5. Choosing a model calls `POST /api/session/{sessionID}/model` for the active
    session and confirms with the model name, provider ID, and session ID.
 
-Callback data carries only indices and an action prefix. A selection uses the
-cached catalogue by index. If the cache was replaced or the index no longer exists,
-the bridge replies that the list expired and asks you to send `/models` again; it does not change the model.
-
-Inline menus do not replace the persistent reply keyboard. See
+Reply-keyboard selections are accepted only for the active picker and current page;
+starting a different picker invalidates the previous picker state. `/menu` closes the
+temporary picker, and persistent controls can open sessions, current-session details,
+help, or the model picker from either model-selection page. See
 [MODELS.md](MODELS.md) for endpoints, persistence, and failure handling.
 
 ## Files

@@ -65,9 +65,7 @@ def selectable_hosts():
 
 
 def choose(options):
-    print("\nLog out of an account")
-    print("◆ Select integration")
-    print("  Search:")
+    print("\nSelect the coding-agent CLI to configure:")
     for i, host in enumerate(options, 1):
         found, config, supported = discover(host)
         suffix = "detected" if found or config else "manual setup"
@@ -76,7 +74,7 @@ def choose(options):
         mark = "●" if i == 1 else "○"
         print(f"  {mark} {host[0]} ({suffix})")
     while True:
-        answer = input("↑/↓ to select • Enter: confirm • Type: to search • q: quit: ").strip().lower()
+        answer = input("Enter a listed number (or q to cancel): ").strip().lower()
         if answer in ("q", "quit", "skip"):
             return None
         if answer.isdigit() and 1 <= int(answer) <= len(options):
@@ -213,7 +211,7 @@ def main():
     host = choose(options)
     if not host:
         print("Skipped CLI integration. See docs/INSTALL.md for manual setup.")
-        return 0
+        return 2
     _, config, supported = discover(host)
     if host[1] is None:
         print("Manual MCP setup selected; no config files changed.")
@@ -229,19 +227,19 @@ def main():
             choice = input("Enter number: ").strip()
             if not choice.isdigit() or not 1 <= int(choice) <= len(candidates):
                 print("Cancelled; no files changed.")
-                return 0
+                return 2
             config = candidates[int(choice) - 1]
     if host[1] == "codex" and supported and config and config.suffix == ".toml":
         try:
             new_content = register_codex_toml(config)
         except ValueError as e:
             print(f"Cannot configure Codex: {e}; no files changed.")
-            return 0
+            return 2
         print(f"Target: {config}")
         confirm = input("Back up and add Telegram Bridge to this config? [y/N] ").strip().lower()
         if confirm != "y":
             print("Cancelled; no files changed.")
-            return 0
+            return 2
         if config.exists():
             print(f"Backup: {backup(config)}")
         atomic_write(config, new_content)
@@ -253,12 +251,12 @@ def main():
             new_content = register_codex_toml(config)
         except ValueError as e:
             print(f"Cannot configure Codex: {e}; no files changed.")
-            return 0
+            return 2
         print(f"Target: {config}")
         confirm = input("Create Codex MCP config? [y/N] ").strip().lower()
         if confirm != "y":
             print("Cancelled; no files changed.")
-            return 0
+            return 2
         config.parent.mkdir(parents=True, exist_ok=True)
         if config.exists():
             print(f"Backup: {backup(config)}")
@@ -272,20 +270,20 @@ def main():
             print(f"No files changed. Use {APP / example} for a manual setup.")
         else:
             print("No files changed. See docs/INSTALL.md for manual MCP setup.")
-        return 0
+        return 2
     if config is None:
         config = host[2][0]
     try:
         contents = register_json(config, host)
     except (ValueError, json.JSONDecodeError) as e:
         print(f"Cannot configure {host[0]}: {e}; no files changed.")
-        return 0
+        return 2
     print(f"Target: {config}")
     print(f"MCP server command: {MCP_COMMAND[0]} {' '.join(MCP_COMMAND[1:])}")
     confirm = input("Back up and add Telegram Bridge to this config? [y/N] ").strip().lower()
     if confirm != "y":
         print("Cancelled; no files changed.")
-        return 0
+        return 2
     config.parent.mkdir(parents=True, exist_ok=True)
     if config.exists():
         saved = backup(config)

@@ -2,6 +2,7 @@ import importlib.util
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "setup_cli.py"
 spec = importlib.util.spec_from_file_location("setup_cli", SCRIPT)
@@ -10,6 +11,21 @@ spec.loader.exec_module(setup_cli)
 
 
 class CliSetupTests(unittest.TestCase):
+    def test_cli_setup_cancellation_returns_failure_to_installer(self):
+        with patch.object(setup_cli, "selectable_hosts", return_value=[setup_cli.HOSTS[-1]]), \
+             patch.object(setup_cli, "choose", return_value=None):
+            self.assertEqual(setup_cli.main(), 2)
+
+    def test_manual_client_setup_is_successful_nonautomatic_path(self):
+        with patch.object(setup_cli, "selectable_hosts", return_value=[setup_cli.HOSTS[-1]]), \
+             patch.object(setup_cli, "choose", return_value=setup_cli.HOSTS[-1]):
+            self.assertEqual(setup_cli.main(), 0)
+
+    def test_detected_cli_options_do_not_include_undetected_integrations(self):
+        with patch.object(setup_cli, "discover", side_effect=lambda host: (host[1] == "claude", None, host[3])):
+            labels = [host[0] for host in setup_cli.selectable_hosts()]
+        self.assertEqual(labels, ["Claude Code", "Other MCP client"])
+
     def test_wordmark_alignment(self):
         self.assertEqual(setup_cli.APPROVED_WORDMARK_WIDTH, 47)
 

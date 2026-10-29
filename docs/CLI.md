@@ -95,7 +95,7 @@ wraps the local HTTP API; the bridge does not open a socket directly.
 Verification:
 
 ```sh
-TELEGRAM_BRIDGE_HOME="$HOME/.config/telegram-bridge" telegram-bridge status
+TELEGRAM_BRIDGE_HOME="$HOME/.config/telegram-bridge" telecode status
 ```
 
 The output must show a listener state and an inject target. In Telegram, `/session`

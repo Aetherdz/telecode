@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Telegram Bridge CLI entry point."""
+"""TeleCode CLI entry point."""
 import sys
 import os
 import pathlib

@@ -1,9 +1,8 @@
 # Model switching
 
-`/models` changes the model of the active OpenCode session. The menu uses Telegram
-HTML parse mode for message text; dynamic values escape ampersands and angle
-brackets. Inline keyboard button labels are plain text and are not parsed as markup.
-If a formatted send fails, the bridge retries once with stripped plain text. The bridge
+`/models` changes the model of the active OpenCode session. Model providers and models
+appear in Telegram's bottom reply keyboard, matching the session picker style. Menu
+text uses HTML parse mode; dynamic values escape ampersands and angle brackets. The bridge
 does not keep a model setting of its own: it asks the local OpenCode server to update
 the session, and the server applies the model to subsequent turns.
 
@@ -15,11 +14,13 @@ the session, and the server applies the model to subsequent turns.
 3. On success it writes `models-cache.json` in the runtime directory. On failure it
    falls back to that cache.
 4. The bridge groups models by `providerID`, sorts providers by model count
-   descending and then by provider ID, and sends an inline keyboard. This first screen
+   descending and then by provider ID, and displays them in a reply keyboard. This first screen
    skips the active-session lookup so the provider list appears without waiting on a
    second API request.
-5. Selecting a provider shows its models, 8 per page, sorted by display name.
-6. Selecting a model resolves the active session, then runs:
+5. Selecting a provider replaces the bottom keyboard with its models, 8 per page,
+   sorted by display name. Previous/next and back-to-providers buttons navigate pages.
+6. Selecting a model switches the active session model.
+7. The switch resolves the active session, then runs:
    `opencode api post /api/session/{sessionID}/model` with the JSON body below.
 
 ```json
@@ -64,21 +65,17 @@ When a provider's model page is rendered, the bridge calls
 with `Current:`. A lookup failure is silent: the picker still works, but no current model is
 marked. The bridge does not read the model from local state.
 
-## Pagination and callbacks
+## Pagination and selection
 
 - Model pages contain 8 entries.
 - Page numbers are clamped to the valid range.
 - `Previous` and `Next` are rendered only when the corresponding page exists.
-- `Providers` re-renders the provider list; `Close` dismisses the menu.
-- Callback payloads are indices (`mdl:p:<provider>`, `mdl:l:<provider>:<page>`,
-  `mdl:s:<provider>:<index>`), not model IDs.
-- A model selection reads `models-cache.json` and maps indices back to entries. If
-  the provider index or model index is out of range, the bridge reports an expired
-  menu and asks you to send `/models` again.
-- Because selection reads the cache rather than the menu's in-memory list, a
-  concurrent `/models` that refreshes the cache between rendering and tapping can
-  change which model an index resolves to. Reopen the picker if the catalogue may
-  have changed.
+- `Back to providers` returns to the provider list; `Close models` restores the
+  ordinary Telegram control keyboard.
+- Reply-keyboard text labels are mapped to the active provider page. A new picker
+  invalidates the prior selection state.
+- Selection uses model labels from the current cached provider page. Duplicate display
+  names are disambiguated with a short row suffix.
 
 ## Failure modes
 
@@ -88,7 +85,7 @@ marked. The bridge does not read the model from local state.
 | Service down and no cache | Reply that models could not be fetched; no keyboard is sent. |
 | Catalogue request slow | 45-second timeout, then the same cache fallback. |
 | Cache file corrupt or missing fields | Invalid entries are ignored; an empty result is treated as no cache. |
-| Cache stale between render and selection | Index lookup may fail; the bridge reports an expired menu. |
+| Cache changed between render and selection | The bridge rejects stale/out-of-range selections instead of switching an unrelated row. |
 | No active session | Switch is refused with a message; nothing is posted. |
 | Session disappeared | `resolve_session` drops the stale selection and falls back to discovery or pin. |
 | Session busy | The bridge posts the switch regardless; the server decides whether to accept it. A server error is reported. |

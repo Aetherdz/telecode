@@ -20,7 +20,7 @@ readme = "README.md"
 dependencies = []
 
 [project.scripts]
-telegram-bridge = "tg_bridge:main"
+telecode = "tg_bridge:main"
 
 [project.urls]
 Homepage = "https://github.com/Aetherdz/telecode"

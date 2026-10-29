@@ -9,7 +9,7 @@ control plane; it does not interpret prompts.
 | Component | File | Role |
 | --- | --- | --- |
 | Listener daemon | `tg_bridge.py listen` | Long-polls Telegram, authorizes updates, handles controls, stores messages, injects prompts. |
-| Command-line interface | `tg_bridge.py` | `listen`, `read`, `wait`, `send`, `sendfile`, `status`, `install`. |
+| Command-line interface | `tg_bridge.py` via `telecode` | `listen`, `read`, `wait`, `send`, `sendfile`, `status`, `--enable`, `--configure-cli`. |
 | MCP stdio server | `tg_mcp.py` | Exposes the seven agent-facing tools over newline-delimited JSON-RPC. |
 | Installer engine | `setup_cli.py` | Detects CLIs, validates config shape, backs up, writes atomically. |
 | Shell installer | `install.sh` | Copies files, creates the launcher and private env template, optionally enables systemd. |

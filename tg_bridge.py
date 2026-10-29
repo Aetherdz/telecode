@@ -55,6 +55,14 @@ MODELS_CACHE = BASE / "models-cache.json"
 INJECT_Q: "queue.Queue[dict]" = queue.Queue()
 SESSION_PAGE_SIZE = 8
 MODELS_PAGE_SIZE = 8
+MODEL_PAGE_STATE = {"provider_index": None, "page": 0}
+MODEL_BACK = "Back to providers"
+MODEL_PREVIOUS = "Previous models"
+MODEL_NEXT = "More models"
+MODEL_CLOSE = "Close models"
+MODEL_SELECTION = {"provider": None, "page": 0, "labels": {}}
+SESSION_BUTTONS = {}
+ACTIVE_PICKER = None
 SESSION_PAGE = 0
 SESSION_SNAPSHOT = []
 os.umask(0o077)
@@ -252,19 +260,56 @@ def _set_active_session(session):
 
 def _keyboard(cfg):
     return {"keyboard": [[{"text": "Sessions"}, {"text": "Current session"}],
-                         [{"text": "Models"}, {"text": "Help"}]],
-            "resize_keyboard": True, "is_persistent": True,
-            "input_field_placeholder": "Send a request to the selected session"}
+                         [{"text": "Models"}, {"text": "Help"}],
+                         [{"text": "/menu"}, {"text": "/session"}, {"text": "/models"}]],
+            "resize_keyboard": True, "one_time_keyboard": False,
+            "is_persistent": False}
 
 
-def _send_keyboard(cfg):
+def _configure_commands(cfg):
     try:
+        api(cfg["TG_BOT_TOKEN"], "setMyCommands", {"commands": json.dumps([
+            {"command": "menu", "description": "Show the TeleCode keyboard"},
+            {"command": "session", "description": "Choose the active session"},
+            {"command": "models", "description": "Choose a model"},
+            {"command": "model", "description": "Choose a model"},
+            {"command": "current", "description": "Show the active session"},
+            {"command": "files", "description": "List received files"},
+            {"command": "start", "description": "Show TeleCode controls"},
+            {"command": "help", "description": "Show available commands"},
+        ])}, timeout=15)
+    except Exception as e:
+        log(f"[{ts()}] bot command menu setup failed: {e!r}", flush=True)
+
+
+def _send_keyboard(cfg, text="TeleCode is ready. Select a session, then send a message.", *, configure=False):
+    try:
+        if configure:
+            _configure_commands(cfg)
         api(cfg["TG_BOT_TOKEN"], "sendMessage", {
             "chat_id": cfg["TG_CHAT_ID"],
-            "text": "TeleCode is ready. Select a session, then send a message.",
+            "text": text,
             "reply_markup": json.dumps(_keyboard(cfg), ensure_ascii=False)}, timeout=15)
     except Exception as e:
         log(f"[{ts()}] keyboard setup failed: {e!r}", flush=True)
+
+
+def _send_picker_notice(cfg, text):
+    """Compatibility hook; avoid creating another chat message for transitions."""
+    return None
+
+
+def _invalidate_model_message_ref():
+    try:
+        path = MODELS_CACHE.with_name("models-message.json")
+        path.unlink(missing_ok=True)
+    except OSError as e:
+        log(f"[{ts()}] could not invalidate model-picker reference: {e!r}", flush=True)
+
+
+def _hide_picker_keyboard(cfg):
+    """Compatibility shim retained for callers; do not re-send a keyboard."""
+    return None
 
 
 def session_title(session):
@@ -282,27 +327,49 @@ def _session_buttons(sessions):
     for session in sessions:
         counts[session_title(session)] = counts.get(session_title(session), 0) + 1
     labels = {}
+    used = set()
     for session in sessions:
         title = session_title(session)
         sid = str(session.get("id") or "")
-        labels[sid] = title if counts[title] == 1 else f"{title} [{sid[-6:]}]"
+        label = f"{title} [{sid[-6:]}]"
+        suffix_length = 6
+        while label in used and suffix_length < len(sid):
+            suffix_length += 1
+            label = f"{title} [{sid[-suffix_length:]}]"
+        if label in used:
+            label = f"{title} [{sid}]"
+        if label in {"Cancel", "Next", "Previous", MODEL_CLOSE, MODEL_BACK,
+                     MODEL_PREVIOUS, MODEL_NEXT, "Sessions", "Models", "Help",
+                     "Current session", "Menu", "Show menu", "Files",
+                     "/menu", "/session", "/models", "/model", "/current",
+                     "/help", "/files"}:
+            label = f"{label} [{sid}]"
+        used.add(label)
+        labels[sid] = label
     return labels
 
 
 def _send_session_picker(cfg, page=0, sessions=None):
-    global SESSION_PAGE, SESSION_SNAPSHOT
+    global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER
     sessions = list_sessions(cfg) if sessions is None else sessions
     if not sessions:
+        ACTIVE_PICKER = None
+        SESSION_BUTTONS.clear()
         send_text(cfg, "No OpenCode sessions were found. Check that the OpenCode service is running and that its session database is available.")
-        _send_keyboard(cfg)
+        _send_keyboard(cfg, configure=True)
         return
     SESSION_SNAPSHOT = list(sessions)
+    MODEL_SELECTION.update(provider=None, page=0, labels={})
     SESSION_PAGE = min(max(0, page), (len(sessions) - 1) // SESSION_PAGE_SIZE)
     start = SESSION_PAGE * SESSION_PAGE_SIZE
     visible = sessions
     labels = _session_buttons(sessions)
     rows = [[{"text": labels[str(s.get("id") or "")]}]
             for s in visible[start:start + SESSION_PAGE_SIZE]]
+    SESSION_BUTTONS.clear()
+    SESSION_BUTTONS.update({labels[str(s.get("id") or "")]: str(s.get("id") or "")
+                            for s in visible[start:start + SESSION_PAGE_SIZE]})
+    ACTIVE_PICKER = "sessions"
     nav = []
     if SESSION_PAGE > 0:
         nav.append({"text": "Previous"})
@@ -314,7 +381,7 @@ def _send_session_picker(cfg, page=0, sessions=None):
     active = _active_session_id()
     if not active:
         active = (cfg.get("OPENCODE_SESSION_ID") or "").strip()
-    text = "<b>Choose a session</b>\nSelect the destination for your Telegram messages."
+    text = "<b>Choose a session</b>\nSelect the destination for your Telegram messages. Use /menu to restore the main keyboard."
     page_sessions = visible[start:start + SESSION_PAGE_SIZE]
     page_labels = {str(s.get("id") or ""): labels[str(s.get("id") or "")]
                    for s in page_sessions}
@@ -323,23 +390,29 @@ def _send_session_picker(cfg, page=0, sessions=None):
         f"<code>{_html_escape(s.get('id', ''))}</code>"
         + (" <i>(active)</i>" if s.get("id") == active else "")
         for index, s in enumerate(page_sessions, start=1))
+    _send_reply_picker(cfg, text, rows, notify=False)
+
+
+def _send_reply_picker(cfg, text, rows, placeholder=None, notify=True, persist=False):
     params = {
         "chat_id": cfg["TG_CHAT_ID"], "text": text, "parse_mode": "HTML",
         "reply_markup": json.dumps({
             "keyboard": rows,
             "resize_keyboard": True,
-            "is_persistent": True,
-            "input_field_placeholder": "Send a request to the selected session",
+            "is_persistent": False,
             "one_time_keyboard": False,
         }, ensure_ascii=False),
     }
     try:
-        api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
+        result = api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
     except Exception as e:
         log(f"[{ts()}] formatted session picker failed; retrying as plain text: {e!r}", flush=True)
         params["text"] = _plain_fallback(text)
         params.pop("parse_mode", None)
-        api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
+        result = api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
+    if notify and result and result.get("result", {}).get("message_id"):
+        _set_models_message_ref({"chat_id": cfg["TG_CHAT_ID"],
+                                 "message_id": result["result"]["message_id"]})
 
 
 def _html_escape(value):
@@ -351,10 +424,6 @@ def _plain_fallback(value):
     value = re.sub(r"</?(?:b|strong|i|em|u|s|strike|del|code|pre|a|blockquote)(?:\s+[^>]*)?>", "", str(value), flags=re.I)
     return (value.replace("&amp;", "&").replace("&lt;", "<")
             .replace("&gt;", ">"))
-
-
-def _plain_fallback(value):
-    return re.sub(r"<[^>]*>", "", str(value)).replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
 
 
 def _send_inline(cfg, text, rows):
@@ -369,6 +438,59 @@ def _send_inline(cfg, text, rows):
         params["text"] = _plain_fallback(text)
         params.pop("parse_mode", None)
         return api(cfg["TG_BOT_TOKEN"], "sendMessage", params, timeout=15)
+
+
+def _edit_inline(cfg, message_ref, text, rows):
+    """Edit the existing model-picker message instead of sending a new one."""
+    message_ref = str(message_ref or "")
+    try:
+        message = json.loads(message_ref)
+    except (TypeError, ValueError):
+        message = {}
+    chat_id = str(message.get("chat_id") or "")
+    message_id = str(message.get("message_id") or "")
+    if not chat_id or not message_id:
+        return False
+    params = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": json.dumps({"inline_keyboard": rows}, ensure_ascii=False),
+    }
+    try:
+        result = api(cfg["TG_BOT_TOKEN"], "editMessageText", params, timeout=15)
+    except Exception as e:
+        log(f"[{ts()}] formatted model-menu edit failed; retrying as plain text: {e!r}", flush=True)
+        params["text"] = _plain_fallback(text)
+        params.pop("parse_mode", None)
+        try:
+            result = api(cfg["TG_BOT_TOKEN"], "editMessageText", params, timeout=15)
+        except Exception as fallback_error:
+            log(f"[{ts()}] model-menu edit fallback failed: {fallback_error!r}", flush=True)
+            return False
+    return bool(result and result.get("ok", True))
+
+
+def _callback_message_ref(cb):
+    message = cb.get("message") or {}
+    chat_id = str(((message.get("chat") or {}).get("id")) or "")
+    message_id = str(message.get("message_id") or "")
+    if not chat_id or not message_id:
+        return ""
+    return json.dumps({"chat_id": chat_id, "message_id": message_id})
+
+
+def _load_models_message_ref():
+    try:
+        value = json.loads(MODELS_CACHE.with_name("models-message.json").read_text(encoding="utf-8"))
+        expires = int(value.get("expires", 0))
+        if not value.get("chat_id") or not value.get("message_id") or expires < int(time.time()):
+            return ""
+        return json.dumps(value)
+    except (OSError, ValueError, AttributeError):
+        pass
+    return ""
 
 
 def _models_from_api(cfg):
@@ -432,41 +554,68 @@ def _current_model(cfg, sid):
     return str(model.get("id") or "")
 
 
-def _models_menu(cfg, provider_index=None, page=0):
-    """Send the provider/model picker as inline buttons."""
-    try:
-        models = _models_from_api(cfg)
-        if models:
-            _write_models_cache(models)
-    except Exception as e:
-        log(f"[{ts()}] model listing failed: {e!r}", flush=True)
-        models = _read_models_cache()
+def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
+    """Show model-provider and model pages in Telegram's bottom reply keyboard."""
+    global ACTIVE_PICKER
+    if models_snapshot is not None:
+        models = models_snapshot
+    else:
+        try:
+            models = _models_from_api(cfg)
+            if models:
+                _write_models_cache(models)
+        except Exception as e:
+            log(f"[{ts()}] model listing failed: {e!r}", flush=True)
+            models = _read_models_cache()
     if not models:
+        ACTIVE_PICKER = None
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
         send_text(cfg, "Unable to load models from OpenCode. Check that the service is running, then send /models again.")
+        _send_keyboard(cfg, "Model list unavailable. Use Models or /models to retry.")
         return
     groups = _group_models(models)
     providers = _ordered_providers(groups)
+    try:
+        provider_index = None if provider_index is None else int(provider_index)
+        page = int(page)
+    except (TypeError, ValueError):
+        provider_index, page = None, 0
+    if provider_index is not None and not 0 <= provider_index < len(providers):
+        provider_index = 0
     current = ""
     if provider_index is not None:
         sid, _ = resolve_session(cfg)
         current = _current_model(cfg, sid)
     if provider_index is None:
+        ACTIVE_PICKER = "providers"
+        MODEL_PAGE_STATE.update(provider_index=None, page=0)
         header = "<b>Choose a model provider</b>"
         if current:
             header += f"\nCurrent model: <code>{_html_escape(current)}</code>"
-        rows = [[{"text": f"{provider} ({len(groups[provider])})",
-                  "callback_data": f"mdl:p:{index}"}]
-                for index, provider in enumerate(providers)]
-        rows.append([{"text": "Close", "callback_data": "mdl:x"}])
-        _send_inline(cfg, header, rows)
+        rows = []
+        provider_labels = {}
+        reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_PREVIOUS, MODEL_NEXT,
+                    "Next", "Previous", "Sessions", "Models", "Help",
+                    "Current session", "Cancel", "Menu", "Show menu", "Files",
+                    "/menu", "/session", "/models", "/model", "/help"}
+        for index, provider in enumerate(providers):
+            base = f"{provider} ({len(groups[provider])})"
+            label = base
+            suffix = 2
+            while label in provider_labels or label in reserved:
+                label = f"{base} [{suffix}]"
+                suffix += 1
+            provider_labels[label] = index
+            rows.append([{"text": label}])
+        rows.append([{"text": MODEL_CLOSE}])
+        MODEL_SELECTION.update(provider=None, page=0, labels=provider_labels)
+        header += "\nUse /menu to restore the primary keyboard."
+        current_ref = _load_models_message_ref()
+        if not _edit_reply_picker(cfg, current_ref, header, rows, "Choose a model provider"):
+            _send_reply_picker(cfg, header, rows, "Choose a model provider", notify=True, persist=False)
         return
-    try:
-        provider_index = int(provider_index)
-    except (TypeError, ValueError):
-        provider_index = 0
-    if not 0 <= provider_index < len(providers):
-        provider_index = 0
     provider = providers[provider_index]
+    ACTIVE_PICKER = "models"
     items = groups[provider]
     pages = max(1, (len(items) + MODELS_PAGE_SIZE - 1) // MODELS_PAGE_SIZE)
     try:
@@ -474,28 +623,97 @@ def _models_menu(cfg, provider_index=None, page=0):
     except (TypeError, ValueError):
         page = 0
     page = min(max(0, page), pages - 1)
+    MODEL_PAGE_STATE.update(provider_index=provider_index, page=page)
     start = page * MODELS_PAGE_SIZE
     rows = []
+    seen = {}
+    labels = {}
+    reserved = {MODEL_CLOSE, MODEL_BACK, MODEL_PREVIOUS, MODEL_NEXT,
+                "Next", "Previous", "Sessions", "Models", "Help",
+                "Current session", "Cancel", "Menu", "Show menu", "Files",
+                "/menu", "/session", "/models", "/model", "/help"}
     for offset, model in enumerate(items[start:start + MODELS_PAGE_SIZE]):
-        name = str(model.get("name") or model["id"])[:32]
-        name = _html_escape(name)
+        base = str(model.get("name") or model["id"]).replace("\n", " ").replace("\r", " ")[:28]
+        seen[base] = seen.get(base, 0) + 1
+        name = base if seen[base] == 1 else f"{base} [{start + offset + 1}]"
         if current and model["id"] == current:
-            name = "Current: " + name
-        rows.append([{"text": name,
-                      "callback_data": f"mdl:s:{provider_index}:{start + offset}"}])
+            name = f"Current: {name}"
+        name = name[:64]
+        if name in labels or name in reserved:
+            name = f"{base} [{start + offset + 1}]"[:64]
+        while name in labels or name in reserved:
+            name = f"{name[:56]} [{start + offset + 1}]"[:64]
+        labels[name] = start + offset
+        rows.append([{"text": name}])
     nav = []
     if page > 0:
-        nav.append({"text": "Previous", "callback_data": f"mdl:l:{provider_index}:{page - 1}"})
+        nav.append({"text": "Previous"})
     if page + 1 < pages:
-        nav.append({"text": "Next", "callback_data": f"mdl:l:{provider_index}:{page + 1}"})
+        nav.append({"text": "Next"})
     if nav:
         rows.append(nav)
-    rows.append([{"text": "Providers", "callback_data": "mdl:r"},
-                 {"text": "Close", "callback_data": "mdl:x"}])
+    rows.append([{"text": MODEL_BACK}, {"text": MODEL_CLOSE}])
+    MODEL_SELECTION.update(provider=provider_index, page=page, labels=labels)
+    MODEL_SELECTION["models"] = {
+        name: (items[index].get("providerID"), items[index].get("id"))
+        for name, index in labels.items()
+    }
     text = f"<b>{_html_escape(provider)}</b> — Select a model ({page + 1}/{pages})"
     if current:
         text += f"\nCurrent model: <code>{_html_escape(current)}</code>"
-    _send_inline(cfg, text, rows)
+    text += "\nUse /menu to restore the primary keyboard."
+    current_ref = _load_models_message_ref()
+    if not _edit_reply_picker(cfg, current_ref, text, rows, "Choose a model"):
+        _send_reply_picker(cfg, text, rows, "Choose a model", notify=True, persist=False)
+
+
+def _edit_reply_picker(cfg, message_ref, text, rows, placeholder):
+    try:
+        ref = json.loads(message_ref or "{}")
+    except (TypeError, ValueError):
+        return False
+    chat_id, message_id = str(ref.get("chat_id") or ""), str(ref.get("message_id") or "")
+    if not chat_id or not message_id:
+        return False
+    markup = json.dumps({
+        "keyboard": rows, "resize_keyboard": True, "is_persistent": False,
+        "one_time_keyboard": False,
+    }, ensure_ascii=False)
+    try:
+        api(cfg["TG_BOT_TOKEN"], "editMessageText", {
+            "chat_id": chat_id, "message_id": message_id, "text": text,
+            "parse_mode": "HTML",
+        }, timeout=15)
+        api(cfg["TG_BOT_TOKEN"], "editMessageReplyMarkup", {
+            "chat_id": chat_id, "message_id": message_id,
+            "reply_markup": markup,
+        }, timeout=15)
+        _set_models_message_ref({"chat_id": chat_id, "message_id": message_id})
+        return True
+    except Exception as e:
+        log(f"[{ts()}] picker message edit failed; sending replacement: {e!r}", flush=True)
+        try:
+            api(cfg["TG_BOT_TOKEN"], "editMessageReplyMarkup", {
+                "chat_id": chat_id, "message_id": message_id,
+                "reply_markup": json.dumps({"inline_keyboard": []}),
+            }, timeout=15)
+        except Exception:
+            pass
+        return False
+
+
+def _set_models_message_ref(ref):
+    try:
+        temp = MODELS_CACHE.with_name(f".models-message.{os.getpid()}.tmp")
+        payload = json.dumps({"chat_id": str(ref["chat_id"]),
+                              "message_id": str(ref["message_id"]),
+                              "expires": int(time.time()) + 23 * 3600})
+        temp.write_text(payload, encoding="utf-8")
+        os.chmod(temp, 0o600)
+        MODELS_CACHE.with_name("models-message.json").parent.mkdir(parents=True, exist_ok=True)
+        os.replace(temp, MODELS_CACHE.with_name("models-message.json"))
+    except OSError as e:
+        log(f"[{ts()}] could not save model-picker message reference: {e!r}", flush=True)
 
 
 def _switch_session_model(cfg, model):
@@ -510,11 +728,11 @@ def _switch_session_model(cfg, model):
         cfg, "post", f"/api/session/{urllib.parse.quote(sid, safe='')}/model",
         {"model": {"id": model["id"], "providerID": model["providerID"]}}, timeout=30)
     log(f"[{ts()}] model switch sid={sid} ({how}) -> {model['providerID']}/{model['id']}", flush=True)
-    send_text(cfg, f"<b>Model switched</b>\n{model_name} (<code>{provider}</code>)\nSession: {session_name}", parse_mode="HTML")
+    _send_picker_notice(cfg, f"<b>Model switched</b>\n{model_name} (<code>{provider}</code>)\nSession: {session_name}")
 
 
 def handle_callback(cfg, cb):
-    """Handle inline-keyboard callbacks (owner only; enforced by caller)."""
+    """Handle inline-keyboard callbacks (legacy model messages only)."""
     data = str(cb.get("data") or "")
     callback_id = str(cb.get("id") or "")
     if callback_id:
@@ -523,18 +741,14 @@ def handle_callback(cfg, cb):
                 {"callback_query_id": callback_id}, timeout=10)
         except Exception as e:
             log(f"[{ts()}] answerCallbackQuery failed: {e!r}", flush=True)
-    if data == "mdl:x":
-        return True
-    if data == "mdl:r":
-        _models_menu(cfg)
-        return True
+    message_ref = _callback_message_ref(cb)
     parts = data.split(":")
     try:
         if len(parts) == 3 and parts[1] == "p":
-            _models_menu(cfg, int(parts[2]))
+            _models_menu(cfg, provider_index=int(parts[2]), models_snapshot=_read_models_cache())
             return True
         if len(parts) == 4 and parts[1] == "l":
-            _models_menu(cfg, int(parts[2]), int(parts[3]))
+            _models_menu(cfg, int(parts[2]), int(parts[3]), models_snapshot=_read_models_cache())
             return True
         if len(parts) == 4 and parts[1] == "s":
             groups = _group_models(_read_models_cache())
@@ -552,6 +766,8 @@ def handle_callback(cfg, cb):
             except Exception as e:
                 log(f"[{ts()}] model switch failed: {e!r}", flush=True)
                 send_text(cfg, f"Model switch failed: {_html_escape(str(e)[:140])}", parse_mode="HTML")
+            else:
+                _invalidate_model_message_ref()
             return True
     except (TypeError, ValueError):
         return False
@@ -560,35 +776,55 @@ def handle_callback(cfg, cb):
 
 def handle_control_message(cfg, msg, text):
     """Handle Telegram keyboard commands before normal agent injection."""
-    global SESSION_PAGE
+    global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER
     cmd = (text or "").strip()
     cmd = cmd.replace("\ufe0e", "").replace("\ufe0f", "").strip()
     if cmd.startswith("/") and "@" in cmd:
         cmd = cmd.split("@", 1)[0]
-    if cmd in ("Next", "Previous"):
+    if cmd == MODEL_CLOSE and ACTIVE_PICKER in ("providers", "models"):
+        ACTIVE_PICKER = None
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        _invalidate_model_message_ref()
+        SESSION_BUTTONS.clear()
+        return True
+    if cmd in ("Next", "Previous") and ACTIVE_PICKER == "sessions":
         cached_sessions = SESSION_SNAPSHOT or list_sessions(cfg)
         _send_session_picker(cfg, SESSION_PAGE + (1 if cmd == "Next" else -1), cached_sessions)
         return True
+    if cmd in ("Previous", "Next") and ACTIVE_PICKER == "providers":
+        return True
     if cmd in ("/start", "/help", "Help"):
-        _send_keyboard(cfg)
+        MODEL_PAGE_STATE.update(provider_index=None, page=0)
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        SESSION_SNAPSHOT = []
+        SESSION_PAGE = 0
+        SESSION_BUTTONS.clear()
+        ACTIVE_PICKER = None
+        if cmd == "/start":
+            _send_keyboard(cfg, configure=True)
+        else:
+            _send_keyboard(cfg)
         send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
         return True
-    if cmd in ("/session", "Sessions"):
-        _send_session_picker(cfg)
-        return True
-    if cmd in ("/models", "/model", "Models"):
-        _models_menu(cfg)
-        return True
     if cmd in ("/files", "Files"):
+        if ACTIVE_PICKER in ("models", "providers"):
+            _invalidate_model_message_ref()
+            ACTIVE_PICKER = None
+            MODEL_SELECTION.update(provider=None, page=0, labels={})
         sid, _ = resolve_session(cfg)
         directory = FILES / (sid if sid else "unassigned")
-        entries = sorted((p for p in directory.iterdir() if p.is_file()), key=lambda p: p.stat().st_mtime, reverse=True) if directory.exists() else []
+        entries = sorted((p for p in directory.iterdir() if p.is_file()),
+                         key=lambda p: p.stat().st_mtime, reverse=True) if directory.exists() else []
         if not entries:
             send_text(cfg, "No files have been received for the active session.")
         else:
             send_text(cfg, "Files for this session:\n" + "\n".join(str(p) for p in entries[:20]))
         return True
     if cmd in ("/current", "Current session"):
+        if ACTIVE_PICKER in ("models", "providers"):
+            _invalidate_model_message_ref()
+            ACTIVE_PICKER = None
+            MODEL_SELECTION.update(provider=None, page=0, labels={})
         sid, _ = resolve_session(cfg)
         session = _session_by_id(cfg, sid) if sid else None
         if session:
@@ -596,34 +832,134 @@ def handle_control_message(cfg, msg, text):
         else:
             send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
         return True
-    if cmd == "Cancel":
-        _send_keyboard(cfg)
+    if cmd in ("/session", "Sessions"):
+        _invalidate_model_message_ref()
+        MODEL_PAGE_STATE.update(provider_index=None, page=0)
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        SESSION_SNAPSHOT = []
+        SESSION_PAGE = 0
+        SESSION_BUTTONS.clear()
+        ACTIVE_PICKER = None
+        _send_session_picker(cfg)
         return True
-    sessions = list_sessions(cfg)
-    labels = _session_buttons(sessions)
-    matches = [s for s in sessions if labels.get(str(s.get("id") or "")) == cmd]
-    if not matches:
-        shared = [s for s in sessions if session_title(s) == cmd]
-        if len(shared) > 1:
-            send_text(cfg, "That name matches multiple sessions. Open /session and choose the entry with the matching short ID.")
+    if cmd in ("/menu", "Menu", "Show menu"):
+        ACTIVE_PICKER = None
+        _invalidate_model_message_ref()
+        SESSION_SNAPSHOT = []
+        SESSION_BUTTONS.clear()
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        MODEL_PAGE_STATE.update(provider_index=None, page=0)
+        return True
+    if cmd in ("/models", "/model", "Models"):
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        MODEL_PAGE_STATE.update(provider_index=None, page=0)
+        SESSION_BUTTONS.clear()
+        SESSION_SNAPSHOT = []
+        _invalidate_model_message_ref()
+        ACTIVE_PICKER = None
+        _models_menu(cfg)
+        return True
+    if ACTIVE_PICKER == "sessions" and cmd in SESSION_BUTTONS:
+        selected_sid = SESSION_BUTTONS[cmd]
+        session = next((s for s in SESSION_SNAPSHOT if str(s.get("id") or "") == selected_sid), None)
+        if not session:
+            send_text(cfg, "That session picker has expired. Open /session and choose again.")
             return True
-    for session in matches:
-        if labels.get(str(session.get("id") or "")) == cmd:
-            sid = str(session.get("id") or "")
-            if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", sid):
-                send_text(cfg, "Invalid session ID; the target was not changed.")
-                return True
-            _set_active_session(session)
+        if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", selected_sid):
+            send_text(cfg, "Invalid session ID; the target was not changed.")
+            return True
+        _set_active_session(session)
+        SESSION_PAGE = 0
+        ACTIVE_PICKER = None
+        SESSION_BUTTONS.clear()
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(selected_sid)}</code>", parse_mode="HTML")
+        return True
+    if cmd == "Cancel" and ACTIVE_PICKER == "sessions" and cmd not in SESSION_BUTTONS:
+        ACTIVE_PICKER = None
+        SESSION_BUTTONS.clear()
+        return True
+    stale_session_label = re.search(r"\[([0-9A-Za-z_-]{6,80})\]$", cmd)
+    if stale_session_label:
+        suffix = stale_session_label.group(1)
+        send_text(cfg, "That session picker has expired. Open /session and choose again.")
+        return True
+    if cmd in (MODEL_PREVIOUS, MODEL_NEXT) and ACTIVE_PICKER == "models":
+        provider_index = MODEL_SELECTION.get("provider")
+        if provider_index is not None:
+            page = MODEL_SELECTION.get("page", 0) + (1 if cmd == MODEL_NEXT else -1)
+            _models_menu(cfg, provider_index=provider_index, page=page,
+                         models_snapshot=_read_models_cache())
+            return True
+    if cmd in ("Next", "Previous") and ACTIVE_PICKER == "models":
+        provider_index = MODEL_SELECTION.get("provider")
+        if provider_index is not None:
+            page = MODEL_SELECTION.get("page", 0) + (1 if cmd == "Next" else -1)
+            _models_menu(cfg, provider_index=provider_index, page=page,
+                         models_snapshot=_read_models_cache())
+            return True
+    if cmd == MODEL_BACK and ACTIVE_PICKER == "models":
+        _models_menu(cfg, models_snapshot=_read_models_cache())
+        return True
+    if ACTIVE_PICKER == "models" and cmd in ("Cancel", "Previous"):
+        return True
+    if ACTIVE_PICKER in ("models", "providers") and cmd in (
+            "Sessions", "Current session", "Help", "/session", "/current", "/help"):
+        ACTIVE_PICKER = None
+        _invalidate_model_message_ref()
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        if cmd in ("Current session", "/current"):
+            sid, _ = resolve_session(cfg)
+            session = _session_by_id(cfg, sid) if sid else None
+            if session:
+                send_text(cfg, f"<b>Active session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(sid)}</code>", parse_mode="HTML")
+            else:
+                send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
+            return True
+        if cmd in ("Help", "/help"):
+            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+            return True
+        if cmd in ("Sessions", "/session"):
             SESSION_PAGE = 0
-            try:
-                send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(sid)}</code>", parse_mode="HTML")
-            except Exception as e:
-                log(f"[{ts()}] session-switch notification failed: {e!r}", flush=True)
-            _send_keyboard(cfg)
+            SESSION_SNAPSHOT = []
+            SESSION_BUTTONS.clear()
+            _send_session_picker(cfg)
             return True
-    if re.search(r"\[ses[0-9A-Za-z_-]{6,80}\]$", cmd):
-        send_text(cfg, "The selected session is no longer available. Open /session and choose another target.")
+        elif cmd in ("Help", "/help"):
+            cmd = "/help"
+            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+            return True
+    if ACTIVE_PICKER == "providers" and cmd in ("Cancel", "Previous", MODEL_BACK, MODEL_CLOSE):
         return True
+    if cmd in ("Next", "Previous") and ACTIVE_PICKER is None:
+        return True
+    selected_provider = MODEL_SELECTION.get("labels", {}).get(cmd)
+    if ACTIVE_PICKER == "providers" and MODEL_SELECTION.get("provider") is None and selected_provider is not None:
+        _models_menu(cfg, provider_index=selected_provider, page=0,
+                     models_snapshot=_read_models_cache())
+        return True
+    groups = _group_models(_read_models_cache())
+    providers = _ordered_providers(groups)
+    if ACTIVE_PICKER == "models" and MODEL_SELECTION.get("provider") is not None:
+        provider_index = MODEL_SELECTION["provider"]
+        provider = providers[provider_index] if provider_index < len(providers) else None
+        items = groups.get(provider, []) if provider else []
+        index = MODEL_SELECTION.get("labels", {}).get(cmd)
+        if index is not None and 0 <= index < len(items):
+            displayed = MODEL_SELECTION.get("models", {}).get(cmd)
+            if displayed != (items[index].get("providerID"), items[index].get("id")):
+                send_text(cfg, "That model picker is out of date. Open /models and choose again.")
+                return True
+            try:
+                _switch_session_model(cfg, items[index])
+            except Exception as e:
+                log(f"[{ts()}] model switch failed: {e!r}", flush=True)
+                send_text(cfg, f"Model switch failed: {_html_escape(str(e)[:140])}", parse_mode="HTML")
+            else:
+                ACTIVE_PICKER = None
+                MODEL_SELECTION.update(provider=None, page=0, labels={})
+                _invalidate_model_message_ref()
+            return True
     return False
 
 
@@ -780,7 +1116,7 @@ def cmd_listen():
     offset = int(OFFSET.read_text().strip()) if OFFSET.exists() else 0
     PID.write_text(str(os.getpid()))
     log(f"[{ts()}] listener up (pid {os.getpid()}), owner={owner}, offset={offset}", flush=True)
-    _send_keyboard(cfg)
+    _send_keyboard(cfg, configure=True)
     threading.Thread(target=_inject_worker, args=(cfg,), daemon=True).start()
     while True:
         try:
@@ -1037,18 +1373,25 @@ def cmd_install():
 
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "install":
-        args = ["bash", str(pathlib.Path(__file__).resolve().parent / "install.sh")]
-        if len(sys.argv) > 2:
-            args.extend(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "get-id":
+        helper = pathlib.Path(__file__).resolve().with_name("get_telegram_id.py")
+        if not helper.is_file():
+            print("chat ID helper is not installed; reinstall TeleCode", file=sys.stderr)
+            return 2
+        return subprocess.call([sys.executable, str(helper)])
+    if len(sys.argv) > 1 and sys.argv[1] == "--init":
+        return subprocess.call(["bash", str(pathlib.Path(__file__).resolve().parent / "install.sh")])
+    if len(sys.argv) > 1 and sys.argv[1] == "setup":
+        return subprocess.call(["bash", str(pathlib.Path(__file__).resolve().parent / "install.sh")])
+    if len(sys.argv) > 1 and sys.argv[1] in ("--enable", "--configure-cli"):
+        args = ["bash", str(pathlib.Path(__file__).resolve().parent / "install.sh"), sys.argv[1]]
         return subprocess.call(args)
     cmds = {
         "listen": cmd_listen, "read": cmd_read, "wait": cmd_wait,
         "send": cmd_send, "sendfile": cmd_sendfile, "status": cmd_status,
-        "install": cmd_install,
     }
     if len(sys.argv) < 2 or sys.argv[1] not in cmds:
-        print("usage: tg_bridge.py {listen|read|wait SECONDS|send TEXT|sendfile PATH [CAPTION]|status|install}", file=sys.stderr)
+        print("usage: telecode {setup|listen|read|wait SECONDS|send TEXT|sendfile PATH [CAPTION]|status|get-id|--enable|--configure-cli}", file=sys.stderr)
         return 2
     return cmds[sys.argv[1]]() or 0
 
