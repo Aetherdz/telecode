@@ -48,7 +48,6 @@ button { font-family: inherit; }
 .language-current { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
 .language-options { position: absolute; z-index: 15; top: calc(100% + 8px); inset-inline-end: 0; display: grid; width: max-content; min-width: 156px; gap: 3px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 14%, transparent); }
 .language-options[hidden] { display: none; }
-.language-options[hidden] { display: none; }
 .language-options button { position: relative; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--text); font: 500 14px var(--sans); text-align: start; cursor: pointer; }
 .language-options button:hover, .language-options button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-deep); }
 .language-options button[lang="ar"] { text-align: right; }
@@ -167,26 +166,27 @@ td strong { color: var(--accent-deep); font-weight: 600; }
 .install-repo { display: inline-block; margin-top: 24px; }
 .install-note { max-width: 42ch; margin-top: 18px !important; font-size: 13px !important; }
 .install-note::before { display: inline-block; width: 6px; height: 6px; margin-inline-end: 8px; border-radius: 50%; background: var(--telegram-ink); content: ""; vertical-align: middle; }
-.install-panel { padding: 26px 28px 20px; border: 1px solid var(--line); background: var(--panel); box-shadow: 8px 8px 0 var(--panel2); }
-.install-panel > p { max-width: 58ch; }
-.install-panel > .install-command { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-.install-panel > .install-command code { overflow-wrap: anywhere; }
+.install-panel { min-width: 0; padding: 26px 28px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 16px 40px color-mix(in srgb, var(--text) 10%, transparent); }
+.install-panel h3 { margin: 0 0 12px; font-size: 20px; }
+.install-panel > p { max-width: 58ch; margin-block: 10px 16px; line-height: 1.7; }
+.install-panel > .install-command { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 12px; padding: 10px; border: 1px solid color-mix(in srgb, var(--telegram) 48%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--telegram) 9%, var(--panel)); }
+.install-panel > .install-command code { overflow-wrap: anywhere; padding: 10px 12px; border-radius: 8px; background: var(--panel); color: var(--text); font-size: 12px; line-height: 1.8; }
 .install-panel > .install-command .copy-button { flex-shrink: 0; }
-.install-panel h3 { margin: 0 0 21px; font-size: 20px; }
 .install-steps { margin: 0; padding: 0; list-style: none; }
 .install-steps li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 13px; padding: 16px 0; border-top: 1px solid var(--line); }
 .install-number { color: var(--accent-deep); font: 12px var(--mono); }
 .install-steps li strong { display: block; margin-bottom: 8px; font-size: 15px; }
 .install-steps li p { margin: 9px 0 0; color: var(--muted); font-size: 13px; }
-.install-command { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); background: var(--bg); }
+.install-command { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
 .install-command code { min-width: 0; color: var(--text); font: 12px/1.5 var(--mono); overflow-wrap: anywhere; unicode-bidi: isolate; }
-.copy-button { min-width: 70px; min-height: 42px; }
-.copy-button:hover { border-color: var(--accent-deep); }
-.copy-button:active { transform: translateY(1px); }
+.copy-button { display: inline-flex; min-width: 116px; min-height: 48px; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; border: 1px solid var(--telegram-ink); border-radius: 9px; background: var(--telegram); color: #102229; font-size: 14px; font-weight: 700; letter-spacing: .01em; cursor: pointer; transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
+.copy-button:hover { border-color: var(--telegram-ink); background: color-mix(in srgb, var(--telegram) 80%, white); color: #102229; }
+.copy-button:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
+.copy-button svg { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .install-links { display: flex; flex-wrap: wrap; gap: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 .install-links a { color: var(--accent-deep); font-size: 13px; text-decoration: none; }
 .install-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.copy-status { min-height: 1.5em; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.copy-status { min-height: 1.5em; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
 .footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 28px 38px; border-top: 1px solid var(--line); }
 .footer p { color: var(--muted); font-size: 14px; }
 .footer > div { display: flex; flex-wrap: wrap; gap: 18px; }
@@ -272,6 +272,9 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
   .steps article { padding-block: 12px; }
   .steps h3 { margin-block: 8px; }
 }
+@media (prefers-color-scheme: dark) {
+  html[data-theme="dark"] .copy-button { color: #102229; }
+}
 @media (min-width: 1001px) {
   .floating-tools { inset-inline-end: max(24px, calc((100vw - var(--max)) / 2)); bottom: 24px; }
 }
@@ -335,18 +338,16 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
 @media (max-width: 560px) {
   .install-panel { padding: 18px 14px 14px; }
   .install-panel > p { font-size: 14px; }
-  .install-panel > .install-command { align-items: stretch; flex-direction: column; gap: 9px; }
+  .install-panel > .install-command { grid-template-columns: minmax(0, 1fr); gap: 9px; }
   .install-panel > .install-command code { font-size: 11px; line-height: 1.55; }
-  .install-panel > .install-command .copy-button { align-self: flex-start; }
-  html[dir="rtl"] .install-panel > .install-command .copy-button { align-self: flex-end; }
+  .install-panel > .install-command .copy-button { justify-self: stretch; }
   .install-steps .install-command { align-items: flex-start; flex-direction: column; }
   .install-steps .copy-button { align-self: flex-start; }
   html[dir="rtl"] .install-steps .copy-button { align-self: flex-end; }
 }
 @media (max-width: 1000px) {
-  .install-panel > .install-command { grid-template-columns: minmax(0, 1fr); }
-  .install-panel > .install-command .copy-button { justify-self: start; }
-  html[dir="rtl"] .install-panel > .install-command .copy-button { justify-self: end; }
+  .install-panel > .install-command { grid-template-columns: minmax(0, 1fr); padding: 6px; }
+  .install-panel > .install-command .copy-button { justify-self: stretch; }
 }
 @media (max-width: 420px) {
   .wrap { width: calc(100% - 36px); }

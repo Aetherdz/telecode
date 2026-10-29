@@ -36,7 +36,7 @@ if [[ "${1:-}" == "--curl-bootstrap" ]]; then
     exit 2
   fi
   logo
-  printf '\n↓ Downloading TeleCode source\n'
+  printf '\nDownloading TeleCode source\n'
   bootstrap_dir="${XDG_CACHE_HOME:-$HOME/.cache}/telecode-bootstrap"
   mkdir -p "$bootstrap_dir"
   chmod 700 "$bootstrap_dir"
@@ -50,11 +50,14 @@ if [[ "${1:-}" == "--curl-bootstrap" ]]; then
       exit 2
     }
   else
+    git -C "$bootstrap_dir/repo" reset --hard >/dev/null 2>&1 || exit 2
     git -C "$bootstrap_dir/repo" fetch --quiet --depth 1 origin main || exit 2
     git -C "$bootstrap_dir/repo" reset --hard FETCH_HEAD || exit 2
   fi
   show_download_progress 100
-  printf '\n%s\n' '[100%] Download complete.' 'Starting TeleCode setup...' ''
+  printf '\n%s\n' '[100%] Download complete.' ''
+  logo
+  printf '\nStarting TeleCode setup...\n\n'
   exec bash "$bootstrap_dir/repo/install.sh"
 fi
 

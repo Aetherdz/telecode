@@ -68,6 +68,7 @@ const messages = {
     installStepThreeTitle: 'Connect your Telegram chat', installStepThreeText: 'Enter your numeric ID from @Getmyid_bot, or choose automatic detection and send /start to your own bot.',
     installStepFourTitle: 'Restart your CLI', installStepFourText: 'Restart the selected coding-agent CLI to load MCP, then send /start in Telegram. Check the service with telecode status.',
     copyCommand: 'Copy', copyAria: 'Copy command', copySuccess: 'Command copied.', copyFailure: 'Could not copy. Select the command to copy it.',
+    copyFeedbackLabel: 'Copy status',
     copyCloneAria: 'Copy repository clone command', copyInstallAria: 'Copy installer command', copyStatusAria: 'Copy status command',
     installGuide: 'Detailed installation guide', installSecurity: 'Security notes', footerLine: 'Local sessions, reachable by design.',
     securityNav: 'Security', license: 'MIT license', previewSelected: '{provider} selected', previewAction: '{action} preview'
@@ -128,6 +129,7 @@ const messages = {
     installStepThreeTitle: 'اربط محادثة تيليجرام', installStepThreeText: 'أدخل معرّفك الرقمي من @Getmyid_bot، أو اختر الكشف التلقائي وأرسل /start إلى بوتك.',
     installStepFourTitle: 'أعد تشغيل العميل', installStepFourText: 'أعد تشغيل عميل وكيل البرمجة المحدد لتحميل MCP، ثم أرسل /start في تيليجرام. تحقق من الخدمة بالأمر telecode status.',
     copyCommand: 'نسخ', copyAria: 'نسخ الأمر', copySuccess: 'تم نسخ الأمر.', copyFailure: 'تعذر النسخ. حدد الأمر وانسخه يدويًا.',
+    copyFeedbackLabel: 'حالة النسخ',
     copyCloneAria: 'نسخ أمر استنساخ المستودع', copyInstallAria: 'نسخ أمر تشغيل المثبّت', copyStatusAria: 'نسخ أمر التحقق من الحالة',
     installGuide: 'دليل التثبيت المفصل', installSecurity: 'ملاحظات الأمان', footerLine: 'جلسات محلية، في متناولك.',
     securityNav: 'الأمان', license: 'رخصة MIT', previewSelected: 'تم اختيار {provider}', previewAction: 'معاينة {action}'
@@ -210,6 +212,13 @@ function applyLanguage(next) {
     });
     if (options) options.setAttribute('aria-label', dict.switchLanguageAria);
   });
+  document.querySelectorAll('.copy-button').forEach(button => {
+    const label = dict[button.dataset.copyAria] || dict.copyAria;
+    button.setAttribute('aria-label', label);
+    const text = button.querySelector('span');
+    if (text) text.textContent = dict.copyCommand;
+  });
+  document.querySelectorAll('.copy-status').forEach(status => status.setAttribute('aria-label', dict.copyFeedbackLabel));
   document.querySelectorAll('.provider').forEach(button => button.setAttribute('aria-label', dict.providerAria.replace('{provider}', button.dataset.provider)));
   document.querySelectorAll('[data-preview-key]').forEach(button => button.setAttribute('aria-label', dict.previewButtonAria.replace('{action}', dict[button.dataset.previewKey])));
   document.querySelectorAll('[data-copy-aria]').forEach(button => button.setAttribute('aria-label', dict[button.dataset.copyAria] || dict.copyAria));

@@ -15,6 +15,14 @@ class InstallerTests(unittest.TestCase):
         self.assertIn('"--curl-bootstrap"', text)
         self.assertIn("github.com/Aetherdz/telecode.git", text)
         self.assertIn('! -d "$bootstrap_dir/repo/.git"', text)
+
+    def test_curl_bootstrap_shows_logo_before_download_and_after_completion(self):
+        text = (ROOT / "install.sh").read_text()
+        bootstrap = text.split('if [[ "${1:-}" == "--curl-bootstrap" ]]; then', 1)[1].split("\nfi\n", 1)[0]
+        self.assertEqual(bootstrap.count("  logo"), 2)
+        self.assertLess(bootstrap.index("  logo"), bootstrap.index("Downloading TeleCode source"))
+        self.assertLess(bootstrap.index("[100%] Download complete."), bootstrap.rindex("  logo"))
+        self.assertIn("Starting TeleCode setup...", bootstrap)
     def test_bootstrap_is_self_contained_and_help_is_local(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = pathlib.Path(tmp)

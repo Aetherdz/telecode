@@ -65,8 +65,18 @@ class SiteTests(unittest.TestCase):
 
     def test_mobile_install_panel_stacks_long_command_and_copy_control(self):
         css = (ROOT / "assets/site.css").read_text()
-        self.assertRegex(css, r"@media \(max-width: 560px\)[\s\S]*?\.install-panel > \.install-command\s*\{[^}]*flex-direction:\s*column")
+        self.assertRegex(css, r"@media \(max-width: 560px\)[\s\S]*?\.install-panel > \.install-command\s*\{[^}]*grid-template-columns")
         self.assertIn("overflow-wrap: anywhere", css)
+
+    def test_install_command_and_copy_action_have_clear_visual_grouping(self):
+        html = (ROOT / "index.html").read_text()
+        css = (ROOT / "assets/site.css").read_text()
+        self.assertIn('class="copy-button"', html)
+        self.assertIn('<svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8"', html)
+        self.assertIn(".install-panel > .install-command { display: grid;", css)
+        self.assertIn("background: color-mix(in srgb, var(--telegram) 9%, var(--panel))", css)
+        self.assertIn(".copy-button { display: inline-flex; min-width: 116px; min-height: 48px", css)
+        self.assertIn(".copy-button:focus-visible", css)
 
     def test_bootstrap_progress_finishes_at_100_before_install(self):
         script = (ROOT / "install.sh").read_text()
