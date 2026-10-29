@@ -28,45 +28,54 @@ logo() {
 
 logo
 printf 'TeleCode installer %s\n\n' "$VERSION"
-mkdir -p "$APP_DIR/adapters" "$CONFIG_DIR" "$BIN_DIR"
-install -m 0644 "$SOURCE_DIR/tg_bridge.py" "$APP_DIR/tg_bridge.py"
-install -m 0644 "$SOURCE_DIR/tg_mcp.py" "$APP_DIR/tg_mcp.py"
-install -m 0644 "$SOURCE_DIR/install.sh" "$APP_DIR/install.sh"
-install -m 0644 "$SOURCE_DIR/adapters/base.py" "$APP_DIR/adapters/base.py"
-install -m 0644 "$SOURCE_DIR/adapters/opencode.py" "$APP_DIR/adapters/opencode.py"
-install -m 0644 "$SOURCE_DIR/adapters/claude_code.py" "$APP_DIR/adapters/claude_code.py"
-install -m 0644 "$SOURCE_DIR/telegram-bridge.py" "$APP_DIR/telegram-bridge.py"
-install -m 0644 "$SOURCE_DIR/telegram-bridge.service" "$APP_DIR/telegram-bridge.service"
-install -m 0644 "$SOURCE_DIR/SKILL.md" "$APP_DIR/SKILL.md"
-install -m 0644 "$SOURCE_DIR/setup_cli.py" "$APP_DIR/setup_cli.py"
-install -m 0644 "$SOURCE_DIR/get_telegram_id.py" "$APP_DIR/get_telegram_id.py"
-cat > "$BIN_DIR/telecode" <<EOF
+if [[ "${1:-}" == "--update" && "$(realpath "$SOURCE_DIR")" == "$(realpath "$APP_DIR")" ]]; then
+  echo "Run ./install.sh --update from a source checkout, not the installed copy." >&2
+  exit 2
+fi
+mkdir -p "$APP_DIR/adapters" "$APP_DIR/config" "$CONFIG_DIR" "$BIN_DIR"
+install_if_changed() {
+  local source="$1" destination="$2"
+  if [[ "$source" -ef "$destination" ]]; then return 0; fi
+  install -m 0644 "$source" "$destination"
+}
+install_if_changed "$SOURCE_DIR/tg_bridge.py" "$APP_DIR/tg_bridge.py"
+install_if_changed "$SOURCE_DIR/tg_mcp.py" "$APP_DIR/tg_mcp.py"
+install_if_changed "$SOURCE_DIR/install.sh" "$APP_DIR/install.sh"
+install_if_changed "$SOURCE_DIR/adapters/base.py" "$APP_DIR/adapters/base.py"
+install_if_changed "$SOURCE_DIR/adapters/__init__.py" "$APP_DIR/adapters/__init__.py"
+install_if_changed "$SOURCE_DIR/adapters/opencode.py" "$APP_DIR/adapters/opencode.py"
+install_if_changed "$SOURCE_DIR/adapters/claude_code.py" "$APP_DIR/adapters/claude_code.py"
+install_if_changed "$SOURCE_DIR/telegram-bridge.py" "$APP_DIR/telegram-bridge.py"
+install_if_changed "$SOURCE_DIR/telegram-bridge.service" "$APP_DIR/telegram-bridge.service"
+install_if_changed "$SOURCE_DIR/SKILL.md" "$APP_DIR/SKILL.md"
+install_if_changed "$SOURCE_DIR/setup_cli.py" "$APP_DIR/setup_cli.py"
+install_if_changed "$SOURCE_DIR/get_telegram_id.py" "$APP_DIR/get_telegram_id.py"
+install_if_changed "$SOURCE_DIR/.env.example" "$APP_DIR/.env.example"
+mkdir -p "$CONFIG_DIR/files"
+for template in "$SOURCE_DIR"/config/*.example.json; do
+  [[ -f "$template" ]] && install_if_changed "$template" "$APP_DIR/config/$(basename "$template")"
+done
+WRAPPER_TMP="$(mktemp "$BIN_DIR/.telecode.XXXXXX")"
+cat > "$WRAPPER_TMP" <<'EOF'
 #!/usr/bin/env bash
-export TELEGRAM_BRIDGE_HOME="$CONFIG_DIR"
-if [[ "\$#" -eq 1 && "\$1" == "--enable" ]]; then
-  exec bash "$APP_DIR/install.sh" --enable
+APP_DIR="${TELECODE_APP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge}"
+export TELEGRAM_BRIDGE_HOME="${TELEGRAM_BRIDGE_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge}"
+export TELECODE_APP_DIR="${TELECODE_APP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge}"
+APP_DIR="$TELECODE_APP_DIR"
+if [[ ! -d "$APP_DIR" ]]; then
+  echo "TeleCode files not found at $APP_DIR; rerun the source installer." >&2
+  exit 2
 fi
-if [[ "\$#" -eq 1 && "\$1" == "--start" ]]; then
-  exec bash "$APP_DIR/install.sh" --start
-fi
-if [[ "\$#" -eq 1 && "\$1" == "--status" ]]; then
-  exec bash "$APP_DIR/install.sh" --status
-fi
-if [[ "\$#" -eq 1 && "\$1" == "--help" ]]; then
-  printf 'Usage: telecode setup | status | get-id | listen | read | wait SECONDS | send TEXT | sendfile PATH [CAPTION]\n'
-  exit 0
-fi
-if [[ "\$#" -eq 1 && "\$1" == "--configure-cli" ]]; then
-  exec bash "$APP_DIR/install.sh" --configure-cli
-fi
-  if [[ "\$#" -eq 1 && ( "\$1" == "setup" || "\$1" == "--init" ) ]]; then
-  exec bash "$APP_DIR/install.sh"
-fi
-if [[ "\$#" -eq 1 && "\$1" == "get-id" ]]; then
-  exec "$PYTHON" "$APP_DIR/get_telegram_id.py"
-fi
-exec "$PYTHON" "$APP_DIR/telegram-bridge.py" "\$@"
+if [[ "$#" -eq 1 && ( "$1" == "--help" || "$1" == "help" ) ]]; then exec bash "$APP_DIR/install.sh" help; fi
+if [[ "$#" -eq 1 && "$1" == "setup" ]]; then exec bash "$APP_DIR/install.sh"; fi
+if [[ "$#" -eq 1 && "$1" == "update" ]]; then printf 'Update from a TeleCode source checkout with: ./install.sh --update\n' >&2; exit 2; fi
+if [[ "$#" -eq 1 && "$1" == "--configure-cli" ]]; then exec bash "$APP_DIR/install.sh" --configure-cli; fi
+if [[ "$#" -eq 1 && ( "$1" == "--enable" || "$1" == "--start" || "$1" == "--status" || "$1" == "listen" || "$1" == "status" ) ]]; then exec bash "$APP_DIR/install.sh" "$1"; fi
+if [[ "$#" -ge 1 && "$1" == "get-id" ]]; then shift; exec python3 "$APP_DIR/get_telegram_id.py" "$@"; fi
+exec python3 "$APP_DIR/telegram-bridge.py" "$@"
 EOF
+chmod 0755 "$WRAPPER_TMP"
+mv -f "$WRAPPER_TMP" "$BIN_DIR/telecode"
 chmod 0755 "$BIN_DIR/telecode"
 
 if [[ ! -f "$CONFIG_DIR/telegram.env" ]]; then
@@ -84,27 +93,71 @@ EOF
 if [[ "${1:-}" == "--bootstrap" ]]; then
   exit 0
 fi
+if [[ "${1:-}" == "--update" ]]; then
+  echo "Updating TeleCode from source; private configuration is preserved."
+  UPDATE_MODE=1
+fi
+
+if [[ "${1:-}" == "--uninstall" ]]; then
+  echo "Uninstall is not automated. Disable the service, then remove $APP_DIR and $BIN_DIR/telecode; config at $CONFIG_DIR is preserved." >&2
+  exit 2
+fi
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
+  cat <<'EOF'
+TeleCode guided setup and commands:
+  telecode setup        configure a CLI and collect Telegram credentials
+  telecode get-id       detect your private chat ID through your own bot
+  telecode status       show listener status
+  telecode listen       run the listener in this terminal
+  telecode help         show this help
+
+Create a bot with @BotFather and keep its token private. For your numeric
+account ID, message @Getmyid_bot, or choose automatic detection and send /start
+to your own bot. Never send your bot token to an ID lookup bot.
+EOF
+  exit 0
+fi
 
 if [[ "${1:-}" == "--enable" ]]; then
-  if [[ ! -f "$CONFIG_DIR/telegram.env" ]] || grep -Eq '^TG_BOT_TOKEN=$|^TG_CHAT_ID=$' "$CONFIG_DIR/telegram.env"; then
-    echo "Set TG_BOT_TOKEN and TG_CHAT_ID in $CONFIG_DIR/telegram.env before enabling." >&2
+  if [[ ! -f "$CONFIG_DIR/telegram.env" ]] || \
+     ! grep -Eq '^TG_BOT_TOKEN=[0-9]{5,}:[A-Za-z0-9_-]{20,}$' "$CONFIG_DIR/telegram.env" || \
+      ! grep -Eq '^TG_CHAT_ID=-?[0-9]+$' "$CONFIG_DIR/telegram.env"; then
+    echo "Set a valid TG_BOT_TOKEN (from @BotFather) and numeric TG_CHAT_ID in $CONFIG_DIR/telegram.env before enabling." >&2
     exit 1
   fi
+  if [[ "$CONFIG_DIR$APP_DIR" =~ [[:space:]] || "$CONFIG_DIR$APP_DIR" == *'|'* || "$CONFIG_DIR$APP_DIR" == *'&'* || "$CONFIG_DIR$APP_DIR" == *'\'* || "$CONFIG_DIR$APP_DIR" == *'%'* || "$CONFIG_DIR$APP_DIR" == *'"'* || "$CONFIG_DIR$APP_DIR" == *$'\n'* ]]; then
+    echo 'Systemd setup does not support whitespace or |, &, backslash, %, double quote, or newline in XDG paths.' >&2
+    exit 2
+  fi
   mkdir -p "$UNIT_DIR"
-  sed -e "s|%h/.config/telegram-bridge|$CONFIG_DIR|g" \
-      -e "s|%h/.local/share/telegram-bridge|$APP_DIR|g" \
-      "$APP_DIR/telegram-bridge.service" > "$UNIT_DIR/telegram-bridge.service"
-  chmod 0644 "$UNIT_DIR/telegram-bridge.service"
+  TMP_UNIT="$(mktemp "$UNIT_DIR/.telegram-bridge.service.XXXXXX")"
+  sed -e "s|%h/.config/telegram-bridge|$(printf '%s' "$CONFIG_DIR" | sed 's/[&|\\]/\\&/g')|g" \
+      -e "s|%h/.local/share/telegram-bridge|$(printf '%s' "$APP_DIR" | sed 's/[&|\\]/\\&/g')|g" \
+      "$APP_DIR/telegram-bridge.service" > "$TMP_UNIT"
+  chmod 0644 "$TMP_UNIT"
+  mv -f "$TMP_UNIT" "$UNIT_DIR/telegram-bridge.service"
   systemctl --user daemon-reload
   systemctl --user enable --now telegram-bridge.service
   echo "Enabled user startup service: telegram-bridge"
 fi
 
+if [[ "${UPDATE_MODE:-0}" == "1" ]]; then
+  echo "Updated installed files in $APP_DIR. Private configuration was preserved."
+  exit 0
+fi
+
 if [[ "${1:-}" == "--start" ]]; then
+  TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" exec "$PYTHON" "$APP_DIR/telegram-bridge.py" listen
+fi
+if [[ "${1:-}" == "listen" ]]; then
   TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" exec "$PYTHON" "$APP_DIR/telegram-bridge.py" listen
 fi
 
 if [[ "${1:-}" == "--status" ]]; then
+  TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" exec "$PYTHON" "$APP_DIR/telegram-bridge.py" status
+fi
+if [[ "${1:-}" == "status" ]]; then
   TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" exec "$PYTHON" "$APP_DIR/telegram-bridge.py" status
 fi
 
@@ -113,8 +166,10 @@ if [[ "${1:-}" == "--configure-cli" ]]; then
   exit $?
 fi
 
+
 if [[ "${1:-}" == "get-id" ]]; then
-  exec "$PYTHON" "$APP_DIR/get_telegram_id.py"
+  shift
+  exec "$PYTHON" "$APP_DIR/get_telegram_id.py" "$@"
 fi
 
 if [[ $# -eq 0 ]]; then
@@ -126,10 +181,10 @@ if [[ $# -eq 0 ]]; then
     echo "CLI integration was cancelled or could not be configured; listener was not enabled." >&2
     exit 2
   }
-  if ! grep -q '^TG_BOT_TOKEN=.' "$CONFIG_DIR/telegram.env"; then
-    read -r -s -p "Telegram bot token (from BotFather): " token
+  if ! grep -Eq '^TG_BOT_TOKEN=[0-9]{5,}:[A-Za-z0-9_-]{20,}$' "$CONFIG_DIR/telegram.env"; then
+    read -r -s -p "Telegram bot token (from @BotFather): " token
     printf '\n'
-    [[ -n "$token" ]] || { echo "A bot token is required." >&2; exit 2; }
+    [[ "$token" =~ ^[0-9]{5,}:[A-Za-z0-9_-]{20,}$ ]] || { echo "Invalid Telegram bot token format; obtain it from @BotFather." >&2; exit 2; }
     TOKEN="$token" "$PYTHON" - "$CONFIG_DIR/telegram.env" <<'PY'
 import os, pathlib, sys, tempfile
 path = pathlib.Path(sys.argv[1])
@@ -147,23 +202,54 @@ finally:
     except FileNotFoundError: pass
 PY
   fi
-  if ! grep -q '^TG_CHAT_ID=.' "$CONFIG_DIR/telegram.env"; then
-  TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" "$PYTHON" "$APP_DIR/get_telegram_id.py" --configure
+  if ! grep -Eq '^TG_CHAT_ID=-?[0-9]+$' "$CONFIG_DIR/telegram.env"; then
+    echo "To find your ID, message @Getmyid_bot, then enter it below; or choose auto-detection." >&2
+    printf 'Numeric Telegram owner chat ID (or A for automatic bot detection): '
+    read -r chat_id
+    if [[ "$chat_id" =~ ^-?[0-9]+$ ]]; then
+      CHAT_ID="$chat_id" "$PYTHON" - "$CONFIG_DIR/telegram.env" <<'PY'
+import os, pathlib, sys, tempfile
+path = pathlib.Path(sys.argv[1])
+lines = [line for line in path.read_text().splitlines() if not line.startswith("TG_CHAT_ID=")]
+lines.append("TG_CHAT_ID=" + os.environ["CHAT_ID"])
+fd, name = tempfile.mkstemp(prefix=".telegram.env.", dir=path.parent)
+try:
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w") as stream:
+        stream.write("\n".join(lines) + "\n")
+        stream.flush(); os.fsync(stream.fileno())
+    os.replace(name, path)
+finally:
+    try: os.unlink(name)
+    except FileNotFoundError: pass
+PY
+    elif [[ "$chat_id" =~ ^[Aa]$ ]]; then
+      TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" "$PYTHON" "$APP_DIR/get_telegram_id.py" --configure
+    else
+      echo "Enter a numeric chat ID or A. No service was enabled." >&2
+      exit 2
+    fi
   fi
-  if ! grep -q '^TG_CHAT_ID=.' "$CONFIG_DIR/telegram.env"; then
+  if ! grep -Eq '^TG_CHAT_ID=-?[0-9]+$' "$CONFIG_DIR/telegram.env"; then
     echo "Owner chat ID was not saved; listener will not be enabled." >&2
     exit 2
   fi
+  if [[ "$CONFIG_DIR$APP_DIR" =~ [[:space:]] || "$CONFIG_DIR$APP_DIR" == *'|'* || "$CONFIG_DIR$APP_DIR" == *'&'* || "$CONFIG_DIR$APP_DIR" == *'\'* || "$CONFIG_DIR$APP_DIR" == *'%'* || "$CONFIG_DIR$APP_DIR" == *'"'* || "$CONFIG_DIR$APP_DIR" == *$'\n'* ]]; then
+    echo 'Systemd setup does not support whitespace or |, &, backslash, %, double quote, or newline in XDG paths.' >&2
+    exit 2
+  fi
   mkdir -p "$UNIT_DIR"
-  sed -e "s|%h/.config/telegram-bridge|$CONFIG_DIR|g" \
-      -e "s|%h/.local/share/telegram-bridge|$APP_DIR|g" \
-      "$APP_DIR/telegram-bridge.service" > "$UNIT_DIR/telegram-bridge.service"
-  chmod 0644 "$UNIT_DIR/telegram-bridge.service"
+  TMP_UNIT="$(mktemp "$UNIT_DIR/.telegram-bridge.service.XXXXXX")"
+  sed -e "s|%h/.config/telegram-bridge|$(printf '%s' "$CONFIG_DIR" | sed 's/[&|\\]/\\&/g')|g" \
+      -e "s|%h/.local/share/telegram-bridge|$(printf '%s' "$APP_DIR" | sed 's/[&|\\]/\\&/g')|g" \
+      "$APP_DIR/telegram-bridge.service" > "$TMP_UNIT"
+  chmod 0644 "$TMP_UNIT"
+  mv -f "$TMP_UNIT" "$UNIT_DIR/telegram-bridge.service"
   systemctl --user daemon-reload
   systemctl --user enable --now telegram-bridge.service
   echo "Setup complete: MCP configured and TeleCode enabled at login. Restart the selected CLI to load MCP."
   exit 0
 fi
 
-echo "Usage: install.sh [--bootstrap|--enable|--start|--status|--configure-cli|get-id]" >&2
+echo "Usage: install.sh [--bootstrap|--update|--enable|--start|--status|--configure-cli|get-id]" >&2
 exit 2

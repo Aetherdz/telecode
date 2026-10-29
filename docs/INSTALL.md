@@ -1,10 +1,18 @@
 # Installation and startup
 
+## Supported platforms
+
+The guided installer requires Python 3.11+ and is supported on Linux with
+systemd user services. macOS and Windows are not currently supported by the
+guided installer.
+
 ## 1. Prepare credentials
 
-Create a bot with BotFather, then create a private chat with it. Copy this
-project's `.env.example` to the runtime directory as `telegram.env`, fill in
-the bot token and numeric owner chat ID, and restrict permissions:
+Create your bot with Telegram's official **@BotFather** and copy the token. Keep
+the token secret; never give it to @Getmyid_bot. For the numeric owner chat ID,
+message **@Getmyid_bot** and copy the ID, or select automatic detection during
+setup and send `/start` to your own bot. TeleCode never contacts Telegram until
+you provide the token and explicitly start ID detection or the listener.
 
 ```sh
 chmod 600 telegram.env
@@ -43,24 +51,34 @@ long-pollers.
 On Linux with systemd user services, install the provided user service:
 
 ```sh
-./install.sh --bootstrap
-telecode setup
+./install.sh
 systemctl --user status telegram-bridge
 ```
 
-Interactive setup creates the private config, asks before registering MCP with
-the selected CLI, collects the bot token, waits for `/start` to save the private
-owner chat ID, and enables the systemd user service. Canceling CLI registration
+Interactive setup creates the private config, uses arrow keys and Enter to select
+a detected coding-agent CLI, asks before registering MCP, securely prompts for
+the bot token, then requests a numeric chat ID or offers automatic detection.
+It validates the credentials before enabling the systemd user service. Canceling CLI registration
 stops onboarding before credentials or service setup; run `telecode setup` again
 to retry. For config-only changes use `telecode --configure-cli`.
 
-To configure a coding-agent CLI, run the installer and choose **Configure a
-detected coding-agent CLI**. It detects installed OpenCode, Claude Code, Codex,
+To configure a coding-agent CLI, run `telecode setup` and choose a detected
+client with the arrow keys, then press Enter. It detects installed OpenCode, Claude Code, Codex,
 Gemini CLI, Cursor, Aider, Cline, Continue, Roo Code, and Amazon Q, then shows choices
 available on this machine plus manual MCP. It makes a timestamped backup and
 asks before changing config. Unsupported formats are left untouched with a
 manual setup hint. Session switching is available only for a CLI with a
 implemented supported session adapter; MCP tool support alone doesn't imply it.
+
+`install_autostart.sh` is retained as a compatibility alias for
+`install.sh --enable`; it no longer has a separate file-copy implementation.
+
+The project intentionally does not offer a `curl | bash` one-liner: cloning
+lets you inspect the source before executing it. To refresh installed files
+from that checkout, run `./install.sh --update`; the private config is preserved.
+For a clean, isolated local
+installation smoke test, use `tests/test_installer.py`, which installs into a
+temporary HOME and never starts a Telegram connection.
 
 This starts the bot at user login. Enabling systemd lingering keeps user
 services running without an interactive login where supported. Disable with:

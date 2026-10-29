@@ -9,7 +9,7 @@ agent reply through MCP tools.
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![MCP](https://img.shields.io/badge/MCP-stdio-informational.svg)
-![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-Linux%20(systemd)-lightgrey.svg)
 
 ## Why TeleCode
 
@@ -20,6 +20,21 @@ or a web endpoint. There is no prompt router and no second model in the path. Th
 message goes to the local session, and the agent decides how to answer.
 
 ## Features
+
+## Install
+
+Clone the source so you can inspect it before running the installer:
+
+```sh
+git clone https://github.com/Aetherdz/telecode.git
+cd telecode
+./install.sh
+```
+
+The guided setup uses arrow keys and Enter to choose a detected CLI. It then
+asks for a Telegram token from **@BotFather** and your numeric owner ID (available
+from **@Getmyid_bot**) or offers automatic detection through your own bot. See
+[the full installation guide](docs/INSTALL.md) for supported platforms and details.
 
 - Owner-only listener: the configured chat is checked on all messages; sender
   identity is checked when present, and both chat and sender are checked for callbacks.
@@ -65,8 +80,8 @@ For a scripted, non-interactive file install, use `./install.sh --bootstrap`.
 For a full terminal onboarding, run `./install.sh` directly. The installer copies the runtime into
 `${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge`, creates a private
 `${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge/telegram.env`, asks before
-registering MCP with the selected CLI, prompts for the bot token, and saves your
-owner chat ID after you send `/start` to your bot. Add `~/.local/bin` to `PATH`
+registering MCP with the selected CLI, securely prompts for a BotFather token, then asks for your numeric owner ID or
+automatically detects it when you send `/start` to your own bot. Add `~/.local/bin` to `PATH`
 if necessary. Setup enables the TeleCode listener as a user service at login.
 Use `telecode status` to inspect it or `telecode setup` to rerun onboarding.
 

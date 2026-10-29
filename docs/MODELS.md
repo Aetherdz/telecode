@@ -17,7 +17,7 @@ the session, and the server applies the model to subsequent turns.
    descending and then by provider ID, and displays them in a reply keyboard. This first screen
    skips the active-session lookup so the provider list appears without waiting on a
    second API request.
-5. Selecting a provider replaces the bottom keyboard with its models, 8 per page,
+5. Selecting a provider replaces the bottom keyboard with its models, 20 per page,
    sorted by display name. Previous/next and back-to-providers buttons navigate pages.
 6. Selecting a model switches the active session model.
 7. The switch resolves the active session, then runs:
@@ -67,10 +67,10 @@ marked. The bridge does not read the model from local state.
 
 ## Pagination and selection
 
-- Model pages contain 8 entries.
+- Model pages contain up to 20 entries.
 - Page numbers are clamped to the valid range.
 - `Previous` and `Next` are rendered only when the corresponding page exists.
-- `Back to providers` returns to the provider list; `Close models` restores the
+- `Back to providers` returns to the provider list; `Cancel` dismisses the
   ordinary Telegram control keyboard.
 - Reply-keyboard text labels are mapped to the active provider page. A new picker
   invalidates the prior selection state.

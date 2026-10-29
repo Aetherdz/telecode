@@ -3,13 +3,23 @@
 import json
 import os
 import pathlib
+import re
+import socket
 import sys
 import time
+import argparse
+import getpass
 import urllib.parse
 import urllib.request
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Resolve a private Telegram chat ID for TeleCode.")
+    parser.add_argument("--configure", action="store_true", help="save the resolved ID in telegram.env")
+    parser.add_argument("--timeout", type=int, default=300, help="stop waiting after N seconds (default: 300)")
+    args = parser.parse_args()
+    if args.timeout < 1:
+        raise SystemExit("--timeout must be a positive number of seconds.")
     env_path = pathlib.Path(os.environ.get(
         "TELEGRAM_BRIDGE_HOME",
         pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config"))
@@ -26,9 +36,11 @@ def main():
             values["TG_CHAT_ID"] = line.split("=", 1)[1].strip().strip('"').strip("'")
     token = values.get("TG_BOT_TOKEN", "")
     if not token:
-        token = input("Telegram bot token from BotFather: ").strip()
+        token = getpass.getpass("Telegram bot token from @BotFather: ").strip()
         if not token:
             raise SystemExit("A bot token is required.")
+        if not re.fullmatch(r"[0-9]{5,}:[A-Za-z0-9_-]{20,}", token):
+            raise SystemExit("Invalid bot token format. Create or retrieve it with @BotFather.")
         values["TG_BOT_TOKEN"] = token
         values.setdefault("TG_CHAT_ID", "")
         lines = [line for line in env_path.read_text(encoding="utf-8").splitlines()
@@ -36,22 +48,30 @@ def main():
         lines.append(f"TG_BOT_TOKEN={token}")
         _write_private(env_path, lines)
 
-    api = f"https://api.telegram.org/bot{token}/"
-    if "--bootstrap" in sys.argv:
-        print("Start the bot chat and run `telecode get-id` in another terminal to receive your chat ID.")
-        return 0
+    if not re.fullmatch(r"[0-9]{5,}:[A-Za-z0-9_-]{20,}", token):
+        raise SystemExit("Invalid bot token format. Create or retrieve it with @BotFather.")
 
-    if "--configure" in sys.argv:
+    api = f"https://api.telegram.org/bot{token}/"
+    if args.configure:
         print("Open the bot's private chat and send /start. The owner ID will be saved automatically.")
     else:
         print("Open your bot's private chat and send /start. The helper will show an ID button.")
     offset = 0
+    deadline = time.monotonic() + args.timeout
     while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise SystemExit("Timed out waiting for a private /start message. Run `telecode get-id` to try again.")
         req = urllib.request.Request(api + "getUpdates", urllib.parse.urlencode({
-            "offset": offset, "timeout": 30,
+            "offset": offset, "timeout": min(30, max(1, int(remaining))),
             "allowed_updates": json.dumps(["message"]),
         }).encode())
-        with urllib.request.urlopen(req, timeout=40) as response:
+        try:
+            response = urllib.request.urlopen(req, timeout=min(40, max(2, remaining + 2)))
+        except (TimeoutError, socket.timeout):
+            print("Telegram did not respond in time; retrying. Check your network and bot token.", file=sys.stderr)
+            continue
+        with response:
             payload = json.loads(response.read().decode("utf-8"))
         for update in payload.get("result", []):
             offset = int(update.get("update_id", 0)) + 1
@@ -81,6 +101,7 @@ def main():
                 lines.append(f"TG_CHAT_ID={chat_id}")
                 _write_private(env_path, lines)
                 print("Owner chat ID saved to the private TeleCode configuration.")
+            return 0
     return 0
 
 

@@ -16,7 +16,7 @@ const messages = {
     pageTitle: 'TeleCode — your coding sessions, within reach',
     metaDescription: 'TeleCode connects Telegram to local OpenCode sessions and coding-agent MCP tools.',
     skip: 'Skip to content', homeAria: 'TeleCode home', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'TeleCode repository on GitHub (opens in a new tab)', navOpen: 'Open navigation', navClose: 'Close navigation', mainNav: 'Main navigation',
-    switchLanguageAria: 'Switch language to Arabic', phonePreview: 'Illustrative model picker preview', switchTheme: 'Switch color theme',
+    switchLanguageAria: 'Switch language to Arabic', phonePreview: 'Illustrative model picker preview', switchTheme: 'Switch color theme', mapScrollAria: 'Scrollable routing diagram. Use left and right arrow keys to explore.',
     themeToDarkAria: 'Switch to dark mode', themeToLightAria: 'Switch to light mode',
     providerAria: 'Choose {provider} as the model provider', previewButtonAria: '{action} preview',
     navFlow: 'How it works', navIntegrations: 'Integrations', navCommands: 'Commands', navSecurity: 'Security', navInstall: 'Install',
@@ -62,8 +62,8 @@ const messages = {
     installMethod: 'Guided source install', installMethodText: 'The installer checks your environment, backs up CLI config before changing it, and keeps private bot settings in your user config directory.',
     installSourceCta: 'Open the source repository', installNoBinary: 'There is no standalone binary download. The installer copies the reviewed project files to your user directories.',
     installStepsHeading: 'Install in a few steps', installStepOneTitle: 'Clone the repository', installStepTwoTitle: 'Run the guided installer',
-    installStepTwoText: 'Choose a detected CLI. Setup asks before changing its config, then prompts for your Telegram bot token.',
-    installStepThreeTitle: 'Connect your Telegram chat', installStepThreeText: 'Open a private chat with your bot and send /start. Setup saves your owner chat ID and enables the listener service.',
+    installStepTwoText: 'Choose a detected CLI with the arrow keys and Enter. Setup asks before changing its config, then requests your Telegram bot token.',
+    installStepThreeTitle: 'Connect your Telegram chat', installStepThreeText: 'Enter your numeric ID from @Getmyid_bot, or choose automatic detection and send /start to your own bot.',
     installStepFourTitle: 'Restart your CLI', installStepFourText: 'Restart the selected coding-agent CLI to load MCP, then send /start in Telegram. Check the service with telecode status.',
     copyCommand: 'Copy', copyAria: 'Copy command', copySuccess: 'Command copied.', copyFailure: 'Could not copy. Select the command to copy it.',
     copyCloneAria: 'Copy repository clone command', copyInstallAria: 'Copy installer command', copyStatusAria: 'Copy status command',
@@ -74,7 +74,7 @@ const messages = {
     pageTitle: 'TeleCode — جلسات البرمجة في متناولك',
     metaDescription: 'يربط TeleCode تيليجرام بجلسات OpenCode المحلية وأدوات MCP لوكلاء البرمجة.',
     skip: 'انتقل إلى المحتوى', homeAria: 'الصفحة الرئيسية لـ TeleCode', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'مستودع TeleCode على GitHub (يفتح في علامة تبويب جديدة)', navOpen: 'فتح التنقل', navClose: 'إغلاق التنقل', mainNav: 'التنقل الرئيسي',
-    switchLanguageAria: 'التبديل إلى الإنجليزية', phonePreview: 'معاينة توضيحية لاختيار النموذج', switchTheme: 'تغيير مظهر الألوان',
+    switchLanguageAria: 'التبديل إلى الإنجليزية', phonePreview: 'معاينة توضيحية لاختيار النموذج', switchTheme: 'تغيير مظهر الألوان', mapScrollAria: 'مخطط مسار قابل للتمرير. استخدم السهمين الأيمن والأيسر لاستعراضه.',
     themeToDarkAria: 'التبديل إلى الوضع الليلي', themeToLightAria: 'التبديل إلى الوضع النهاري',
     providerAria: 'اختيار {provider} كمزوّد للنموذج', previewButtonAria: '{action} المعاينة',
     navFlow: 'كيف يعمل', navIntegrations: 'التكاملات', navCommands: 'الأوامر', navSecurity: 'الأمان', navInstall: 'التثبيت',
@@ -120,8 +120,8 @@ const messages = {
     installMethod: 'تثبيت موجّه من المصدر', installMethodText: 'يفحص المثبّت بيئتك، وينشئ نسخة احتياطية قبل تعديل إعدادات العميل، ويحفظ بيانات البوت الخاصة ضمن إعدادات المستخدم.',
     installSourceCta: 'افتح مستودع المصدر', installNoBinary: 'لا يتوفر ملف تنفيذي مستقل للتنزيل. ينسخ المثبّت ملفات المشروع التي راجعتها إلى مجلدات المستخدم.',
     installStepsHeading: 'التثبيت في خطوات قليلة', installStepOneTitle: 'استنسخ المستودع', installStepTwoTitle: 'شغّل المثبّت الموجّه',
-    installStepTwoText: 'اختر عميلًا مكتشفًا. يطلب الإعداد موافقتك قبل تغيير ملف الإعداد، ثم يطلب رمز بوت تيليجرام.',
-    installStepThreeTitle: 'اربط محادثة تيليجرام', installStepThreeText: 'افتح محادثة خاصة مع البوت وأرسل /start. يحفظ الإعداد معرّف محادثة المالك ويفعّل خدمة المستمع.',
+    installStepTwoText: 'اختر العميل بالأسهم واضغط Enter. يطلب الإعداد موافقتك قبل تعديل ملفه، ثم يطلب رمز البوت.',
+    installStepThreeTitle: 'اربط محادثة تيليجرام', installStepThreeText: 'أدخل معرّفك الرقمي من @Getmyid_bot، أو اختر الكشف التلقائي وأرسل /start إلى بوتك.',
     installStepFourTitle: 'أعد تشغيل العميل', installStepFourText: 'أعد تشغيل عميل وكيل البرمجة المحدد لتحميل MCP، ثم أرسل /start في تيليجرام. تحقق من الخدمة بالأمر telecode status.',
     copyCommand: 'نسخ', copyAria: 'نسخ الأمر', copySuccess: 'تم نسخ الأمر.', copyFailure: 'تعذر النسخ. حدد الأمر وانسخه يدويًا.',
     copyCloneAria: 'نسخ أمر استنساخ المستودع', copyInstallAria: 'نسخ أمر تشغيل المثبّت', copyStatusAria: 'نسخ أمر التحقق من الحالة',
@@ -154,6 +154,8 @@ function applyLanguage(next) {
     const value = dict[el.dataset.i18nAria];
     if (value !== undefined) el.setAttribute('aria-label', value);
   });
+  const mapStage = document.querySelector('.map-stage');
+  if (mapStage) mapStage.setAttribute('aria-label', dict.mapScrollAria);
   document.querySelectorAll('[data-preview-key]').forEach(el => {
     const value = dict[el.dataset.previewKey];
     if (value !== undefined) el.textContent = value;
@@ -174,7 +176,7 @@ function applyLanguage(next) {
   const themeColor = document.querySelector('#theme-color-meta');
   if (themeColor) themeColor.content = root.dataset.theme === 'dark' ? '#171817' : '#F6F3EA';
   if (languageButton) languageButton.textContent = dict.switchLanguage;
-  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
+  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
   try { localStorage.setItem('telecode-language', language); } catch (_) {}
   updateThemeButton();
   updateNavigationLabel();
@@ -200,18 +202,18 @@ applyLanguage(language);
 setTheme(root.dataset.theme || 'light');
 languageButton?.addEventListener('click', () => {
   applyLanguage(language === 'ar' ? 'en' : 'ar');
-  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
+  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
 });
 themeButton?.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 function closeNavigation() {
   nav?.classList.remove('open');
-  if (window.matchMedia('(max-width: 900px)').matches) nav?.setAttribute('inert', '');
+  if (window.matchMedia('(max-width: 1000px)').matches) nav?.setAttribute('inert', '');
   else nav?.removeAttribute('inert');
   navToggle?.setAttribute('aria-expanded', 'false');
   updateNavigationLabel();
 }
-if (window.matchMedia('(max-width: 900px)').matches) closeNavigation();
+if (window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
 else nav?.removeAttribute('inert');
 navToggle?.addEventListener('click', () => {
   const open = navToggle.getAttribute('aria-expanded') !== 'true';
@@ -222,7 +224,7 @@ navToggle?.addEventListener('click', () => {
   else nav?.setAttribute('inert', '');
 });
 nav?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
-  if (!window.matchMedia('(max-width: 900px)').matches) return;
+  if (!window.matchMedia('(max-width: 1000px)').matches) return;
   const destination = link.getAttribute('href');
   closeNavigation();
   if (destination?.startsWith('#')) {
@@ -237,11 +239,11 @@ nav?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => 
 document.querySelectorAll('a[href^="#"]').forEach(link => {
   if (nav?.contains(link)) return;
   link.addEventListener('click', () => {
-    if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
+    if (nav?.classList.contains('open') && window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
   });
 });
 document.querySelector('.skip')?.addEventListener('click', () => {
-  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) closeNavigation();
+  if (nav?.classList.contains('open') && window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && nav?.classList.contains('open')) {
@@ -249,7 +251,7 @@ document.addEventListener('keydown', event => {
     navToggle?.focus();
   }
 });
-const desktopQuery = window.matchMedia('(min-width: 901px)');
+const desktopQuery = window.matchMedia('(min-width: 1000.01px)');
 const syncNavigationBreakpoint = event => {
   if (event.matches) {
     nav?.classList.remove('open');
@@ -261,7 +263,7 @@ const syncNavigationBreakpoint = event => {
 if (desktopQuery.addEventListener) desktopQuery.addEventListener('change', syncNavigationBreakpoint);
 else desktopQuery.addListener?.(syncNavigationBreakpoint);
 document.addEventListener('pointerdown', event => {
-  if (!nav?.classList.contains('open') || !window.matchMedia('(max-width: 900px)').matches) return;
+  if (!nav?.classList.contains('open') || !window.matchMedia('(max-width: 1000px)').matches) return;
   if (nav.contains(event.target) || navToggle?.contains(event.target)) return;
   closeNavigation();
 });

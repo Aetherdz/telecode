@@ -27,4 +27,5 @@ Homepage = "https://github.com/Aetherdz/telecode"
 Documentation = "https://github.com/Aetherdz/telecode#readme"
 
 [tool.setuptools]
-py-modules = ["tg_bridge", "tg_mcp"]
+py-modules = ["tg_bridge", "tg_mcp", "get_telegram_id"]
+packages = ["adapters"]

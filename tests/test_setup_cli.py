@@ -26,6 +26,41 @@ class CliSetupTests(unittest.TestCase):
             labels = [host[0] for host in setup_cli.selectable_hosts()]
         self.assertEqual(labels, ["Claude Code", "Other MCP client"])
 
+    def test_selector_highlights_current_choice_when_color_is_available(self):
+        options = [setup_cli.HOSTS[0], setup_cli.HOSTS[-1]]
+        with patch.object(setup_cli.sys.stdin, "isatty", return_value=False), \
+             patch.object(setup_cli.sys.stdout, "isatty", return_value=True), \
+             patch.object(setup_cli, "discover", return_value=(True, None, True)), \
+             patch("builtins.input", return_value="q"), \
+             patch("builtins.print") as output, \
+             patch.dict(setup_cli.os.environ, {}, clear=True):
+            setup_cli.choose(options)
+        self.assertTrue(any("\033[1;38;2;48;179;239m" in call.args[0]
+                            for call in output.call_args_list if call.args))
+
+    def test_arrow_selector_moves_and_enter_confirms(self):
+        class Input:
+            def isatty(self): return True
+            def fileno(self): return 0
+            def __init__(self, value):
+                self.keys = iter(["\x1b", "[B", "\r"])
+                self.position = 0
+            def read(self, n=-1):
+                return next(self.keys, "")
+        class Output:
+            def isatty(self): return True
+            def write(self, _text): return None
+            def flush(self): return None
+        options = [setup_cli.HOSTS[0], setup_cli.HOSTS[-1]]
+        stream = Input("\x1b[B\r")
+        with patch.object(setup_cli.sys, "stdin", stream), \
+             patch.object(setup_cli.sys, "stdout", Output()), \
+             patch.object(setup_cli, "discover", return_value=(True, None, True)), \
+             patch("termios.tcgetattr", return_value=[]), patch("termios.tcsetattr"), \
+             patch("tty.setraw"):
+            selected = setup_cli.choose(options)
+        self.assertIs(selected, options[1])
+
     def test_wordmark_alignment(self):
         self.assertEqual(setup_cli.APPROVED_WORDMARK_WIDTH, 47)
 

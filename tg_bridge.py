@@ -53,13 +53,13 @@ STATE = BASE / "wake-session.txt"
 ACTIVE_SESSION = BASE / "active-session.json"
 MODELS_CACHE = BASE / "models-cache.json"
 INJECT_Q: "queue.Queue[dict]" = queue.Queue()
-SESSION_PAGE_SIZE = 8
-MODELS_PAGE_SIZE = 8
+SESSION_PAGE_SIZE = 20
+MODELS_PAGE_SIZE = 20
 MODEL_PAGE_STATE = {"provider_index": None, "page": 0}
 MODEL_BACK = "Back to providers"
-MODEL_PREVIOUS = "Previous models"
-MODEL_NEXT = "More models"
-MODEL_CLOSE = "Close models"
+MODEL_PREVIOUS = "Previous"
+MODEL_NEXT = "Next"
+MODEL_CLOSE = "Cancel"
 MODEL_SELECTION = {"provider": None, "page": 0, "labels": {}}
 SESSION_BUTTONS = {}
 ACTIVE_PICKER = None
@@ -608,8 +608,10 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
         MODEL_SELECTION.update(provider=None, page=0, labels=provider_labels)
         header += "\nUse /menu to restore the primary keyboard."
         current_ref = _load_models_message_ref()
+        result = None
         if not _edit_reply_picker(cfg, current_ref, header, rows, "Choose a model provider"):
-            _send_reply_picker(cfg, header, rows)
+            result = _send_reply_picker(cfg, header, rows)
+        _remember_reply_picker_message(result)
         return
     provider = providers[provider_index]
     ACTIVE_PICKER = "models"
@@ -660,8 +662,18 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
         text += f"\nCurrent model: <code>{_html_escape(current)}</code>"
     text += "\nUse /menu to restore the primary keyboard."
     current_ref = _load_models_message_ref()
+    result = None
     if not _edit_reply_picker(cfg, current_ref, text, rows, "Choose a model"):
-        _send_reply_picker(cfg, text, rows)
+        result = _send_reply_picker(cfg, text, rows)
+    _remember_reply_picker_message(result)
+
+
+def _remember_reply_picker_message(result):
+    message = result.get("result") if isinstance(result, dict) else None
+    message_id = message.get("message_id") if isinstance(message, dict) else None
+    chat_id = (message.get("chat") or {}).get("id") if isinstance(message, dict) else None
+    if message_id and chat_id:
+        _set_models_message_ref({"chat_id": chat_id, "message_id": message_id})
 
 
 def _edit_reply_picker(cfg, message_ref, text, rows, placeholder):
@@ -788,7 +800,15 @@ def handle_control_message(cfg, msg, text):
         cached_sessions = SESSION_SNAPSHOT or list_sessions(cfg)
         _send_session_picker(cfg, SESSION_PAGE + (1 if cmd == "Next" else -1), cached_sessions)
         return True
-    if cmd in ("Previous", "Next") and ACTIVE_PICKER == "providers":
+    if cmd in ("Previous", "Next") and ACTIVE_PICKER in ("providers", "models"):
+        if ACTIVE_PICKER == "models":
+            provider_index = MODEL_SELECTION.get("provider")
+            if provider_index is not None:
+                page = MODEL_SELECTION.get("page", 0) + (1 if cmd == "Next" else -1)
+                _models_menu(cfg, provider_index=provider_index, page=page,
+                             models_snapshot=_read_models_cache())
+        return True
+    if cmd in ("Previous", "Next") and ACTIVE_PICKER is None:
         return True
     if cmd in ("/start", "/help", "Help"):
         MODEL_PAGE_STATE.update(provider_index=None, page=0)
@@ -846,6 +866,7 @@ def handle_control_message(cfg, msg, text):
         SESSION_BUTTONS.clear()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         MODEL_PAGE_STATE.update(provider_index=None, page=0)
+        _send_keyboard(cfg)
         return True
     if cmd in ("/models", "/model", "Models"):
         MODEL_SELECTION.update(provider=None, page=0, labels={})
@@ -857,6 +878,9 @@ def handle_control_message(cfg, msg, text):
         _models_menu(cfg)
         return True
     if ACTIVE_PICKER == "sessions" and cmd in SESSION_BUTTONS:
+        if msg.get("photo") or msg.get("document"):
+            send_text(cfg, "Attachment was not delivered because this message selected a session. Send it again after selection.")
+            return True
         selected_sid = SESSION_BUTTONS[cmd]
         session = next((s for s in SESSION_SNAPSHOT if str(s.get("id") or "") == selected_sid), None)
         if not session:
@@ -871,34 +895,29 @@ def handle_control_message(cfg, msg, text):
         SESSION_BUTTONS.clear()
         MODEL_SELECTION.update(provider=None, page=0, labels={})
         send_text(cfg, f"<b>Target session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(selected_sid)}</code>", parse_mode="HTML")
+        _send_keyboard(cfg)
+        return True
+    if ACTIVE_PICKER in ("models", "providers") and (msg.get("photo") or msg.get("document")):
+        send_text(cfg, "Attachment was not delivered because this message was a picker control. Send it again without a picker caption.")
         return True
     if cmd == "Cancel" and ACTIVE_PICKER == "sessions" and cmd not in SESSION_BUTTONS:
         ACTIVE_PICKER = None
         SESSION_BUTTONS.clear()
+        _send_keyboard(cfg)
         return True
-    stale_session_label = re.search(r"\[([0-9A-Za-z_-]{6,80})\]$", cmd)
+    if cmd == "Cancel" and ACTIVE_PICKER in ("providers", "models"):
+        ACTIVE_PICKER = None
+        MODEL_SELECTION.update(provider=None, page=0, labels={})
+        _invalidate_model_message_ref()
+        SESSION_BUTTONS.clear()
+        _send_keyboard(cfg)
+        return True
+    stale_session_label = re.search(r"\[[0-9A-Za-z_-]{6,80}\]$", cmd)
     if stale_session_label:
-        suffix = stale_session_label.group(1)
         send_text(cfg, "That session picker has expired. Open /session and choose again.")
         return True
-    if cmd in (MODEL_PREVIOUS, MODEL_NEXT) and ACTIVE_PICKER == "models":
-        provider_index = MODEL_SELECTION.get("provider")
-        if provider_index is not None:
-            page = MODEL_SELECTION.get("page", 0) + (1 if cmd == MODEL_NEXT else -1)
-            _models_menu(cfg, provider_index=provider_index, page=page,
-                         models_snapshot=_read_models_cache())
-            return True
-    if cmd in ("Next", "Previous") and ACTIVE_PICKER == "models":
-        provider_index = MODEL_SELECTION.get("provider")
-        if provider_index is not None:
-            page = MODEL_SELECTION.get("page", 0) + (1 if cmd == "Next" else -1)
-            _models_menu(cfg, provider_index=provider_index, page=page,
-                         models_snapshot=_read_models_cache())
-            return True
     if cmd == MODEL_BACK and ACTIVE_PICKER == "models":
         _models_menu(cfg, models_snapshot=_read_models_cache())
-        return True
-    if ACTIVE_PICKER == "models" and cmd in ("Cancel", "Previous"):
         return True
     if ACTIVE_PICKER in ("models", "providers") and cmd in (
             "Sessions", "Current session", "Help", "Files", "/session", "/current", "/help", "/files"):
@@ -934,9 +953,7 @@ def handle_control_message(cfg, msg, text):
             cmd = "/help"
             send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
             return True
-    if ACTIVE_PICKER == "providers" and cmd in ("Cancel", "Previous", MODEL_BACK, MODEL_CLOSE):
-        return True
-    if cmd in ("Next", "Previous") and ACTIVE_PICKER is None:
+    if ACTIVE_PICKER == "providers" and cmd in ("Previous", MODEL_BACK, MODEL_CLOSE):
         return True
     selected_provider = MODEL_SELECTION.get("labels", {}).get(cmd)
     if ACTIVE_PICKER == "providers" and MODEL_SELECTION.get("provider") is None and selected_provider is not None:
@@ -964,7 +981,13 @@ def handle_control_message(cfg, msg, text):
                 ACTIVE_PICKER = None
                 MODEL_SELECTION.update(provider=None, page=0, labels={})
                 _invalidate_model_message_ref()
+                _send_keyboard(cfg)
             return True
+    if ACTIVE_PICKER is None and (cmd in MODEL_SELECTION.get("labels", {})
+                                  or cmd in MODEL_SELECTION.get("models", {})):
+        return True
+    if ACTIVE_PICKER is None and cmd in ("Cancel", "Back to providers"):
+        return True
     return False
 
 

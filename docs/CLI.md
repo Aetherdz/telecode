@@ -34,6 +34,10 @@ agent running in the OpenCode target session calls the MCP tools.
 Detection uses `shutil.which` for each executable plus the existence of known
 config files. A client is offered only when one of the two is present.
 
+In a terminal, the setup selector moves with the up/down arrows and confirms
+with Enter; press `q` to cancel. If the terminal does not support raw key input,
+the selector falls back to a numbered prompt.
+
 ## Shared registration values
 
 The installer computes two values:

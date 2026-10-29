@@ -42,16 +42,16 @@ plain text is routed to the active session, and notes that replies arrive throug
   the API's descending update order. The bridge requests up to 1,000 and retries
   without a directory filter if the filtered request fails or returns no sessions;
   client-side checks still exclude other directories.
-- Page size is 8.
+- Page size is 20.
 - Each session row is a button labelled with its title and a short session-ID suffix.
   The title is truncated to 36 characters and newlines are removed. The suffix lets
   the bridge recognize stale buttons after a picker is closed.
-- The message body lists the eight session names on the current page with their full
+- The message body lists the session names on the current page with their full
   IDs and marks the active target. The reply keyboard is also paginated because
   Telegram limits a keyboard to 100 buttons per message.
 - `Previous` and `Next` appear only when a previous or next page exists.
-- `Cancel` exits the session picker without changing the target. `/menu` is a
-  command shortcut for refreshing controls; the bot does not remove the keyboard.
+- `Cancel` exits the session picker without changing the target. `/menu` restores the
+  main keyboard after any temporary picker.
 
 Selecting a row resolves its exact displayed button label against the picker snapshot,
 validates the ID against `ses[0-9A-Za-z_-]{6,80}`, and writes
@@ -89,10 +89,10 @@ before agent routing, so it is never stored as a prompt.
 2. Providers are grouped and sorted by model count descending, then by provider ID.
    Each provider button is `providerID (count)`. The message also shows the current
    model when it can be read from the active session.
-3. Choosing a provider lists its models, 8 per page, sorted by display name. The
+3. Choosing a provider lists its models, 20 per page, sorted by display name. The
    current model is prefixed with `Current:`.
 4. `Previous` and `Next` move within the provider's pages. `Back to providers` returns
-   to the provider list. `Close models` dismisses the picker without changing anything.
+   to the provider list. `Cancel` dismisses the picker and restores the main keyboard.
 5. Choosing a model calls `POST /api/session/{sessionID}/model` for the active
    session and confirms with the model name, provider ID, and session ID.
 

@@ -4,16 +4,24 @@ import json
 import os
 import pathlib
 import shutil
-import sys
 import tempfile
 import time
 import tomllib
 import unicodedata
+import sys
 
 
 HOME = pathlib.Path.home()
-APP = pathlib.Path(os.environ.get("TELEGRAM_BRIDGE_APP_DIR", pathlib.Path(__file__).resolve().parent)).resolve()
-MCP_COMMAND = [os.environ.get("TELEGRAM_BRIDGE_PYTHON", sys.executable), str(APP / "tg_mcp.py")]
+_APP_OVERRIDE = os.environ.get("TELEGRAM_BRIDGE_APP_DIR")
+APP = pathlib.Path(_APP_OVERRIDE).resolve() if _APP_OVERRIDE else pathlib.Path(__file__).resolve().parent
+if _APP_OVERRIDE and (not APP.is_dir() or not (APP / "tg_mcp.py").is_file()):
+    raise SystemExit("TELEGRAM_BRIDGE_APP_DIR must point to an installed TeleCode directory.")
+_PYTHON_OVERRIDE = os.environ.get("TELEGRAM_BRIDGE_PYTHON")
+if _PYTHON_OVERRIDE and not pathlib.Path(_PYTHON_OVERRIDE).is_absolute():
+    raise SystemExit("TELEGRAM_BRIDGE_PYTHON must be an absolute executable path.")
+if _PYTHON_OVERRIDE and not os.access(_PYTHON_OVERRIDE, os.X_OK):
+    raise SystemExit("TELEGRAM_BRIDGE_PYTHON must point to an executable interpreter.")
+MCP_COMMAND = [_PYTHON_OVERRIDE or sys.executable, str(APP / "tg_mcp.py")]
 XDG_CONFIG = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
 XDG_DATA = pathlib.Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
 RUNTIME_CONFIG = XDG_CONFIG / "telegram-bridge"
@@ -65,14 +73,63 @@ def selectable_hosts():
 
 
 def choose(options):
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            import termios
+            import tty
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            selected = 0
+            color = sys.platform != "win32" and "NO_COLOR" not in os.environ
+            print("\nSelect the coding-agent CLI to configure (↑/↓, Enter; q to cancel):", flush=True)
+            lines = []
+            for host in options:
+                found, config, supported = discover(host)
+                suffix = "detected" if found or config else "manual setup"
+                if not supported:
+                    suffix += "; manual config"
+                lines.append(f"  {host[0]} ({suffix})")
+            print("\n".join(lines), flush=True)
+            for _ in lines:
+                sys.stdout.write("\033[1A")
+            sys.stdout.flush()
+            try:
+                tty.setraw(fd)
+                while True:
+                    sys.stdout.write("\033[1A" * len(lines))
+                    for i, line in enumerate(lines):
+                        if i == selected:
+                            marker = "\033[1;38;2;48;179;239m❯\033[0m " if color else "❯ "
+                            label = f"\033[1;38;2;48;179;239m{line.strip()}\033[0m" if color else line.strip()
+                        else:
+                            marker, label = "  ", line.strip()
+                        sys.stdout.write("\033[2K" + marker + label + "\n")
+                    sys.stdout.flush()
+                    key = sys.stdin.read(1)
+                    if key == "\x1b":
+                        seq = sys.stdin.read(2)
+                        if seq == "[A": selected = (selected - 1) % len(options)
+                        elif seq == "[B": selected = (selected + 1) % len(options)
+                    elif key in ("\r", "\n"):
+                        return options[selected]
+                    elif key.lower() == "q":
+                        return None
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        except (ImportError, OSError, AttributeError):
+            pass
     print("\nSelect the coding-agent CLI to configure:")
+    color = sys.stdout.isatty() and sys.platform != "win32" and "NO_COLOR" not in os.environ
     for i, host in enumerate(options, 1):
         found, config, supported = discover(host)
         suffix = "detected" if found or config else "manual setup"
         if not supported:
             suffix += "; manual config"
         mark = "●" if i == 1 else "○"
-        print(f"  {mark} {host[0]} ({suffix})")
+        line = f"  {mark} {host[0]} ({suffix})"
+        if color and i == 1:
+            line = f"\033[1;38;2;48;179;239m{line}\033[0m"
+        print(line)
     while True:
         answer = input("Enter a listed number (or q to cancel): ").strip().lower()
         if answer in ("q", "quit", "skip"):

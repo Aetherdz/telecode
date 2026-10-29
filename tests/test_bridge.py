@@ -80,7 +80,7 @@ class SessionRoutingTests(unittest.TestCase):
         tb.ACTIVE_PICKER = None
         label = tb._session_buttons([{"id": "ses_abcdef123456", "title": "work"}])["ses_abcdef123456"]
         self.assertFalse(label == "work")
-        with patch.object(tb, "send_text") as send:
+        with patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard"):
             self.assertTrue(tb.handle_control_message(cfg, {}, label))
         send.assert_called_once()
 
@@ -128,12 +128,43 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(markup["keyboard"][0][0]["text"], "work [cdefgh]")
         top_keyboard.assert_not_called()
 
+    def test_session_picker_button_caption_with_photo_is_consumed_as_control(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        sid = "ses_abcdefgh"
+        tb.ACTIVE_PICKER = "sessions"
+        tb.SESSION_SNAPSHOT = [{"id": sid, "title": "work"}]
+        tb.SESSION_BUTTONS.clear()
+        tb.SESSION_BUTTONS.update({"work [cdefgh]": sid})
+        msg = {"caption": "work [cdefgh]", "photo": [{"file_id": "photo-id"}]}
+        with patch.object(tb, "_set_active_session") as set_session, \
+             patch.object(tb, "send_text") as send, patch.object(tb, "_download_file") as download, \
+             patch.object(tb.INJECT_Q, "put") as inject:
+            self.assertTrue(tb.handle_control_message(cfg, msg, msg["caption"]))
+        set_session.assert_not_called()
+        send.assert_called_once()
+        download.assert_not_called()
+        inject.assert_not_called()
+
+    def test_model_button_media_caption_is_not_silently_discarded(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
+        tb.ACTIVE_PICKER = "models"
+        tb.MODEL_SELECTION.update(provider=0, page=0, labels={"Model One": 0},
+                                  models={"Model One": ("p", "m1")})
+        msg = {"caption": "Model One", "photo": [{"file_id": "photo-id"}]}
+        with patch.object(tb, "send_text") as send, patch.object(tb, "_switch_session_model") as switch:
+            self.assertTrue(tb.handle_control_message(cfg, msg, msg["caption"]))
+        switch.assert_not_called()
+        send.assert_called_once()
+
     def test_provider_and_model_picker_transition_posts_no_keyboard_reset_message(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         models = [{"id": "m1", "providerID": "provider", "name": "Model one"}]
         with patch.object(tb, "_models_from_api", return_value=models), \
+             patch.object(tb, "_read_models_cache", return_value=models), \
              patch.object(tb, "_write_models_cache"), patch.object(tb, "api") as api, \
              patch.object(tb, "_send_picker_notice"), \
+             patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", "active")), \
+             patch.object(tb, "_current_model", return_value=""), \
              patch.object(tb, "_load_models_message_ref", return_value='{"chat_id":"17","message_id":"42"}'), \
              patch.object(tb, "_set_models_message_ref"):
             tb._models_menu(cfg)
@@ -141,8 +172,9 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, "provider (1)"))
         # First picker is sent; provider transition edits the same message.
         methods = [call.args[1] for call in api.call_args_list]
-        self.assertEqual(methods[:2], ["editMessageText", "editMessageReplyMarkup"])
-        self.assertEqual(methods.count("sendMessage"), 2)  # original picker + chosen provider page
+        self.assertEqual(methods, ["editMessageText", "editMessageReplyMarkup",
+                                   "editMessageText", "editMessageReplyMarkup"])
+        self.assertEqual(methods.count("sendMessage"), 0)
 
     def test_model_picker_edits_existing_message_when_reply_markup_edit_supported(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -295,15 +327,17 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIn({"command": "start", "description": "Show TeleCode controls"}, commands)
         self.assertIn({"command": "current", "description": "Show the active session"}, commands)
 
-    def test_close_models_button_does_not_close_session_picker(self):
+    def test_cancel_button_leaves_session_picker_active(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "sessions"
-        with patch.object(tb, "_hide_picker_keyboard") as hide:
-            handled = tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE)
-        self.assertFalse(handled)
+        with patch.object(tb, "_hide_picker_keyboard") as hide, patch.object(tb, "_send_keyboard") as keyboard:
+            handled = tb.handle_control_message(cfg, {}, "Cancel")
+        self.assertTrue(handled)
+        self.assertIsNone(tb.ACTIVE_PICKER)
         hide.assert_not_called()
+        keyboard.assert_called_once_with(cfg)
 
-    def test_menu_command_resets_picker_state_without_resending_keyboard(self):
+    def test_menu_command_resets_picker_state_and_restores_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "sessions"
         tb.SESSION_SNAPSHOT = [{"id": "ses_abcdef1", "title": "stale"}]
@@ -311,7 +345,7 @@ class SessionRoutingTests(unittest.TestCase):
         tb.SESSION_BUTTONS["stale"] = "ses_abcdef1"
         with patch.object(tb, "_hide_picker_keyboard"), patch.object(tb, "_send_keyboard") as show:
             self.assertTrue(tb.handle_control_message(cfg, {}, "/menu"))
-        show.assert_not_called()
+        show.assert_called_once_with(cfg)
         self.assertIsNone(tb.ACTIVE_PICKER)
         self.assertEqual(tb.SESSION_SNAPSHOT, [])
         self.assertEqual(tb.SESSION_BUTTONS, {})
@@ -408,7 +442,7 @@ class SessionRoutingTests(unittest.TestCase):
         changed_catalog = [{"id": "new-id", "providerID": "p", "name": "Model"}]
         with patch.object(tb, "_read_models_cache", return_value=changed_catalog), \
              patch.object(tb, "_switch_session_model") as switch, \
-             patch.object(tb, "send_text") as send:
+             patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard"):
             self.assertTrue(tb.handle_control_message(cfg, {}, "Model"))
         switch.assert_not_called()
         send.assert_called_once()
@@ -606,7 +640,7 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_session_picker_displays_only_the_selected_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
-        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(20)]
+        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(45)]
         with patch.object(tb, "list_sessions", return_value=sessions), \
              patch.object(tb, "_active_session_id", return_value=""), \
              patch.object(tb, "discover_session", return_value=""), \
@@ -615,15 +649,15 @@ class SessionRoutingTests(unittest.TestCase):
         payload = api.call_args.args[2]
         keyboard = __import__("json").loads(payload["reply_markup"])["keyboard"]
         labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel", "/menu")]
-        self.assertEqual(len(labels), 8)
+        self.assertEqual(len(labels), 20)
         body = payload["text"]
-        self.assertIn("9. <b>session 8 [000008]</b>", body)
+        self.assertIn("25. <b>session 24 [000024]</b>", body)
         self.assertNotIn("1. <b>session 0</b>", body)
         self.assertEqual(tb.SESSION_PAGE, 1)
 
     def test_session_page_change_reuses_one_session_snapshot(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
-        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(20)]
+        sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(40)]
         tb.SESSION_SNAPSHOT = []
         tb.SESSION_BUTTONS.clear()
         with patch.object(tb, "list_sessions", return_value=sessions) as listing, \
@@ -661,19 +695,35 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_model_page_navigation_updates_page_then_back_returns_to_providers(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
-        models = [{"id": f"id-{n}", "providerID": "p", "name": f"Model {n}"} for n in range(10)]
+        models = [{"id": f"id-{n}", "providerID": "p", "name": f"Model {n}"} for n in range(45)]
         with patch.object(tb, "_send_reply_picker") as picker, \
-             patch.object(tb, "_load_models_message_ref", return_value=""), \
+             patch.object(tb, "_load_models_message_ref", return_value='{"chat_id":"1","message_id":"42"}'), \
              patch.object(tb, "_current_model", return_value=""), \
              patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", "active")), \
              patch.object(tb, "_read_models_cache", return_value=models):
             tb._models_menu(cfg, provider_index=0, models_snapshot=models)
-            self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_NEXT))
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Next"))
             self.assertEqual(tb.MODEL_SELECTION["page"], 1)
-            self.assertEqual(picker.call_args.args[2][0][0]["text"], "Model 8")
+            self.assertEqual(set(tb.MODEL_SELECTION["labels"].values()), set(range(20, 40)))
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Previous"))
+            self.assertEqual(tb.MODEL_SELECTION["page"], 0)
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_BACK))
             self.assertIsNone(tb.MODEL_SELECTION["provider"])
-        self.assertEqual(picker.call_args.args[2][0][0]["text"], "p (10)")
+            self.assertIn("p (45)", tb.MODEL_SELECTION["labels"])
+
+    def test_model_page_has_twenty_items_and_cancel_closes_picker(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        models = [{"id": f"id-{n}", "providerID": "p", "name": f"Model {n}"} for n in range(25)]
+        with patch.object(tb, "_send_reply_picker") as picker, \
+             patch.object(tb, "_load_models_message_ref", return_value=""), \
+             patch.object(tb, "_current_model", return_value=""), \
+             patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", "active")):
+            tb._models_menu(cfg, provider_index=0, models_snapshot=models)
+            rows = picker.call_args.args[2]
+            self.assertEqual(sum(1 for row in rows if row[0]["text"].startswith("Model ")), 20)
+            self.assertEqual(rows[-2][0]["text"], "Next")
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+        self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_provider_selection_uses_bottom_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
