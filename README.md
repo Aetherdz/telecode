@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/telecode-mark.svg" alt="TeleCode app mark" width="112" height="112"></p>
+<p align="center"><img src="assets/brand/telecode-logo-horizontal.svg" alt="TeleCode — Telegram to OpenCode and any CLI" width="760"></p>
 
 # TeleCode
 
