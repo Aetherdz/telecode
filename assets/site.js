@@ -16,7 +16,8 @@ const messages = {
     pageTitle: 'TeleCode — your coding sessions, within reach',
     metaDescription: 'TeleCode connects Telegram to local OpenCode sessions and coding-agent MCP tools.',
     skip: 'Skip to content', homeAria: 'TeleCode home', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'TeleCode repository on GitHub (opens in a new tab)', navOpen: 'Open navigation', navClose: 'Close navigation', mainNav: 'Main navigation',
-    switchLanguageAria: 'Switch language to Arabic', phonePreview: 'Illustrative model picker preview', switchTheme: 'Switch color theme', mapScrollAria: 'Scrollable routing diagram. Use left and right arrow keys to explore.',
+    switchLanguageAria: 'Change language', phonePreview: 'Illustrative model picker preview', switchTheme: 'Switch color theme', mapScrollAria: 'Scrollable routing diagram. Use left and right arrow keys to explore.',
+    nextLanguageCode: 'ar', nextLanguageName: 'العربية',
     themeToDarkAria: 'Switch to dark mode', themeToLightAria: 'Switch to light mode',
     providerAria: 'Choose {provider} as the model provider', previewButtonAria: '{action} preview',
     navFlow: 'How it works', navIntegrations: 'Integrations', navCommands: 'Commands', navSecurity: 'Security', navInstall: 'Install',
@@ -60,7 +61,8 @@ const messages = {
     installText: 'Install from the source repository, then let the guided setup connect your bot and coding-agent CLI.',
     installPython: 'Python 3.11 or newer', installLinux: 'Linux + systemd user services',
     installMethod: 'Guided source install', installMethodText: 'The installer checks your environment, backs up CLI config before changing it, and keeps private bot settings in your user config directory.',
-    installSourceCta: 'Open the source repository', installNoBinary: 'There is no standalone binary download. The installer copies the reviewed project files to your user directories.',
+    installSourceCta: 'Open the source repository', installNoBinary: 'Review the installer before running it. The command downloads the source, then launches the guided setup.',
+    copyInstallCommandAria: 'Copy the guided install command', installCommandTitle: 'One command to begin', installCommandNote: 'Review install.sh in the public repository first. The command downloads that script and starts guided setup. Linux + systemd user services; Python 3.11+.',
     installStepsHeading: 'Install in a few steps', installStepOneTitle: 'Clone the repository', installStepTwoTitle: 'Run the guided installer',
     installStepTwoText: 'Choose a detected CLI with the arrow keys and Enter. Setup asks before changing its config, then requests your Telegram bot token.',
     installStepThreeTitle: 'Connect your Telegram chat', installStepThreeText: 'Enter your numeric ID from @Getmyid_bot, or choose automatic detection and send /start to your own bot.',
@@ -74,7 +76,8 @@ const messages = {
     pageTitle: 'TeleCode — جلسات البرمجة في متناولك',
     metaDescription: 'يربط TeleCode تيليجرام بجلسات OpenCode المحلية وأدوات MCP لوكلاء البرمجة.',
     skip: 'انتقل إلى المحتوى', homeAria: 'الصفحة الرئيسية لـ TeleCode', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'مستودع TeleCode على GitHub (يفتح في علامة تبويب جديدة)', navOpen: 'فتح التنقل', navClose: 'إغلاق التنقل', mainNav: 'التنقل الرئيسي',
-    switchLanguageAria: 'التبديل إلى الإنجليزية', phonePreview: 'معاينة توضيحية لاختيار النموذج', switchTheme: 'تغيير مظهر الألوان', mapScrollAria: 'مخطط مسار قابل للتمرير. استخدم السهمين الأيمن والأيسر لاستعراضه.',
+    switchLanguageAria: 'تغيير اللغة', phonePreview: 'معاينة توضيحية لاختيار النموذج', switchTheme: 'تغيير مظهر الألوان', mapScrollAria: 'مخطط مسار قابل للتمرير. استخدم السهمين الأيمن والأيسر لاستعراضه.',
+    nextLanguageCode: 'es', nextLanguageName: 'Español',
     themeToDarkAria: 'التبديل إلى الوضع الليلي', themeToLightAria: 'التبديل إلى الوضع النهاري',
     providerAria: 'اختيار {provider} كمزوّد للنموذج', previewButtonAria: '{action} المعاينة',
     navFlow: 'كيف يعمل', navIntegrations: 'التكاملات', navCommands: 'الأوامر', navSecurity: 'الأمان', navInstall: 'التثبيت',
@@ -118,7 +121,8 @@ const messages = {
     installText: 'ثبّت من مستودع المصدر، ثم اتبع الإعداد الموجّه لربط البوت وعميل وكيل البرمجة.',
     installPython: 'Python 3.11 أو أحدث', installLinux: 'Linux مع خدمات systemd للمستخدم',
     installMethod: 'تثبيت موجّه من المصدر', installMethodText: 'يفحص المثبّت بيئتك، وينشئ نسخة احتياطية قبل تعديل إعدادات العميل، ويحفظ بيانات البوت الخاصة ضمن إعدادات المستخدم.',
-    installSourceCta: 'افتح مستودع المصدر', installNoBinary: 'لا يتوفر ملف تنفيذي مستقل للتنزيل. ينسخ المثبّت ملفات المشروع التي راجعتها إلى مجلدات المستخدم.',
+    installSourceCta: 'افتح مستودع المصدر', installNoBinary: 'راجع المثبّت قبل تشغيله. ينزّل الأمر المصدر ثم يبدأ الإعداد الموجّه.',
+    copyInstallCommandAria: 'نسخ أمر التثبيت الموجّه', installCommandTitle: 'ابدأ بأمر واحد', installCommandNote: 'راجع install.sh في المستودع العام أولًا. ينزّل الأمر السكربت ويبدأ الإعداد الموجّه. يتطلب Linux مع systemd وPython 3.11+.',
     installStepsHeading: 'التثبيت في خطوات قليلة', installStepOneTitle: 'استنسخ المستودع', installStepTwoTitle: 'شغّل المثبّت الموجّه',
     installStepTwoText: 'اختر العميل بالأسهم واضغط Enter. يطلب الإعداد موافقتك قبل تعديل ملفه، ثم يطلب رمز البوت.',
     installStepThreeTitle: 'اربط محادثة تيليجرام', installStepThreeText: 'أدخل معرّفك الرقمي من @Getmyid_bot، أو اختر الكشف التلقائي وأرسل /start إلى بوتك.',
@@ -127,13 +131,31 @@ const messages = {
     copyCloneAria: 'نسخ أمر استنساخ المستودع', copyInstallAria: 'نسخ أمر تشغيل المثبّت', copyStatusAria: 'نسخ أمر التحقق من الحالة',
     installGuide: 'دليل التثبيت المفصل', installSecurity: 'ملاحظات الأمان', footerLine: 'جلسات محلية، في متناولك.',
     securityNav: 'الأمان', license: 'رخصة MIT', previewSelected: 'تم اختيار {provider}', previewAction: 'معاينة {action}'
+  },
+  es: {
+    pageTitle: 'TeleCode — tus sesiones de programación, al alcance',
+    metaDescription: 'TeleCode conecta Telegram con sesiones locales de OpenCode y herramientas MCP para agentes de programación.',
+    skip: 'Saltar al contenido', homeAria: 'Inicio de TeleCode', repositoryLink: 'Aetherdz / TeleCode', repositoryAria: 'Repositorio de TeleCode en GitHub (se abre en una pestaña nueva)', navOpen: 'Abrir navegación', navClose: 'Cerrar navegación', mainNav: 'Navegación principal',
+    switchLanguageAria: 'Cambiar idioma', phonePreview: 'Vista ilustrativa del selector de modelos', switchTheme: 'Cambiar tema de color', mapScrollAria: 'Diagrama desplazable. Usa las flechas izquierda y derecha para explorarlo.', nextLanguageCode: 'en', nextLanguageName: 'English',
+    themeToDarkAria: 'Cambiar al modo oscuro', themeToLightAria: 'Cambiar al modo claro', providerAria: 'Elegir {provider} como proveedor del modelo', previewButtonAria: 'Vista previa de {action}',
+    navFlow: 'Cómo funciona', navIntegrations: 'Integraciones', navCommands: 'Comandos', navSecurity: 'Seguridad', navInstall: 'Instalar', switchLanguage: 'English', darkMode: 'Modo oscuro', lightMode: 'Modo claro',
+    heroEyebrow: 'DE TELEGRAM A SESIONES LOCALES', heroTitle: 'Tu sesión de programación,<br><em>más cerca.</em>', heroLede: 'Elige una sesión de OpenCode, envíale mensajes desde Telegram y recibe respuestas mediante herramientas MCP locales.', getStarted: 'Comenzar', viewSource: 'Ver código', selectedTarget: 'Destino seleccionado: sesión de OpenCode', localListener: 'Servicio local', pythonVersion: 'Python 3.11+', stdlib: 'Biblioteca estándar', mitLicense: 'Licencia MIT', github: 'GitHub', mapTitle: 'Enrutamiento de mensajes de TeleCode', mapDesc: 'El chat del propietario en Telegram enruta mensajes mediante el puente local a una sesión de OpenCode y recibe respuestas a través de herramientas MCP.', mapOwner: 'CHAT DEL PROPIETARIO', mapBridge: 'PUENTE LOCAL', mapCheck: 'VERIFICACIÓN · RUTA', mapSession: 'SESIÓN ELEGIDA', mapRoute: 'RUTA LOCAL / 01', mapReply: 'RESPUESTA MCP ↗',
+    loopEyebrow: '01 / EL FLUJO', loopTitle: 'Un propietario.<br>Una ruta clara.', step1Title: 'Conecta tu bot', step1Text: 'Configura el chat del propietario y ejecuta el servicio localmente. Solo acepta actualizaciones autorizadas.', step2Title: 'Elige una sesión', step2Text: 'Selecciona una sesión de OpenCode por nombre. Los mensajes entrantes se dirigen al destino activo.', step3Title: 'Sigue trabajando', step3Text: 'Envía solicitudes por Telegram. El agente puede responder mediante MCP y devolver archivos permitidos.', capEyebrow: '02 / FUNCIONES', capTitle: 'Diseñado para trabajar, no para ofrecer una terminal remota.', cap1Title: 'Enrutamiento por sesión', cap1Text: 'Explora sesiones por nombre, navega páginas y elige explícitamente el destino activo.', cap2Title: 'Selección de modelo', cap2Text: 'Explora proveedores y modelos en Telegram y actualiza la sesión activa de OpenCode.', cap3Title: 'Intercambio de archivos', cap3Text: 'Dirige adjuntos a la sesión que los recibió y limita los archivos salientes a rutas permitidas.', cap4Title: 'Respuestas MCP', cap4Text: 'Los clientes locales pueden usar herramientas del puente para enviar texto, archivos y estado.', cap5Title: 'Verificación del propietario', cap5Text: 'Se comprueba el chat antes del enrutamiento y el remitente cuando Telegram lo proporciona.', cap6Title: 'Ejecución local', cap6Text: 'Sin webhook público ni intermediario alojado. Un servicio systemd opcional inicia el listener.',
+    showEyebrow: '03 / INTERFAZ DE TELEGRAM', showTitle: 'Un pequeño panel para el trabajo real.', showText: 'Elige una sesión, consulta el destino activo o cambia su modelo sin abrir un panel web.', kbLabel: 'Opciones del teclado de Telegram', kbSessions: 'Sesiones', kbCurrent: 'Sesión actual', kbModels: 'Modelos', kbHelp: 'Ayuda', previewLabel: 'VISTA DEL SELECTOR DE MODELOS', providerTitle: 'ELIGE UN PROVEEDOR', preview: 'VISTA PREVIA', chooseProvider: 'Elige un proveedor', previous: 'Anterior', next: 'Siguiente', providers: 'Proveedores', close: 'Cerrar',
+    intEyebrow: '04 / INTEGRACIONES', intTitle: 'Límites de compatibilidad claros.', tableCaption: 'Compatibilidad con clientes de programación', intText: 'OpenCode admite el enrutamiento a sesiones concretas. Otros clientes pueden usar herramientas MCP salientes si admiten esa configuración.', opencode: 'OpenCode', claudeCode: 'Claude Code', cursor: 'Cursor', gemini: 'Gemini CLI', clineRoo: 'Cline / Roo Code', continueAider: 'Continue / Aider', amazonCodex: 'Amazon Q / Codex CLI', thClient: 'Cliente', thMcp: 'Herramientas MCP salientes', thRouting: 'Enrutamiento entrante', supported: 'Compatible', notImplemented: 'No implementado', manualMcp: 'Configuración MCP manual',
+    commandsEyebrow: '05 / COMANDOS', commandsTitle: 'Controles directos.<br>Sin sorpresas.', cmdSession: 'Explora y selecciona la sesión activa.', cmdCurrent: 'Muestra el nombre y el ID de la sesión activa.', cmdModels: 'Explora proveedores y cambia el modelo.', cmdFiles: 'Lista los archivos recibidos para la sesión activa.', cmdHelp: 'Restaura el teclado y muestra los comandos.', securityEyebrow: '06 / SEGURIDAD', securityTitle: 'Mantén el control<br>en tu equipo.', securityLink: 'Leer notas de seguridad', security1: 'Se verifica el chat del propietario antes de enrutar mensajes.', security2: 'Las credenciales se guardan en configuración privada, no en el repositorio.', security3: 'Los archivos salientes se limitan a rutas permitidas y una lista de exclusión.', security4: 'Los identificadores de sesión se validan antes de las llamadas API.', security5: 'Un bloqueo local evita listeners de Telegram duplicados.', security6: 'El enrutamiento específico es para OpenCode; MCP no es acceso a un shell remoto.',
+    installEyebrow: '07 / EMPEZAR', installTitle: 'Un camino claro hasta tu primer mensaje.', installText: 'Instala desde el código fuente y deja que el asistente conecte tu bot y cliente de programación.', installPython: 'Python 3.11 o posterior', installLinux: 'Linux + servicios systemd de usuario', installMethod: 'Instalación guiada desde el código', installMethodText: 'El instalador comprueba el entorno, guarda una copia de la configuración antes de cambiarla y mantiene las credenciales privadas en tu directorio de usuario.', installSourceCta: 'Abrir el repositorio', installNoBinary: 'Revisa el instalador antes de ejecutarlo. El comando descarga el código y comienza la configuración guiada.', copyInstallCommandAria: 'Copiar comando de instalación guiada', installCommandTitle: 'Empieza con un comando', installCommandNote: 'Revisa primero install.sh en el repositorio público. El comando descarga el script e inicia la configuración guiada. Requiere Linux, systemd y Python 3.11+.', installStepsHeading: 'Instala en unos pasos', installStepOneTitle: 'Clona el repositorio', installStepTwoTitle: 'Ejecuta el instalador guiado', installStepTwoText: 'Elige un cliente detectado con las flechas y Enter. Se pedirá permiso antes de cambiar su configuración y luego el token del bot.', installStepThreeTitle: 'Conecta tu chat de Telegram', installStepThreeText: 'Introduce tu ID numérico de @Getmyid_bot o elige la detección automática y envía /start a tu bot.', installStepFourTitle: 'Reinicia el cliente', installStepFourText: 'Reinicia el cliente para cargar MCP, envía /start en Telegram y comprueba el servicio con telecode status.', copyCommand: 'Copiar', copyAria: 'Copiar comando', copySuccess: 'Comando copiado.', copyFailure: 'No se pudo copiar. Selecciona el comando y cópialo manualmente.', copyCloneAria: 'Copiar comando para clonar el repositorio', copyInstallAria: 'Copiar comando del instalador', copyStatusAria: 'Copiar comando de estado', installGuide: 'Guía detallada de instalación', installSecurity: 'Notas de seguridad', footerLine: 'Sesiones locales, accesibles por diseño.', securityNav: 'Seguridad', license: 'Licencia MIT', previewSelected: '{provider} seleccionado', previewAction: 'Vista previa de {action}'
   }
 };
 
+const supportedLanguages = ['en', 'ar', 'es'];
 let language = 'en';
-try { language = localStorage.getItem('telecode-language') === 'ar' ? 'ar' : 'en'; } catch (_) {}
+try {
+  const savedLanguage = localStorage.getItem('telecode-language');
+  language = supportedLanguages.includes(savedLanguage) ? savedLanguage : 'en';
+} catch (_) {}
 function applyLanguage(next) {
-  language = next === 'ar' ? 'ar' : 'en';
+  language = supportedLanguages.includes(next) ? next : 'en';
   const dict = messages[language];
   root.lang = language;
   root.dir = language === 'ar' ? 'rtl' : 'ltr';
@@ -168,14 +190,14 @@ function applyLanguage(next) {
   if (copyStatus) copyStatus.textContent = '';
   const description = document.querySelector('[data-i18n-content="metaDescription"]');
   if (description) description.content = dict.metaDescription;
-  if (languageButton) languageButton.setAttribute('lang', language === 'ar' ? 'en' : 'ar');
+  if (languageButton) languageButton.setAttribute('lang', messages[language].nextLanguageCode);
   document.querySelectorAll('.provider').forEach(button => button.setAttribute('aria-label', dict.providerAria.replace('{provider}', button.dataset.provider)));
   document.querySelectorAll('[data-preview-key]').forEach(button => button.setAttribute('aria-label', dict.previewButtonAria.replace('{action}', dict[button.dataset.previewKey])));
   document.querySelectorAll('[data-copy-aria]').forEach(button => button.setAttribute('aria-label', dict[button.dataset.copyAria] || dict.copyAria));
   updatePreview();
   const themeColor = document.querySelector('#theme-color-meta');
   if (themeColor) themeColor.content = root.dataset.theme === 'dark' ? '#171817' : '#F6F3EA';
-  if (languageButton) languageButton.textContent = dict.switchLanguage;
+  if (languageButton) languageButton.textContent = dict.nextLanguageName;
   if (nav?.classList.contains('open') && window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
   try { localStorage.setItem('telecode-language', language); } catch (_) {}
   updateThemeButton();
@@ -201,7 +223,8 @@ function setTheme(theme) {
 applyLanguage(language);
 setTheme(root.dataset.theme || 'light');
 languageButton?.addEventListener('click', () => {
-  applyLanguage(language === 'ar' ? 'en' : 'ar');
+  const current = supportedLanguages.indexOf(language);
+  applyLanguage(supportedLanguages[(current + 1) % supportedLanguages.length]);
   if (nav?.classList.contains('open') && window.matchMedia('(max-width: 1000px)').matches) closeNavigation();
 });
 themeButton?.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));

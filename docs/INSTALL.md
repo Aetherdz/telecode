@@ -73,9 +73,12 @@ implemented supported session adapter; MCP tool support alone doesn't imply it.
 `install_autostart.sh` is retained as a compatibility alias for
 `install.sh --enable`; it no longer has a separate file-copy implementation.
 
-The project intentionally does not offer a `curl | bash` one-liner: cloning
-lets you inspect the source before executing it. To refresh installed files
-from that checkout, run `./install.sh --update`; the private config is preserved.
+The website provides an optional `curl | bash` bootstrap that downloads the
+installer from this public repository, fetches the source into a private cache,
+and starts guided setup. Review `install.sh` before running it. Alternatively,
+clone and inspect the project, then run `./install.sh` yourself. To refresh
+installed files from a checkout, run `./install.sh --update`; private config is
+preserved.
 For a clean, isolated local
 installation smoke test, use `tests/test_installer.py`, which installs into a
 temporary HOME and never starts a Telegram connection.

@@ -1,6 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# One-line bootstrap downloads the reviewed installer from this public repository.
+# Its normal source-checkout mode still copies the full project and remains inspectable.
+if [[ "${1:-}" == "--curl-bootstrap" ]]; then
+  shift
+  if [[ $# -gt 0 ]]; then
+    echo "--curl-bootstrap does not accept extra arguments." >&2
+    exit 2
+  fi
+  if ! command -v git >/dev/null 2>&1; then
+    echo "git is required to fetch the TeleCode source." >&2
+    exit 2
+  fi
+  bootstrap_dir="${XDG_CACHE_HOME:-$HOME/.cache}/telecode-bootstrap"
+  mkdir -p "$bootstrap_dir"
+  chmod 700 "$bootstrap_dir"
+  if [[ -e "$bootstrap_dir/repo" && ! -d "$bootstrap_dir/repo/.git" ]]; then
+    echo "Bootstrap path exists but is not a TeleCode checkout: $bootstrap_dir/repo" >&2
+    exit 2
+  fi
+  if ! git -C "$bootstrap_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git clone --depth 1 https://github.com/Aetherdz/telecode.git "$bootstrap_dir/repo" || {
+      rm -rf "$bootstrap_dir/repo"
+      exit 2
+    }
+  else
+    git -C "$bootstrap_dir/repo" fetch --depth 1 origin main || exit 2
+    git -C "$bootstrap_dir/repo" reset --hard FETCH_HEAD || exit 2
+  fi
+  exec bash "$bootstrap_dir/repo/install.sh"
+fi
+
 VERSION="0.1.0"
 APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/telegram-bridge"

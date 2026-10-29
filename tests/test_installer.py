@@ -3,12 +3,18 @@ import pathlib
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class InstallerTests(unittest.TestCase):
+    def test_installer_accepts_curl_bootstrap_flag_without_extra_args(self):
+        text = (ROOT / "install.sh").read_text()
+        self.assertIn('"--curl-bootstrap"', text)
+        self.assertIn("github.com/Aetherdz/telecode.git", text)
+        self.assertIn('! -d "$bootstrap_dir/repo/.git"', text)
     def test_bootstrap_is_self_contained_and_help_is_local(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = pathlib.Path(tmp)

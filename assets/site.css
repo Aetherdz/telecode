@@ -71,8 +71,8 @@ h1, h2, h3 { min-width: 0; overflow-wrap: break-word; }
 .map-node.active .node-halo { r: 29; opacity: .35; }
 .map-label { fill: var(--map-text); font: 600 14px var(--mono); letter-spacing: .04em; }
 .map-small, .coordinate { fill: var(--map-muted); font: 12px var(--mono); letter-spacing: .04em; }
-.flow-packet circle { fill: var(--telegram-ink); filter: drop-shadow(0 0 4px #9ac4cf); }
-.flow-packet.reverse circle { fill: var(--accent-deep); }
+.flow-packet-dot { fill: var(--telegram-ink); filter: drop-shadow(0 0 4px #9ac4cf); }
+.flow-packet-dot.reverse { fill: var(--accent-deep); }
 .map-caption { display: flex; justify-content: space-between; gap: 8px; padding: 10px 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .map-indicator { white-space: nowrap; }
 
@@ -186,7 +186,7 @@ html[data-theme="dark"] .primary, html[data-theme="dark"] .skip { color: #171817
 html[data-theme="dark"] .map-stage { box-shadow: 8px 8px 0 var(--panel2); }
 html[data-theme="dark"][dir="rtl"] .map-stage { box-shadow: -8px 8px 0 var(--panel2); }
 html[data-theme="dark"] .map-node .node-dot { stroke: #272823; }
-html[data-theme="dark"] .flow-packet.reverse circle { fill: var(--accent); }
+html[data-theme="dark"] .flow-packet-dot.reverse { fill: var(--accent); }
 
 html[dir="rtl"] body { font-family: Tahoma, Arial, var(--sans); }
 html[dir="rtl"] .hero h1, html[dir="rtl"] h2, html[dir="rtl"] h3 { letter-spacing: 0; }
@@ -249,7 +249,7 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
   .hero h1 { font-size: clamp(49px, 11vw, 64px); }
   .lede { max-width: 54ch; margin-block: 21px 24px; }
   .map-stage { width: 100%; box-shadow: 6px 6px 0 var(--panel2); }
-  .flow-map { min-height: 0; }
+  .flow-map { min-height: 0; max-height: 300px; }
   .map-label { font-size: 14px; }
   .map-small { font-size: 12px; }
   .manifesto, .commands, .security, .install { display: block; padding-block: 60px; }
@@ -305,6 +305,7 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
 }
 @media (max-width: 360px) {
   .brand span { display: none; }
+  .header-tools .language-toggle { width: auto; min-width: 44px; padding-inline: 5px; font-size: 11px; }
   .hero h1 { font-size: 44px; }
   .command-list > div { grid-template-columns: 1fr; gap: 3px; }
   html[dir="rtl"] .command-list > div { grid-template-columns: 1fr; }
@@ -313,5 +314,5 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .reveal { opacity: 1; transform: none; }
-  .flow-packet { display: none; }
+  .flow-packet-dot { opacity: .85; }
 }
