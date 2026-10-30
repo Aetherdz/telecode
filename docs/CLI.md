@@ -180,14 +180,21 @@ the Codex sessions. `CODEX_BIN` can override the `codex` executable.
 `thread/list` and `model/list` APIs, and `codex queue` for delivery. Codex inbound
 routing is experimental.
 
-The adapter first scans `$CODEX_HOME/sessions` (default `~/.codex/sessions`) for
-rollouts; if none are found, it queries the local app-server thread list. Models are
-loaded from the app-server model catalog at picker time, so configured providers
+The adapter merges two discovery sources: a scan of `$CODEX_HOME/sessions`
+(default `~/.codex/sessions`) rollout files, and the local app-server thread list.
+Note that `thread/list` only surfaces threads that already have user activity, so
+freshly created empty sessions are discovered through their rollout files. Models
+are loaded from the app-server model catalog at picker time, so configured providers
 are not hard-coded. Telegram delivery uses argv equivalent to
 `codex queue --thread SESSION_ID --message PROMPT`. This queues the exact thread
 without opening a competing writer against an already-open Codex TUI. Queueing
 confirms delivery but does not itself return an agent response; the local Codex
 session must be available to process the queue.
+
+New sessions are created through the app-server with `thread/start` followed by
+`thread/name/set` in the same app-server process; the rollout file is only flushed
+when a mutating call runs in the process that created the thread. Durability is
+verified with `thread/resume` before the session is offered for selection.
 
 Queued messages use the permissions and sandbox already configured on that Codex
 thread; TeleCode does not alter them or bypass approvals. Telegram-originated

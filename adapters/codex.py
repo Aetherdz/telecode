@@ -38,6 +38,20 @@ class CodexAdapter:
 
     def _app_server(self, method, params=None, timeout=45):
         """Make one JSONL RPC to Codex's local app-server without requiring an API token for local metadata."""
+        results = self._app_server_batch([(method, params)], timeout=timeout)
+        return results[0]
+
+    def _app_server_batch(self, calls, timeout=45):
+        """Run JSONL RPCs sequentially against one app-server process.
+
+        Each call is sent only after the previous response arrives; a params
+        callable receives the first call's result, so later calls can reference
+        earlier results while sharing the same process.
+        Some thread mutations (for example thread/name/set) only materialize
+        the rollout file when they run in the same app-server process that
+        started the thread, so a shared process is required for durable
+        session creation.
+        """
         output = queue.Queue()
         try:
             process = subprocess.Popen(
@@ -58,13 +72,10 @@ class CodexAdapter:
 
         reader = threading.Thread(target=read_output, daemon=True)
         reader.start()
-        try:
-            process.stdin.write(json.dumps({"method": "initialize", "id": 1, "params": {
-                "clientInfo": {"name": "telecode", "title": "TeleCode", "version": "1.0"},
-                "capabilities": {"experimentalApi": True},
-            }}) + "\n")
-            process.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
-            process.stdin.write(json.dumps({"method": method, "id": 2, "params": params or {}}) + "\n")
+        def request(request_id, method, params):
+            process.stdin.write(json.dumps({
+                "method": method, "id": request_id, "params": params or {},
+            }) + "\n")
             process.stdin.flush()
             deadline = time.monotonic() + timeout
             while True:
@@ -81,12 +92,25 @@ class CodexAdapter:
                     message = json.loads(line)
                 except ValueError:
                     continue
-                if message.get("id") != 2:
+                if message.get("id") != request_id:
                     continue
                 if "error" in message:
                     detail = message["error"].get("message") or "Codex app-server request failed."
                     raise CodexAdapterError(str(detail)[:500])
                 return message.get("result") or {}
+
+        try:
+            request(1, "initialize", {
+                "clientInfo": {"name": "telecode", "title": "TeleCode", "version": "1.0"},
+                "capabilities": {"experimentalApi": True},
+            })
+            process.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+            process.stdin.flush()
+            results = []
+            for index, (method, params) in enumerate(calls):
+                resolved = params(results[0]) if callable(params) else params
+                results.append(request(index + 2, method, resolved))
+            return results
         except (BrokenPipeError, OSError) as exc:
             raise CodexAdapterError(f"Codex app-server connection failed: {exc}") from exc
         finally:
@@ -105,6 +129,10 @@ class CodexAdapter:
                         process.kill()
                         process.wait(timeout=2)
             reader.join(timeout=1)
+            try:
+                process.stdout.close()
+            except OSError:
+                pass
 
     def list_models(self):
         models = []
@@ -133,26 +161,38 @@ class CodexAdapter:
             raise CodexAdapterError("Codex workspace does not exist.")
         params = {
             "cwd": str(self.workspace), "approvalPolicy": "never", "sandbox": "read-only",
+            "ephemeral": False,
         }
         if self.model:
             params["model"] = self.model
         if self.model_provider:
             params["modelProvider"] = self.model_provider
-        result = self._app_server("thread/start", params)
+        try:
+            result, _, resumed = self._app_server_batch([
+                ("thread/start", params),
+                ("thread/name/set", lambda start: {"threadId": str(start.get("thread", {}).get("id") or ""),
+                                                   "name": title}),
+                ("thread/resume", lambda start: {"threadId": str(start.get("thread", {}).get("id") or ""),
+                                                 "approvalPolicy": "never", "sandbox": "read-only"}),
+            ])
+        except CodexAdapterError as exc:
+            detail = str(exc)
+            if ("did not return a valid thread" in detail
+                    or "not found" in detail or "could not start" in detail.lower()):
+                raise
+            raise CodexAdapterError(
+                "Codex did not persist the new session to disk. "
+                "Create a session in Codex first, then select it in TeleCode."
+            ) from exc
         thread = result.get("thread") or {}
         sid = str(thread.get("id") or "")
         if not _SESSION_ID_RE.fullmatch(sid):
             raise CodexAdapterError("Codex did not return a valid thread ID.")
-        try:
-            self._app_server("thread/name/set", {"threadId": sid, "name": title})
-        except CodexAdapterError:
-            pass
-        persisted = self._app_server("thread/list", {"limit": 100, "sortKey": "updated_at"})
-        if not any(str(item.get("id") or "") == sid for item in persisted.get("data", [])):
-            raise CodexAdapterError(
-                "Codex created an in-memory thread, but does not persist an empty session yet. "
-                "Create a session in Codex first, then select it in TeleCode."
-            )
+        # thread/name/set must share the app-server process with thread/start:
+        # the rollout file is only flushed when a mutating call runs in the
+        # process that created the thread. thread/resume in the same process
+        # proves the rollout was materialized. thread/list cannot verify
+        # durability because it omits threads that have no user events yet.
         return AgentSession(sid, title, str(self.workspace), self.name,
                             updated=float(thread.get("updatedAt") or 0))
 
@@ -191,24 +231,36 @@ class CodexAdapter:
                     continue
         except OSError as exc:
             raise CodexAdapterError(f"Could not read Codex sessions: {exc}") from exc
-        local = sorted(found.values(), key=lambda session: session.updated, reverse=True)[:100]
-        if local:
-            return local
-        # Empty app-server threads are persisted in Codex's state DB before a
-        # rollout file exists, so use the supported thread/list API as fallback.
+        # Merge both sources: rollouts can have richer cwd coverage, while the
+        # app-server database may contain newer threads without rollout files.
+        sessions_by_id = dict(found)
         try:
-            result = self._app_server("thread/list", {"limit": 100, "sortKey": "updated_at"})
+            cursor = None
+            for _ in range(50):
+                params = {"limit": 100, "sortKey": "updated_at"}
+                if cursor:
+                    params["cursor"] = cursor
+                result = self._app_server("thread/list", params)
+                for thread in result.get("data", []):
+                    sid = str(thread.get("id") or "")
+                    cwd = str(thread.get("cwd") or "")
+                    if not _SESSION_ID_RE.fullmatch(sid) or not cwd:
+                        continue
+                    previous = sessions_by_id.get(sid)
+                    title = str(thread.get("name") or thread.get("preview") or
+                                (previous.title if previous else pathlib.Path(cwd).name) or "Codex session")
+                    try:
+                        updated = max(float(thread.get("updatedAt") or 0),
+                                      previous.updated if previous else 0)
+                    except (TypeError, ValueError, OverflowError):
+                        updated = previous.updated if previous else 0
+                    sessions_by_id[sid] = AgentSession(sid, title[:80], cwd, self.name, updated)
+                cursor = result.get("nextCursor")
+                if not cursor:
+                    break
         except CodexAdapterError:
-            return []
-        sessions = []
-        for thread in result.get("data", []):
-            sid = str(thread.get("id") or "")
-            cwd = str(thread.get("cwd") or self.workspace)
-            if _SESSION_ID_RE.fullmatch(sid):
-                title = str(thread.get("name") or thread.get("preview") or pathlib.Path(cwd).name or "Codex session")
-                sessions.append(AgentSession(sid, title[:80], cwd, self.name,
-                                             updated=float(thread.get("updatedAt") or 0)))
-        return sessions
+            pass
+        return sorted(sessions_by_id.values(), key=lambda session: session.updated, reverse=True)[:100]
 
     def validate_session(self, session_id):
         if not _SESSION_ID_RE.fullmatch(str(session_id or "")):

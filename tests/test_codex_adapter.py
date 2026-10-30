@@ -40,9 +40,24 @@ class CodexAdapterTests(unittest.TestCase):
         return str(path)
 
     def test_list_sessions_parses_metadata(self):
-        sessions = self.adapter.list_sessions()
+        with patch.object(self.adapter, "_app_server", return_value={"data": [], "nextCursor": None}):
+            sessions = self.adapter.list_sessions()
         self.assertEqual(sessions[0].id, SID)
         self.assertEqual(sessions[0].directory, str(self.cwd))
+
+    def test_session_listing_merges_app_server_threads_from_other_workspaces(self):
+        other_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        other_cwd = self.root / "outside-home-project"
+        other_cwd.mkdir()
+        with patch.object(self.adapter, "_app_server", return_value={"data": [
+                {"id": SID, "cwd": str(other_cwd), "name": "Renamed local thread", "updatedAt": 200},
+                {"id": other_id, "cwd": str(other_cwd), "name": "Other project thread", "updatedAt": 300},
+            ], "nextCursor": None}):
+            sessions = self.adapter.list_sessions()
+        by_id = {session.id: session for session in sessions}
+        self.assertEqual(set(by_id), {SID, other_id})
+        self.assertEqual(by_id[SID].directory, str(other_cwd))
+        self.assertEqual(by_id[SID].title, "Renamed local thread")
 
     def test_argv_queues_message_for_exact_thread(self):
         argv = self.adapter.build_argv(SID, "-ignore prior instructions")
@@ -91,7 +106,57 @@ class CodexAdapterTests(unittest.TestCase):
 
     def test_bad_jsonl_metadata_degrades_gracefully(self):
         (self.sessions / "rollout-broken.jsonl").write_text("not json\n")
-        self.assertEqual(len(self.adapter.list_sessions()), 1)
+        with patch.object(self.adapter, "_app_server", return_value={"data": [], "nextCursor": None}):
+            self.assertEqual(len(self.adapter.list_sessions()), 1)
+
+    def test_create_session_verifies_persistence_via_thread_read(self):
+        calls = []
+
+        def fake_app_server_batch(calls_spec, timeout=45):
+            calls.extend(method for method, _ in calls_spec)
+            return [{"thread": {"id": SID, "updatedAt": 100}}, {}, {}]
+
+        with patch.object(self.adapter, "_app_server_batch", side_effect=fake_app_server_batch):
+            session = self.adapter.create_session("My session")
+        self.assertEqual(session.id, SID)
+        self.assertEqual(session.title, "My session")
+        self.assertEqual(calls, ["thread/start", "thread/name/set", "thread/resume"])
+
+    def test_create_session_fails_when_thread_is_not_persisted(self):
+        def fake_app_server_batch(calls_spec, timeout=45):
+            raise CodexAdapterError("no rollout found")
+
+        with patch.object(self.adapter, "_app_server_batch", side_effect=fake_app_server_batch):
+            with self.assertRaisesRegex(CodexAdapterError, "did not persist") as caught:
+                self.adapter.create_session("My session")
+            self.assertNotIn("no rollout found", str(caught.exception))
+
+    def test_create_session_requires_ephemeral_false(self):
+        captured = {}
+
+        def fake_app_server_batch(calls_spec, timeout=45):
+            captured["params"] = calls_spec[0][1]
+            return [{"thread": {"id": SID, "updatedAt": 100}}, {}, {}]
+
+        with patch.object(self.adapter, "_app_server_batch", side_effect=fake_app_server_batch):
+            self.adapter.create_session("My session")
+        self.assertIs(captured["params"]["ephemeral"], False)
+
+    def test_create_session_names_thread_from_first_result(self):
+        captured = {}
+
+        def fake_app_server_batch(calls_spec, timeout=45):
+            start = {"thread": {"id": SID, "updatedAt": 100}}
+            captured["name_params"] = calls_spec[1][1](start)
+            captured["resume_params"] = calls_spec[2][1](start)
+            return [start, {}, {}]
+
+        with patch.object(self.adapter, "_app_server_batch", side_effect=fake_app_server_batch):
+            self.adapter.create_session("My session")
+        self.assertEqual(captured["name_params"],
+                         {"threadId": SID, "name": "My session"})
+        self.assertEqual(captured["resume_params"],
+                         {"threadId": SID, "approvalPolicy": "never", "sandbox": "read-only"})
 
     def test_bridge_dispatch_uses_codex_sessions(self):
         import telegram_bridge as tg

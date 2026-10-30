@@ -23,6 +23,14 @@ and this project adheres to semantic versioning.
   `telegram_bridge` package; commands, MCP paths, and installed file names are
   unchanged.
 
+### Fixed
+
+- Codex `/newsession` no longer fails: sessions are created with `thread/start`
+  and `thread/name/set` in one app-server process (the rollout file only flushes
+  when a mutating call runs in the creating process), and durability is verified
+  with `thread/resume` instead of `thread/list`, which omits threads with no user
+  events.
+
 ## [0.1.0] - 2026-10-28
 
 First public release. TeleCode provides an owner-only Telegram control surface for
