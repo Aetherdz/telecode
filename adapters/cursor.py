@@ -156,7 +156,7 @@ class CursorAdapter:
         sid = str(session_id or "")
         if not _SESSION_ID_RE.fullmatch(sid):
             return None
-        return AgentSession(sid, "Cursor session", str(self.workspace), self.name)
+        return next((session for session in self.list_sessions() if session.id == sid), None)
 
     def build_argv(self, session_id, text):
         if self.validate_session(session_id) is None:
@@ -169,9 +169,8 @@ class CursorAdapter:
     def send_message(self, session_id, text, delivery="queue"):
         session = self.validate_session(session_id)
         if session is None:
-            raise CursorAdapterError("Invalid Cursor session ID.")
-        listed = next((item for item in self.list_sessions() if item.id == session_id), None)
-        workspace = pathlib.Path(listed.directory) if listed else self.workspace
+            raise CursorAdapterError("That Cursor session is no longer available. Select a current session and resend.")
+        workspace = pathlib.Path(session.directory)
         if not workspace.is_dir():
             raise CursorAdapterError(
                 "Cursor workspace is unavailable. Set CURSOR_WORKSPACE to an existing project directory."

@@ -1037,6 +1037,41 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.inject_record(cfg, rec))
         send.assert_not_called()
 
+    def test_inject_rejects_queued_target_from_another_agent(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "codex"}
+        rec = {"update_id": 11, "text": "hello", "session_id": "01234567-89ab-cdef-0123-456789abcdef",
+               "agent": "cursor"}
+        with patch.object(tb, "resolve_session") as resolve, \
+             patch.object(tb, "_try_prompt") as prompt, \
+             patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.inject_record(cfg, rec))
+        resolve.assert_not_called()
+        prompt.assert_not_called()
+        send.assert_called_once()
+
+    def test_inject_fails_closed_for_legacy_queued_target_without_agent(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "claude-code"}
+        rec = {"update_id": 12, "text": "hello", "session_id": "01234567-89ab-cdef-0123-456789abcdef"}
+        with patch.object(tb, "resolve_session") as resolve, \
+             patch.object(tb, "_try_prompt") as prompt, \
+             patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.inject_record(cfg, rec))
+        resolve.assert_not_called()
+        prompt.assert_not_called()
+        send.assert_called_once()
+
+    def test_inject_accepts_claude_alias_for_claude_code_queued_target(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "claude"}
+        rec = {"update_id": 13, "text": "hello", "session_id": "01234567-89ab-cdef-0123-456789abcdef",
+               "agent": "claude-code"}
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(tb, "STATE", pathlib.Path(temp) / "wake-session.txt"), \
+             patch.object(tb, "resolve_session", return_value=(rec["session_id"], "active")), \
+             patch.object(tb, "_session_by_id", return_value={"id": rec["session_id"]}), \
+             patch.object(tb, "_try_prompt", return_value=True) as prompt:
+            self.assertTrue(tb.inject_record(cfg, rec))
+        prompt.assert_called_once_with(cfg, rec["session_id"], "hello", "steer")
+
     def test_models_cache_roundtrip_is_private(self):
         models = [
             {"id": "openai/gpt", "providerID": "openrouter", "name": "GPT"},

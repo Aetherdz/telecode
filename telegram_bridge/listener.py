@@ -140,7 +140,7 @@ def cmd_listen():
                 rec = {
                     "ts": int(time.time()), "iso": tg.ts(), "update_id": u["update_id"],
                     "chat_id": chat_id, "text": text, "file": saved, "file_name": file_name,
-                    "session_id": active_sid,
+                    "session_id": active_sid, "agent": tg._agent_identity(cfg),
                 }
                 with tg.INBOX.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")

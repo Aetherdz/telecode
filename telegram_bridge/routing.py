@@ -18,11 +18,22 @@ def inject_record(cfg: dict, rec: dict) -> bool:
     delivery = (cfg.get("TG_DELIVERY") or "steer").strip().lower()
     if delivery not in ("steer", "queue"):
         delivery = "steer"
+    queued_for = str(rec.get("session_id") or "")
+    recorded_agent = str(rec.get("agent") or "").strip().lower()
+    current_agent = tg._agent_identity(cfg)
+    if recorded_agent == "claude":
+        recorded_agent = "claude-code"
+    if queued_for and recorded_agent != current_agent:
+        # Old inbox entries have no agent marker; fail closed rather than
+        # allowing a UUID-shaped session ID to cross agent boundaries.
+        tg.log(f"[{tg.ts()}] inject skipped: queued session agent {recorded_agent or 'unknown'} "
+               f"does not match configured agent {current_agent}", flush=True)
+        tg.send_text(cfg, "Could not deliver this queued message: its original agent does not match the currently configured agent. Select the original agent and resend.")
+        return True
     sid, how = tg.resolve_session(cfg)
     if not sid:
         tg.log(f"[{tg.ts()}] inject: no session found (update={rec.get('update_id')})", flush=True)
         return False
-    queued_for = str(rec.get("session_id") or "")
     if queued_for and queued_for != sid:
         # A session switch happened while this update waited in the queue.
         # Preserve the original target rather than silently rerouting it.

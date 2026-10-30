@@ -70,22 +70,41 @@ class CursorAdapterTests(unittest.TestCase):
         self.assertEqual(adapter.list_sessions()[0].title, "Fix the login flow please")
 
     def test_validate_session_requires_id_shape(self):
-        self.assertEqual(self.adapter.validate_session(SID).id, SID)
+        with patch.object(self.adapter, "list_sessions", return_value=[
+                AgentSession(SID, "Listed", str(self.workspace), "cursor")]):
+            self.assertEqual(self.adapter.validate_session(SID).id, SID)
         self.assertIsNone(self.adapter.validate_session("bad id"))
 
+    def test_validate_session_rejects_well_formed_id_not_in_cursor_metadata(self):
+        with patch.object(self.adapter, "list_sessions", return_value=[]):
+            self.assertIsNone(self.adapter.validate_session(SID))
+
+    def test_validate_session_returns_metadata_workspace(self):
+        other = self.root / "other-project"
+        other.mkdir()
+        listed = AgentSession(SID, "Listed", str(other), "cursor")
+        with patch.object(self.adapter, "list_sessions", return_value=[listed]):
+            self.assertEqual(self.adapter.validate_session(SID), listed)
+
     def test_argv_resumes_thread_in_print_mode(self):
-        self.assertEqual(self.adapter.build_argv(SID, "hello"),
-                         ["agent", "--resume", SID, "--print", "--output-format", "text", "hello"])
+        with patch.object(self.adapter, "list_sessions", return_value=[
+                AgentSession(SID, "Listed", str(self.workspace), "cursor")]):
+            self.assertEqual(self.adapter.build_argv(SID, "hello"),
+                             ["agent", "--resume", SID, "--print", "--output-format", "text", "hello"])
 
     def test_argv_passes_selected_model(self):
         adapter = CursorAdapter(workspace=self.workspace, model="gpt-5.3-codex")
-        self.assertEqual(adapter.build_argv(SID, "hello"),
-                         ["agent", "--resume", SID, "--print", "--output-format", "text",
-                          "--model", "gpt-5.3-codex", "hello"])
+        with patch.object(adapter, "list_sessions", return_value=[
+                AgentSession(SID, "Listed", str(self.workspace), "cursor")]):
+            self.assertEqual(adapter.build_argv(SID, "hello"),
+                             ["agent", "--resume", SID, "--print", "--output-format", "text",
+                              "--model", "gpt-5.3-codex", "hello"])
 
     def test_send_message_uses_workspace_and_returns_text(self):
         result = type("Result", (), {"returncode": 0, "stdout": "answer\n", "stderr": ""})()
-        with patch("adapters.cursor.subprocess.run", return_value=result) as run:
+        listed = AgentSession(SID, "Listed", str(self.workspace), "cursor")
+        with patch.object(self.adapter, "list_sessions", return_value=[listed]), \
+             patch("adapters.cursor.subprocess.run", return_value=result) as run:
             self.assertEqual(self.adapter.send_message(SID, "hello"), "answer")
         self.assertEqual(run.call_args.kwargs["cwd"], str(self.workspace))
         self.assertEqual(run.call_args.kwargs["timeout"], 600)
@@ -99,6 +118,13 @@ class CursorAdapterTests(unittest.TestCase):
              patch("adapters.cursor.subprocess.run", return_value=result) as run:
             self.assertEqual(self.adapter.send_message(SID, "hello"), "answer")
         self.assertEqual(run.call_args.kwargs["cwd"], str(other_workspace))
+
+    def test_send_message_rejects_unknown_uuid_instead_of_falling_back_to_workspace(self):
+        with patch.object(self.adapter, "list_sessions", return_value=[]), \
+             patch("adapters.cursor.subprocess.run") as run:
+            with self.assertRaisesRegex(CursorAdapterError, "no longer available"):
+                self.adapter.send_message(SID, "hello")
+        run.assert_not_called()
 
     def test_create_session_runs_cursor_create_chat(self):
         result = type("Result", (), {"returncode": 0, "stdout": SID + "\n", "stderr": ""})()
@@ -127,7 +153,9 @@ class CursorAdapterTests(unittest.TestCase):
 
     def test_cli_error_is_reported(self):
         result = type("Result", (), {"returncode": 1, "stdout": "", "stderr": "bad thread"})()
-        with patch("adapters.cursor.subprocess.run", return_value=result):
+        with patch.object(self.adapter, "list_sessions", return_value=[
+                AgentSession(SID, "Listed", str(self.workspace), "cursor")]), \
+             patch("adapters.cursor.subprocess.run", return_value=result):
             with self.assertRaisesRegex(CursorAdapterError, "bad thread"):
                 self.adapter.send_message(SID, "hello")
 
@@ -138,9 +166,7 @@ class CursorAdapterTests(unittest.TestCase):
         empty_config.mkdir()
         with patch.dict("os.environ", {"CURSOR_CONFIG_DIR": str(empty_config)}):
             self.assertEqual(tg.list_sessions(cfg), [])
-            session = tg._session_by_id(cfg, SID)
-        self.assertEqual(session["id"], SID)
-        self.assertEqual(session["directory"], str(self.workspace))
+            self.assertIsNone(tg._session_by_id(cfg, SID))
         config = self.root / "bridge-cursor-config"
         chat = config / "chats" / "workspace-hash" / SID
         chat.mkdir(parents=True)
@@ -163,7 +189,8 @@ class CursorAdapterTests(unittest.TestCase):
             tg.SESSION_SNAPSHOT = [session]
             tg.SESSION_BUTTONS.clear()
             tg.SESSION_BUTTONS["1. Cursor project chat"] = SID
-            with patch.object(tg, "_set_active_session") as select, \
+            with patch.object(tg, "_session_by_id", return_value=session), \
+                 patch.object(tg, "_set_active_session") as select, \
                  patch.object(tg, "send_text"), patch.object(tg, "_send_keyboard"):
                 self.assertTrue(tg.handle_control_message(cfg, {}, "1. Cursor project chat"))
             select.assert_called_once_with(session)

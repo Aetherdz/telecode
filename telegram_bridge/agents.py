@@ -19,6 +19,12 @@ def _agent_name(cfg):
     return "cursor" if shutil.which((cfg.get("CURSOR_AGENT_BIN") or "agent").strip()) else "opencode"
 
 
+def _agent_identity(cfg):
+    """Canonical name used to tag session targets, including config aliases."""
+    name = _agent_name(cfg)
+    return "claude-code" if name == "claude" else name
+
+
 def _codex_adapter(cfg):
     from adapters.codex import CodexAdapter
     try:
@@ -185,7 +191,8 @@ def _active_session_matches_agent(cfg):
     compatibility so an upgrade does not silently drop a working selection.
     """
     agent = _active_session_record().get("agent")
-    return not agent or agent == tg._agent_name(cfg)
+    stored_agent = "claude-code" if agent == "claude" else agent
+    return not agent or stored_agent == tg._agent_identity(cfg)
 
 
 def _set_active_session(session):

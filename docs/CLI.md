@@ -204,6 +204,11 @@ ignores both stdin EOF and SIGTERM, which used to add up to ~5s per picker
 interaction. Batches that mutate a thread keep a patient shutdown so deferred
 writes can flush.
 
+Queued inbound updates record the configured agent alongside the captured
+session ID. If the agent configuration changes before delivery, TeleCode rejects
+the stale target rather than validating a same-shaped ID in another agent. Cursor
+session IDs are accepted only when present in Cursor's local chat metadata.
+
 Queued messages use the permissions and sandbox already configured on that Codex
 thread; TeleCode does not alter them or bypass approvals. Telegram-originated
 instructions should still be treated as untrusted input.

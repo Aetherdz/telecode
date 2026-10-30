@@ -41,6 +41,9 @@ and this project adheres to semantic versioning.
   session resolution rejects (and clears) an active session saved for a
   different agent, so a stale cross-agent selection can no longer be targeted
   by mistake. Legacy active-session files without an agent field keep working.
+- Cursor session validation now requires a matching local chat metadata entry,
+  and queued inbound updates carry their originating agent; queued targets from
+  a different or unknown agent fail closed instead of being rerouted.
 
 ## [0.1.0] - 2026-10-28
 
