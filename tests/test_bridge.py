@@ -8,13 +8,21 @@ import sys
 
 BRIDGE = pathlib.Path(__file__).resolve().parents[1] / "tg_bridge.py"
 sys.path.insert(0, str(BRIDGE.parent))
-spec = importlib.util.spec_from_file_location("telegram_bridge", BRIDGE)
+spec = importlib.util.spec_from_file_location("tg_bridge", BRIDGE)
 tb = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = tb
 spec.loader.exec_module(tb)
 
 
 class SessionRoutingTests(unittest.TestCase):
+    def test_shim_forwards_main_entrypoint_patches(self):
+        import telegram_bridge
+
+        self.assertIs(tb.main, telegram_bridge.main)
+        with patch.object(tb, "main") as mocked_main:
+            self.assertIs(tb.main, mocked_main)
+        self.assertIs(tb.main, telegram_bridge.main)
+
     def test_session_label_contains_full_id(self):
         sid = "ses_abcdefghijk12345"
         self.assertTrue(tb.session_label({"id": sid, "title": "chat"}).endswith(f"[{sid}]"))
@@ -57,19 +65,19 @@ class SessionRoutingTests(unittest.TestCase):
             {"id": "ses_bbbbbb222222", "title": "beta"},
         ]
         labels = tb._session_buttons(sessions)
-        self.assertTrue(labels["ses_aaaaaa111111"].startswith("alpha ["))
-        self.assertTrue(labels["ses_bbbbbb222222"].startswith("beta ["))
+        self.assertEqual(labels["ses_aaaaaa111111"], "1. alpha")
+        self.assertEqual(labels["ses_bbbbbb222222"], "2. beta")
         duplicate = [{"id": "ses_aaaaaa111111", "title": "alpha"},
                      {"id": "ses_bbbbbb222222", "title": "alpha"}]
         labels = tb._session_buttons(duplicate)
         self.assertNotEqual(labels["ses_aaaaaa111111"], labels["ses_bbbbbb222222"])
 
-    def test_session_button_suffix_expands_on_collision(self):
+    def test_session_button_numbers_disambiguate_duplicate_names(self):
         sessions = [{"id": "ses_aaaaaa111111", "title": "alpha"},
                     {"id": "ses_bbbbbb111111", "title": "alpha"}]
         labels = tb._session_buttons(sessions)
         self.assertNotEqual(labels["ses_aaaaaa111111"], labels["ses_bbbbbb111111"])
-        self.assertTrue(all("[" in label for label in labels.values()))
+        self.assertEqual(set(labels.values()), {"1. alpha", "2. alpha"})
 
     def test_session_title_is_single_line(self):
         self.assertEqual(tb.session_title({"title": "a\nb"}), "a b")
@@ -119,9 +127,42 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(api.call_args.args[2]["text"], "models")
         self.assertNotIn("parse_mode", api.call_args.args[2])
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
-        self.assertTrue(markup["one_time_keyboard"])
+        self.assertFalse(markup["one_time_keyboard"])
         self.assertNotIn("is_persistent", markup)
         self.assertNotIn("input_field_placeholder", markup)
+
+    def test_reply_keyboard_buttons_include_supported_color_styles(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        main = tb._keyboard(cfg)["keyboard"]
+        by_text = {button["text"]: button for row in main for button in row}
+        self.assertEqual(by_text["Sessions"]["style"], "primary")
+        self.assertEqual(by_text["New session"]["style"], "success")
+        self.assertEqual(by_text["Current session"]["style"], "success")
+        self.assertEqual(by_text["Help"]["style"], "danger")
+        self.assertEqual(tb._keyboard(cfg)["keyboard"], [
+            [{"text": "Current session", "style": "success"},
+             {"text": "New session", "style": "success"}],
+            [{"text": "Models", "style": "primary"},
+             {"text": "Sessions", "style": "primary"}],
+            [{"text": "Help", "style": "danger"}],
+        ])
+
+        rows = [[{"text": "Next"}, {"text": "Cancel"}, {"text": "build-server"}]]
+        with patch.object(tb, "api", return_value={"ok": True}) as api:
+            tb._send_reply_picker(cfg, "Choose", rows, notify=False)
+        markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
+        buttons = {button["text"]: button for row in markup["keyboard"] for button in row}
+        self.assertEqual(buttons["Next"]["style"], "primary")
+        self.assertEqual(buttons["Cancel"]["style"], "danger")
+        self.assertNotIn("style", buttons["build-server"])
+        self.assertNotIn("style", rows[0][0])  # Styling must not mutate caller-owned rows.
+
+    def test_inline_keyboard_buttons_include_supported_color_styles(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "api", return_value={"ok": True}) as api:
+            tb._send_inline(cfg, "Choose", [[{"text": "Back", "callback_data": "back"}]])
+        markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
+        self.assertEqual(markup["inline_keyboard"][0][0]["style"], "primary")
 
     def test_session_picker_uses_one_bottom_keyboard_message_only(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -133,8 +174,11 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(api.call_count, 1)
         self.assertEqual(api.call_args.args[1], "sendMessage")
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
-        self.assertEqual(markup["keyboard"][0][0]["text"], "work [cdefgh]")
-        self.assertIn([{"text": tb.NEW_SESSION}], markup["keyboard"])
+        self.assertEqual(markup["keyboard"][0][0]["text"], "1. work")
+        new_session_row = next(row for row in markup["keyboard"]
+                               if any(button.get("text") == tb.NEW_SESSION for button in row))
+        self.assertEqual(new_session_row[0]["style"], "success")
+        self.assertEqual(new_session_row[1], {"text": "Open by ID", "style": "primary"})
         top_keyboard.assert_not_called()
 
     def test_empty_session_list_still_offers_create_session_action(self):
@@ -142,7 +186,8 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "list_sessions", return_value=[]), \
              patch.object(tb, "_send_reply_picker") as picker:
             tb._send_session_picker(cfg)
-        self.assertEqual(picker.call_args.args[2], [[{"text": tb.NEW_SESSION}], [{"text": "Cancel"}]])
+        self.assertEqual(picker.call_args.args[2],
+                         [[{"text": tb.NEW_SESSION}, {"text": "Open by ID"}], [{"text": "Cancel"}]])
         self.assertEqual(tb.ACTIVE_PICKER, "sessions")
         self.assertEqual(tb.SESSION_BUTTONS, {})
         with patch.object(tb, "_send_reply_picker"):
@@ -195,7 +240,7 @@ class SessionRoutingTests(unittest.TestCase):
             for page in (0, 1):
                 with self.subTest(page=page), patch.object(tb, "_send_reply_picker") as picker:
                     tb._send_session_picker(cfg, page=page, sessions=sessions)
-                self.assertIn([{"text": tb.NEW_SESSION}], picker.call_args.args[2])
+                self.assertIn([{"text": tb.NEW_SESSION}, {"text": "Open by ID"}], picker.call_args.args[2])
 
     def test_new_session_button_and_slash_command_aliases_always_start_name_prompt(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -487,10 +532,11 @@ class SessionRoutingTests(unittest.TestCase):
         create.assert_not_called()
         send.assert_called_once()
 
-    def test_new_session_command_is_registered_in_main_keyboard(self):
+    def test_main_keyboard_uses_labels_not_slash_commands(self):
         markup = tb._keyboard({})["keyboard"]
-        self.assertIn({"text": "New session"}, [item for row in markup for item in row])
-        self.assertIn({"text": "/newsession"}, [item for row in markup for item in row])
+        buttons = {item["text"]: item for row in markup for item in row}
+        self.assertEqual(buttons["New session"]["style"], "success")
+        self.assertEqual(list(buttons), ["Current session", "New session", "Models", "Sessions", "Help"])
 
     def test_session_picker_button_caption_with_photo_is_consumed_as_control(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -584,7 +630,7 @@ class SessionRoutingTests(unittest.TestCase):
         markup = __import__("json").loads(api.call_args.args[2]["reply_markup"])
         self.assertIn("keyboard", markup)
         self.assertNotIn("inline_keyboard", markup)
-        self.assertTrue(markup["one_time_keyboard"])
+        self.assertFalse(markup["one_time_keyboard"])
         self.assertNotIn("is_persistent", markup)
         self.assertNotIn("input_field_placeholder", markup)
         self.assertEqual(markup["keyboard"][0][0]["text"], "test (1)")
@@ -649,17 +695,17 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_keyboard(cfg)
         import json
         markup = json.loads(api.call_args.args[2]["reply_markup"])
-        self.assertTrue(markup["one_time_keyboard"])
+        self.assertFalse(markup["one_time_keyboard"])
         self.assertNotIn("is_persistent", markup)
         self.assertNotIn("input_field_placeholder", markup)
         labels = [button["text"] for row in markup["keyboard"] for button in row]
         self.assertIn("Models", labels)
-        self.assertIn("/models", labels)
+        self.assertFalse(any(label.startswith("/") for label in labels))
         configure.assert_not_called()
 
     def test_main_keyboard_uses_one_time_hint_without_remove_markup(self):
         markup = tb._keyboard({})
-        self.assertTrue(markup["one_time_keyboard"])
+        self.assertFalse(markup["one_time_keyboard"])
         self.assertNotIn("is_persistent", markup)
         self.assertNotIn("remove_keyboard", markup)
 
@@ -669,7 +715,7 @@ class SessionRoutingTests(unittest.TestCase):
             tb._begin_new_session(cfg)
         self.assertFalse(picker.call_args.kwargs.get("notify", True))
         self.assertEqual(picker.call_args.args[2][0], [{"text": "Cancel"}])
-        self.assertIn({"text": "/menu"}, picker.call_args.args[2][1])
+        self.assertEqual(len(picker.call_args.args[2]), 1)
     def test_session_picker_empty_results_do_not_reissue_main_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         with patch.object(tb, "list_sessions", return_value=[]), \
@@ -677,7 +723,8 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "_send_keyboard") as keyboard:
             tb._send_session_picker(cfg)
         message.assert_called_once()
-        self.assertEqual(message.call_args.args[2], [[{"text": tb.NEW_SESSION}], [{"text": "Cancel"}]])
+        self.assertEqual(message.call_args.args[2],
+                         [[{"text": tb.NEW_SESSION}, {"text": "Open by ID"}], [{"text": "Cancel"}]])
         keyboard.assert_not_called()
 
     def test_files_command_exits_model_picker_and_restores_main_keyboard(self):
@@ -1011,17 +1058,19 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_BACK))
         hide.assert_not_called()
 
-    def test_session_picker_escapes_dynamic_values_for_html(self):
+    def test_session_picker_does_not_duplicate_session_list_in_message(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         sessions = [{"id": "ses_abc1234567", "title": "fix_auth.v2"}]
         with patch.object(tb, "list_sessions", return_value=sessions), \
-             patch.object(tb, "_active_session_id", return_value="ses_abc1234567"), \
              patch.object(tb, "api") as api:
             tb._send_session_picker(cfg)
         payload = api.call_args.args[2]
         self.assertEqual(payload["parse_mode"], "HTML")
-        self.assertIn("<b>fix_auth.v2 [234567]</b>", payload["text"])
-        self.assertIn("<code>ses_abc1234567</code>", payload["text"])
+        self.assertIn("Choose a session", payload["text"])
+        self.assertNotIn("fix_auth.v2", payload["text"])
+        self.assertNotIn("ses_abc1234567", payload["text"])
+        markup = __import__("json").loads(payload["reply_markup"])
+        self.assertEqual(markup["keyboard"][0][0]["text"], "1. fix_auth.v2")
 
     def test_session_picker_formatted_send_falls_back_to_plain_text(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1034,7 +1083,8 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg)
         self.assertEqual(api.call_count, 2)
         self.assertNotIn("parse_mode", api.call_args.args[2])
-        self.assertIn("A < B", api.call_args.args[2]["text"])
+        self.assertIn("Choose a session", api.call_args.args[2]["text"])
+        self.assertNotIn("A < B", api.call_args.args[2]["text"])
 
     def test_session_listing_falls_back_when_directory_filter_is_unsupported(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
@@ -1066,11 +1116,12 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg, page=1)
         payload = api.call_args.args[2]
         keyboard = __import__("json").loads(payload["reply_markup"])["keyboard"]
-        labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in ("Previous", "Next", "Cancel", "/menu", tb.NEW_SESSION)]
+        labels = [row[0]["text"] for row in keyboard if row and row[0]["text"] not in
+                  ("Previous", "Next", "Cancel", tb.NEW_SESSION, "Open by ID")]
         self.assertEqual(len(labels), 20)
-        body = payload["text"]
-        self.assertIn("25. <b>session 24 [000024]</b>", body)
-        self.assertNotIn("1. <b>session 0</b>", body)
+        self.assertEqual(labels[0], "21. session 20")
+        self.assertEqual(labels[-1], "40. session 39")
+        self.assertNotIn("ses_", payload["text"])
         self.assertEqual(tb.SESSION_PAGE, 1)
 
     def test_session_page_change_reuses_one_session_snapshot(self):
@@ -1096,8 +1147,7 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
-        self.assertEqual(buttons, ["Sessions", "Current session", "New session", "Models", "Help",
-                                   "/menu", "/session", "/newsession", "/models"])
+        self.assertEqual(buttons, ["Current session", "New session", "Models", "Sessions", "Help"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1166,13 +1216,48 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "_active_session_id", return_value=""), patch.object(tb, "api"), \
              patch.object(tb, "_set_active_session") as select, patch.object(tb, "send_text"):
             tb._send_session_picker(cfg, sessions=sessions)
-            label = next(label for label in tb.SESSION_BUTTONS if label.startswith("same"))
+            label = next(label for label in tb.SESSION_BUTTONS if label.startswith("1."))
             self.assertTrue(tb.handle_control_message(cfg, {}, label))
         select.assert_called_once_with(sessions[0])
 
+    def test_open_by_id_action_validates_and_selects_available_session(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        sid = "ses_abcdef123456"
+        session = {"id": sid, "title": "opened directly"}
+        tb.ACTIVE_PICKER = "sessions"
+        tb.SESSION_SNAPSHOT = [session]
+        with patch.object(tb, "_send_reply_picker") as prompt:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "Open by ID"))
+        self.assertEqual(tb.ACTIVE_PICKER, "session-id")
+        self.assertIn("Open a session by ID", prompt.call_args.args[1])
+
+        with patch.object(tb, "_session_by_id", return_value=session) as lookup, \
+             patch.object(tb, "_set_active_session") as select, \
+             patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard") as keyboard:
+            self.assertTrue(tb.handle_control_message(cfg, {}, sid))
+        lookup.assert_called_once_with(cfg, sid)
+        select.assert_called_once_with(session)
+        send.assert_called_once()
+        keyboard.assert_called_once_with(cfg)
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_open_by_id_rejects_unavailable_id_without_leaving_prompt(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        tb.ACTIVE_PICKER = "session-id"
+        with patch.object(tb, "_session_by_id", return_value=None) as lookup, \
+             patch.object(tb, "send_text") as send:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "ses_notfound"))
+        lookup.assert_called_once_with(cfg, "ses_notfound")
+        send.assert_called_once()
+        self.assertEqual(tb.ACTIVE_PICKER, "session-id")
+
     def test_module_has_no_emoji_in_ui_strings(self):
-        source = BRIDGE.read_text(encoding="utf-8")
-        emoji = [ch for ch in source if ord(ch) >= 0x1F000]
+        sources = [BRIDGE.read_text(encoding="utf-8")]
+        sources.extend(
+            p.read_text(encoding="utf-8")
+            for p in sorted(BRIDGE.parent.glob("telegram_bridge/*.py"))
+        )
+        emoji = [ch for source in sources for ch in source if ord(ch) >= 0x1F000]
         self.assertEqual(emoji, [])
 
 

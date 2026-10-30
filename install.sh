@@ -79,7 +79,7 @@ if [[ "${1:-}" == "--update" && "$(realpath "$SOURCE_DIR")" == "$(realpath "$APP
   echo "Run ./install.sh --update from a source checkout, not the installed copy." >&2
   exit 2
 fi
-mkdir -p "$APP_DIR/adapters" "$APP_DIR/config" "$CONFIG_DIR" "$BIN_DIR"
+mkdir -p "$APP_DIR/adapters" "$APP_DIR/telegram_bridge" "$APP_DIR/config" "$CONFIG_DIR" "$BIN_DIR"
 install_if_changed() {
   local source="$1" destination="$2"
   if [[ "$source" -ef "$destination" ]]; then return 0; fi
@@ -92,6 +92,15 @@ install_if_changed "$SOURCE_DIR/adapters/base.py" "$APP_DIR/adapters/base.py"
 install_if_changed "$SOURCE_DIR/adapters/__init__.py" "$APP_DIR/adapters/__init__.py"
 install_if_changed "$SOURCE_DIR/adapters/opencode.py" "$APP_DIR/adapters/opencode.py"
 install_if_changed "$SOURCE_DIR/adapters/claude_code.py" "$APP_DIR/adapters/claude_code.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/__init__.py" "$APP_DIR/telegram_bridge/__init__.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/state.py" "$APP_DIR/telegram_bridge/state.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/util.py" "$APP_DIR/telegram_bridge/util.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/telegram.py" "$APP_DIR/telegram_bridge/telegram.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/agents.py" "$APP_DIR/telegram_bridge/agents.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/pickers.py" "$APP_DIR/telegram_bridge/pickers.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/routing.py" "$APP_DIR/telegram_bridge/routing.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/listener.py" "$APP_DIR/telegram_bridge/listener.py"
+install_if_changed "$SOURCE_DIR/telegram_bridge/cli.py" "$APP_DIR/telegram_bridge/cli.py"
 install_if_changed "$SOURCE_DIR/telegram-bridge.py" "$APP_DIR/telegram-bridge.py"
 install_if_changed "$SOURCE_DIR/telegram-bridge.service" "$APP_DIR/telegram-bridge.service"
 install_if_changed "$SOURCE_DIR/SKILL.md" "$APP_DIR/SKILL.md"
@@ -102,6 +111,10 @@ mkdir -p "$CONFIG_DIR/files"
 for template in "$SOURCE_DIR"/config/*.example.json; do
   [[ -f "$template" ]] && install_if_changed "$template" "$APP_DIR/config/$(basename "$template")"
 done
+if ! (cd "$APP_DIR" && "$PYTHON" -c "import tg_bridge"); then
+  echo "post-install import check failed" >&2
+  exit 2
+fi
 WRAPPER_TMP="$(mktemp "$BIN_DIR/.telecode.XXXXXX")"
 cat > "$WRAPPER_TMP" <<'EOF'
 #!/usr/bin/env bash

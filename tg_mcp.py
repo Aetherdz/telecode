@@ -22,15 +22,8 @@ BASE = pathlib.Path(os.environ.get(
 CODE_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(CODE_DIR))
 import tg_bridge as tb  # noqa: E402  (stdlib-only module, main-guarded)
-tb.BASE = BASE
-tb.ENV = BASE / "telegram.env"
-tb.INBOX = BASE / "inbox.jsonl"
-tb.OFFSET = BASE / "offset.txt"
-tb.CURSOR = BASE / "cursor.txt"
-tb.PID = BASE / "listener.pid"
-tb.FILES = BASE / "files"
-tb.STATE = BASE / "wake-session.txt"
-tb.ACTIVE_SESSION = BASE / "active-session.json"
+import telegram_bridge
+telegram_bridge.state.configure(str(BASE))
 
 SERVER_INFO = {"name": "telegram-bridge", "version": "1.0.0"}
 PROTOCOL_FALLBACK = "2025-06-18"

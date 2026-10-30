@@ -40,6 +40,8 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(run.returncode, 0, run.stderr)
             app = home / "data/telegram-bridge"
             self.assertTrue((app / "adapters/__init__.py").is_file())
+            self.assertTrue((app / "telegram_bridge/__init__.py").is_file())
+            self.assertTrue((app / "telegram_bridge/cli.py").is_file())
             self.assertTrue((app / "config/opencode.example.json").is_file())
             self.assertTrue((app / ".env.example").is_file())
             self.assertTrue((app / "get_telegram_id.py").is_file())

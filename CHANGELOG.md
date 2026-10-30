@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- `telegram_bridge/` package with eight modules (`state`, `util`, `telegram`,
+  `agents`, `pickers`, `routing`, `listener`, `cli`).
+- Telegram reply and inline keyboard controls now use the Bot API button styles:
+  blue for navigation, green for creation actions, and red for Cancel.
+- Reply keyboards no longer auto-hide after a button is pressed, while keeping
+  Telegram's show/hide keyboard toggle available.
+- Session picker offers a validated “Open by ID” action for available workspace sessions.
+
+### Changed
+
+- `tg_bridge.py` is now a thin entry point and forwarding shim that re-exports the
+  `telegram_bridge` package; commands, MCP paths, and installed file names are
+  unchanged.
+
 ## [0.1.0] - 2026-10-28
 
 First public release. TeleCode provides an owner-only Telegram control surface for
