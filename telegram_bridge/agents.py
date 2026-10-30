@@ -19,6 +19,18 @@ def _codex_adapter(cfg):
                         workspace_write=cfg.get("TELECODE_CODEX_WORKSPACE_WRITE"))
 
 
+def _agent_adapter(cfg):
+    """Create the configured inbound adapter; OpenCode remains the default."""
+    name = tg._agent_name(cfg)
+    if name == "codex":
+        return tg._codex_adapter(cfg)
+    if name in ("claude-code", "claude"):
+        from adapters.claude_code import ClaudeCodeAdapter
+        return ClaudeCodeAdapter(binary=(cfg.get("CLAUDE_CODE_BIN") or "claude").strip())
+    from adapters.opencode import OpenCodeAdapter
+    return OpenCodeAdapter(binary=tg._opencode_bin(cfg))
+
+
 def _opencode_bin(cfg) -> str:
     explicit = (cfg.get("OPENCODE_BIN") or "").strip()
     if explicit:
@@ -76,7 +88,7 @@ def _session_items(cfg, query: str):
 
 
 def list_sessions(cfg):
-    """Return non-archived root sessions, falling back to an unfiltered API query."""
+    """Return non-archived root sessions visible in the configured agent."""
     if tg._agent_name(cfg) == "codex":
         try:
             return [{"id": s.id, "title": s.title, "directory": s.directory,
@@ -85,19 +97,21 @@ def list_sessions(cfg):
         except Exception as e:
             tg.log(f"[{tg.ts()}] Codex session listing failed: {e!r}", flush=True)
             return []
-    home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
+    if tg._agent_name(cfg) in ("claude-code", "claude"):
+        try:
+            return [{"id": s.id, "title": s.title, "directory": s.directory,
+                     "time": {"updated": s.updated}, "agent": s.agent}
+                    for s in tg._agent_adapter(cfg).list_sessions()]
+        except Exception as e:
+            tg.log(f"[{tg.ts()}] Claude Code session listing failed: {e!r}", flush=True)
+            return []
     try:
-        items = tg._session_items(cfg, f"&directory={home}")
-        if not items:
-            items = tg._session_items(cfg, "")
+        # The session picker is deliberately not restricted to the startup
+        # directory; users may select any project visible to their OpenCode API.
+        items = tg._session_items(cfg, "")
     except Exception as e:
         tg.log(f"[{tg.ts()}] session listing failed: {e!r}", flush=True)
-        try:
-            items = tg._session_items(cfg, "")
-        except Exception as fallback_error:
-            tg.log(f"[{tg.ts()}] unfiltered session listing failed: {fallback_error!r}", flush=True)
-            return []
-    home_path = pathlib.Path.home().resolve()
+        return []
     sessions = []
     for session in items:
         if not isinstance(session, dict) or session.get("parentID"):
@@ -105,12 +119,6 @@ def list_sessions(cfg):
         if (session.get("time") or {}).get("archived"):
             continue
         directory = str(session.get("directory") or "")
-        if directory:
-            try:
-                if pathlib.Path(directory).resolve() != home_path:
-                    continue
-            except (OSError, RuntimeError):
-                continue
         sessions.append(session)
     return sessions
 
@@ -163,7 +171,7 @@ def discover_session(cfg):
 
 
 def _session_by_id(cfg, sid):
-    if tg._agent_name(cfg) == "codex":
+    if tg._agent_name(cfg) in ("codex", "claude-code", "claude"):
         return next((s for s in tg.list_sessions(cfg) if str(s.get("id")) == str(sid)), None)
     if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid or "")):
         return None
@@ -172,7 +180,7 @@ def _session_by_id(cfg, sid):
 
 def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
-    if tg._agent_name(cfg) == "codex":
+    if tg._agent_name(cfg) in ("codex", "claude-code", "claude"):
         selected = tg._active_session_id()
         if selected and tg._session_by_id(cfg, selected):
             return selected, "telegram-selected"
@@ -200,25 +208,21 @@ def resolve_session(cfg):
 
 def _try_prompt(cfg, sid, body_text, delivery):
     """One admit attempt into a session. Returns True on success."""
-    if tg._agent_name(cfg) == "codex":
-        from adapters.codex import CodexAdapterError
-        try:
-            reply = tg._codex_adapter(cfg).send_message(sid, body_text, delivery)
-        except CodexAdapterError as e:
-            tg.send_text(cfg, str(e))
-            return True
-        tg.send_text(cfg, reply[:6000])
-        return True
-    if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid)):
+    agent_name = tg._agent_name(cfg)
+    if agent_name in ("opencode", "") and not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid)):
         tg.log(f"[{tg.ts()}] prompt rejected invalid session id", flush=True)
         return False
-    body = json.dumps({"text": body_text, "delivery": delivery})
-    cmd = [tg._opencode_bin(cfg), "api", "post", f"/api/session/{urllib.parse.quote(sid, safe='')}/prompt", "-d", body]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        adapter = tg._agent_adapter(cfg)
+        reply = adapter.send_message(sid, body_text, delivery)
     except Exception as e:
+        from adapters.codex import CodexAdapterError
+        if isinstance(e, CodexAdapterError):
+            tg.send_text(cfg, str(e))
+            return True
         tg.log(f"[{tg.ts()}] prompt sid={sid} {delivery}: error {e!r}", flush=True)
         return False
-    tail = ((r.stdout or "").strip() + " " + (r.stderr or "").strip()).strip().replace("\n", " ")[:150]
-    tg.log(f"[{tg.ts()}] prompt sid={sid} {delivery}: rc={r.returncode} {tail}", flush=True)
-    return r.returncode == 0
+    if adapter.name in ("codex", "claude-code") and isinstance(reply, str) and reply:
+        tg.send_text(cfg, reply[:6000])
+        return True
+    return bool(reply)

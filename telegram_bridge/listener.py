@@ -1,5 +1,6 @@
 """Listener daemon: Telegram long-poll loop and auto-start."""
 import json
+import atexit
 import os
 import pathlib
 import subprocess
@@ -9,6 +10,15 @@ import time
 import traceback
 
 import telegram_bridge as tg
+
+
+def _remove_pid_file():
+    """Remove listener.pid only when it still identifies this process."""
+    try:
+        if int(tg.PID.read_text(encoding="utf-8").strip()) == os.getpid():
+            tg.PID.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
 
 
 def start_opencode_listener(cfg):
@@ -66,6 +76,7 @@ def cmd_listen():
         return 0
     offset = int(tg.OFFSET.read_text().strip()) if tg.OFFSET.exists() else 0
     tg.PID.write_text(str(os.getpid()))
+    atexit.register(tg._remove_pid_file)
     tg.log(f"[{tg.ts()}] listener up (pid {os.getpid()}), owner={owner}, offset={offset}", flush=True)
     tg._send_keyboard(cfg, configure=True)
     threading.Thread(target=tg._inject_worker, args=(cfg,), daemon=True).start()

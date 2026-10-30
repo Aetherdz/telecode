@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -125,7 +126,8 @@ jobs:
             tests.test_setup_cli \
             tests.test_get_telegram_id \
             tests.test_telegram_api_local \
-            tests.test_service_manager 2>&1 | tee "$RUNNER_TEMP/ci-test.log"
+            tests.test_service_manager \
+            tests.test_bridge 2>&1 | tee "$RUNNER_TEMP/ci-test.log"
       - name: Run Windows portable test suites
         if: runner.os == 'Windows'
         shell: bash
@@ -136,7 +138,8 @@ jobs:
             tests.test_setup_cli \
             tests.test_get_telegram_id \
             tests.test_telegram_api_local \
-            tests.test_service_manager 2>&1 | tee "$RUNNER_TEMP/ci-test.log"
+            tests.test_service_manager \
+            tests.test_bridge 2>&1 | tee "$RUNNER_TEMP/ci-test.log"
       - name: Upload failure logs
         if: failure()
         uses: actions/upload-artifact@v4

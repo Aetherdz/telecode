@@ -66,6 +66,7 @@ from .telegram import (  # noqa: F401
 
 # --- agents.py ---
 from .agents import (  # noqa: F401
+    _agent_adapter,
     _agent_name,
     _codex_adapter,
     _opencode_bin,
@@ -119,6 +120,7 @@ from .routing import (  # noqa: F401
 # --- listener.py ---
 from .listener import (  # noqa: F401
     start_opencode_listener,
+    _remove_pid_file,
     cmd_listen,
 )
 
