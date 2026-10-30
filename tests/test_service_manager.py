@@ -10,6 +10,14 @@ import service_manager
 
 
 class ServiceManagerTests(unittest.TestCase):
+    def test_windows_crlf_credentials_are_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = pathlib.Path(tmp)
+            (config / "telegram.env").write_bytes(
+                b"TG_BOT_TOKEN=12345:FAKE_TOKEN_NOT_VALID\r\nTG_CHAT_ID=1\r\n")
+            with patch.dict(os.environ, {"TELEGRAM_BRIDGE_HOME": str(config)}):
+                service_manager._check_credentials()
+
     def test_windows_install_creates_schtasks_task_with_environment_wrapper(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)

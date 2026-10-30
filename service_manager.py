@@ -26,9 +26,9 @@ def _check_credentials():
         text = env_file.read_text(encoding="utf-8")
     except OSError as exc:
         raise RuntimeError(f"Missing credentials file: {env_file}") from exc
-    if not re.search(r"^TG_BOT_TOKEN=[0-9]{5,}:[A-Za-z0-9_-]{20,}$", text, re.M):
+    if not re.search(r"^TG_BOT_TOKEN=[0-9]{5,}:[A-Za-z0-9_-]{20,}\r?$", text, re.M):
         raise RuntimeError(f"Set a valid dummy or real TG_BOT_TOKEN in {env_file} before installing the service.")
-    if not re.search(r"^TG_CHAT_ID=-?[0-9]+$", text, re.M):
+    if not re.search(r"^TG_CHAT_ID=-?[0-9]+\r?$", text, re.M):
         raise RuntimeError(f"Set a numeric TG_CHAT_ID in {env_file} before installing the service.")
 
 
@@ -123,6 +123,10 @@ def _install_macos():
     plist = generate_macos_plist()
     subprocess.run(["plutil", "-lint", str(plist)], capture_output=True, text=True, check=True)
     uid = os.getuid()
+    # Make repeated install/update calls idempotent; there may already be a
+    # loaded agent using the same label and a previous plist configuration.
+    subprocess.run(["launchctl", "bootout", f"gui/{uid}/org.telecode.telegram-bridge"],
+                   capture_output=True, text=True, check=False)
     result = subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(plist)],
                             capture_output=True, text=True, check=False)
     if result.returncode:
