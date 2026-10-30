@@ -105,7 +105,8 @@ def create_session(cfg, title):
             raise RuntimeError("OpenCode created the session outside the configured home directory.")
     except (OSError, RuntimeError) as e:
         raise RuntimeError("OpenCode created the session outside the configured home directory.") from e
-    return {"id": sid, "title": str(session.get("title") or title), "directory": str(home)}
+    return {"id": sid, "title": str(session.get("title") or title), "directory": str(home),
+            "agent": tg._agent_name(cfg)}
 
 
 def _session_items(cfg, query: str):
@@ -169,13 +170,32 @@ def _active_session_id():
         return ""
 
 
+def _active_session_record():
+    try:
+        data = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _active_session_matches_agent(cfg):
+    """False when active-session.json names a different agent than configured.
+
+    Older files have no agent field; those are trusted for backward
+    compatibility so an upgrade does not silently drop a working selection.
+    """
+    agent = _active_session_record().get("agent")
+    return not agent or agent == tg._agent_name(cfg)
+
+
 def _set_active_session(session):
     """Persist the selected session atomically; no settings/env edits required."""
     tg.ACTIVE_SESSION.parent.mkdir(parents=True, exist_ok=True)
     tmp = tg.ACTIVE_SESSION.with_suffix(".tmp")
     payload = json.dumps({"id": session.get("id"),
                           "title": session.get("title") or "Untitled",
-                          "directory": session.get("directory") or ""},
+                          "directory": session.get("directory") or "",
+                          "agent": session.get("agent") or ""},
                          ensure_ascii=False).encode("utf-8")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
@@ -225,14 +245,19 @@ def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
     if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor"):
         selected = tg._active_session_id()
-        if selected and tg._session_by_id(cfg, selected):
+        if selected and _active_session_matches_agent(cfg) and tg._session_by_id(cfg, selected):
             return selected, "telegram-selected"
+        try:
+            if selected and not _active_session_matches_agent(cfg):
+                tg.ACTIVE_SESSION.unlink(missing_ok=True)
+        except OSError:
+            pass
         sessions = tg.list_sessions(cfg)
         return (str(sessions[0]["id"]), "discovered") if sessions else ("", "none")
     selected = tg._active_session_id()
     if selected and re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", selected):
-        # Do not route stale or cross-directory selections into another project.
-        if tg._session_by_id(cfg, selected):
+        # Do not route stale or cross-directory/cross-agent selections into another project.
+        if _active_session_matches_agent(cfg) and tg._session_by_id(cfg, selected):
             return selected, "telegram-selected"
         try:
             if tg._active_session_id() == selected:

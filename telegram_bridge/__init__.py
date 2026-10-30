@@ -75,6 +75,8 @@ from .agents import (  # noqa: F401
     _session_items,
     list_sessions,
     _active_session_id,
+    _active_session_record,
+    _active_session_matches_agent,
     _set_active_session,
     discover_session,
     _session_by_id,

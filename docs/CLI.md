@@ -196,6 +196,14 @@ New sessions are created through the app-server with `thread/start` followed by
 when a mutating call runs in the process that created the thread. Durability is
 verified with `thread/resume` before the session is offered for selection.
 
+Paginated listings run all pages inside a single app-server process, and session
+validation uses a direct `thread/read` (falling back to the merged listing when
+the thread is not loaded). The app-server process is shut down with a short grace
+period; read-only calls escalate to SIGKILL quickly because Codex intermittently
+ignores both stdin EOF and SIGTERM, which used to add up to ~5s per picker
+interaction. Batches that mutate a thread keep a patient shutdown so deferred
+writes can flush.
+
 Queued messages use the permissions and sandbox already configured on that Codex
 thread; TeleCode does not alter them or bypass approvals. Telegram-originated
 instructions should still be treated as untrusted input.

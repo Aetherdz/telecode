@@ -38,6 +38,46 @@ class SessionRoutingTests(unittest.TestCase):
                 if os.name != "nt":
                     self.assertEqual(active.stat().st_mode & 0o777, 0o600)
 
+    def test_active_session_record_stores_agent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            with patch.object(tb, "ACTIVE_SESSION", active):
+                tb._set_active_session({"id": "ses_abcdefgh", "title": "test",
+                                        "directory": temp, "agent": "codex"})
+                self.assertEqual(tb._active_session_record().get("agent"), "codex")
+
+    def test_active_session_rejected_when_agent_mismatches(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            with patch.object(tb, "ACTIVE_SESSION", active):
+                tb._set_active_session({"id": "ses_abcdefgh", "title": "test",
+                                        "directory": temp, "agent": "codex"})
+                with patch.object(tb, "_agent_name", return_value="opencode"), \
+                     patch.object(tb, "_session_by_id") as lookup:
+                    self.assertFalse(tb._active_session_matches_agent({}))
+                    lookup.assert_not_called()
+                self.assertFalse(tb.resolve_session({"TELECODE_AGENT": "opencode"})[1] == "telegram-selected")
+
+    def test_active_session_without_agent_field_stays_compatible(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            with patch.object(tb, "ACTIVE_SESSION", active):
+                active.write_text('{"id": "ses_abcdefgh", "title": "old", "directory": "."}')
+                self.assertTrue(tb._active_session_matches_agent({"TELECODE_AGENT": "codex"}))
+
+    def test_resolve_session_clears_active_session_from_other_agent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            with patch.object(tb, "ACTIVE_SESSION", active):
+                tb._set_active_session({"id": "ses_abcdefgh", "title": "test",
+                                        "directory": temp, "agent": "codex"})
+                with patch.object(tb, "_agent_name", return_value="opencode"), \
+                     patch.object(tb, "_session_by_id", return_value={"id": "ses_abcdefgh"}) as lookup, \
+                     patch.object(tb, "discover_session", return_value=None):
+                    self.assertEqual(tb.resolve_session({}), ("", "none"))
+                    lookup.assert_not_called()
+                self.assertFalse(active.exists())
+
     def test_sendfile_path_allowlist_blocks_outside_paths(self):
         from tg_mcp import _h_sendfile
 
