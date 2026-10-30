@@ -4,6 +4,7 @@ import itertools
 import os
 import pathlib
 import re
+import signal
 import subprocess
 import threading
 
@@ -21,13 +22,35 @@ class CodexAdapterError(RuntimeError):
 def _read_bounded(stream, chunks):
     collected = bytearray()
     while True:
-        chunk = stream.read(8192)
+        try:
+            chunk = stream.read(8192)
+        except (OSError, ValueError):
+            break
         if not chunk:
             break
         remaining = _MAX_OUTPUT_CHARS - len(collected)
         if remaining > 0:
             collected.extend(chunk[:remaining])
     chunks.append(collected.decode("utf-8", errors="replace"))
+
+
+def _kill_process_tree(process):
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                           capture_output=True, text=True, timeout=10, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=2)
 
 
 def _codex_home():
@@ -92,8 +115,13 @@ class CodexAdapter:
         if session is None:
             raise CodexAdapterError("That Codex session is no longer available. Select a current session and resend.")
         try:
-            process = subprocess.Popen(self.build_argv(session_id, text), cwd=session.directory,
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            popen_options = {"cwd": session.directory, "stdout": subprocess.PIPE,
+                             "stderr": subprocess.PIPE}
+            if os.name == "nt":
+                popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                popen_options["start_new_session"] = True
+            process = subprocess.Popen(self.build_argv(session_id, text), **popen_options)
             stdout, stderr = [], []
             readers = [threading.Thread(target=_read_bounded, args=(process.stdout, stdout), daemon=True),
                        threading.Thread(target=_read_bounded, args=(process.stderr, stderr), daemon=True)]
@@ -102,12 +130,11 @@ class CodexAdapter:
             try:
                 returncode = process.wait(timeout=self.timeout)
             except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
+                _kill_process_tree(process)
                 raise
             finally:
                 for reader in readers:
-                    reader.join()
+                    reader.join(timeout=2)
                 process.stdout.close()
                 process.stderr.close()
         except FileNotFoundError as exc:

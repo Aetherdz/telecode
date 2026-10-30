@@ -60,6 +60,16 @@ class CodexAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(CodexAdapterError, "timeout"):
             self.adapter.send_message(SID, "hello")
 
+    @unittest.skipIf(os.name == "nt", "Windows does not execute .cmd files with shell=False")
+    def test_timeout_kills_descendant_holding_output_pipes(self):
+        source = ("import subprocess,sys,time; "
+                  "subprocess.Popen([sys.executable,'-c','import time;time.sleep(10)']); "
+                  "time.sleep(10)")
+        self.adapter.timeout = 0.2
+        self.adapter.binary = self._fake(source)
+        with self.assertRaisesRegex(CodexAdapterError, "timeout"):
+            self.adapter.send_message(SID, "hello")
+
     def test_missing_binary_is_clear(self):
         self.adapter.binary = str(self.root / "not-installed-codex")
         with self.assertRaisesRegex(CodexAdapterError, "not found"):
