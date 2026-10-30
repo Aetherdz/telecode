@@ -2,6 +2,7 @@ import json
 import base64
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -53,6 +54,24 @@ class CodexAdapterTests(unittest.TestCase):
         self.adapter.binary = self._fake("print('Queued message abc for thread xyz.')")
         self.assertEqual(self.adapter.send_message(SID, "hello"),
                          "Queued message abc for thread xyz.")
+
+    def test_queued_message_reports_missing_codex_login(self):
+        queued = subprocess.CompletedProcess([], 0, "Queued message abc for thread xyz.\n", "")
+        status = subprocess.CompletedProcess([], 1, "Not logged in\n", "")
+        with patch("adapters.codex._LOGIN_WARNING_SENT", False), \
+             patch("adapters.codex.subprocess.run", side_effect=[queued, status]):
+            reply = self.adapter.send_message(SID, "hello")
+        self.assertIn("Queued message abc", reply)
+        self.assertIn("Codex is not logged in", reply)
+        self.assertIn("codex login", reply)
+
+    def test_missing_login_warning_is_only_sent_once(self):
+        queued = subprocess.CompletedProcess([], 0, "Queued message abc for thread xyz.\n", "")
+        status = subprocess.CompletedProcess([], 1, "Not logged in\n", "")
+        with patch("adapters.codex._LOGIN_WARNING_SENT", True), \
+             patch("adapters.codex.subprocess.run", side_effect=[queued, status]):
+            reply = self.adapter.send_message(SID, "hello")
+        self.assertNotIn("not logged in", reply.lower())
 
     @unittest.skipIf(os.name == "nt", "Windows does not execute .cmd files with shell=False")
     def test_timeout_is_clear(self):

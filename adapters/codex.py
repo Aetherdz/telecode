@@ -13,6 +13,7 @@ from .base import AgentSession
 
 _SESSION_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _MAX_ROLLOUT_BYTES = 8 * 1024 * 1024
+_LOGIN_WARNING_SENT = False
 
 
 class CodexAdapterError(RuntimeError):
@@ -241,4 +242,17 @@ class CodexAdapter:
             if "no rollout found" in detail.lower() or "thread not found" in detail.lower():
                 raise CodexAdapterError("That Codex session no longer exists. Select a current session and resend.")
             raise CodexAdapterError(f"Codex failed: {detail}")
+        try:
+            auth = subprocess.run([self.binary, "login", "status"], capture_output=True,
+                                  text=True, timeout=8, check=False)
+            auth_text = ((auth.stdout or "") + " " + (auth.stderr or "")).strip()
+            if auth.returncode or "not logged in" in auth_text.lower():
+                global _LOGIN_WARNING_SENT
+                if not _LOGIN_WARNING_SENT:
+                    _LOGIN_WARNING_SENT = True
+                    return (f"{output or 'Message queued for the selected Codex session.'}\n"
+                            "Codex is not logged in, so it cannot generate a reply yet. "
+                            "Sign in with `codex login`; if this queued message is not picked up after sign-in, resend it.")
+        except (OSError, subprocess.TimeoutExpired):
+            pass
         return output or "Message queued for the selected Codex session."
