@@ -263,6 +263,29 @@ class CodexAdapter:
         return AgentSession(sid, title, str(self.workspace), self.name,
                             updated=float(thread.get("updatedAt") or 0))
 
+    def _thread_names(self):
+        """Codex-recorded thread names, keyed by thread ID.
+
+        thread/list omits threads that have no user events even when they
+        carry a name, so named sessions would otherwise fall back to the
+        rollout cwd basename (the folder name). Codex itself appends a
+        {id, thread_name} record to session_index.jsonl whenever a thread
+        is named, including through thread/name/set.
+        """
+        names = {}
+        try:
+            with (_codex_home() / "session_index.jsonl").open(encoding="utf-8") as stream:
+                for line in itertools.islice(stream, 20000):
+                    try:
+                        record = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(record, dict) and record.get("thread_name"):
+                        names[str(record.get("id") or "")] = str(record["thread_name"])
+        except OSError:
+            return {}
+        return names
+
     def set_session_model(self, session_id, model_id):
         if not _SESSION_ID_RE.fullmatch(str(session_id or "")):
             raise CodexAdapterError("Invalid Codex session ID.")
@@ -305,6 +328,11 @@ class CodexAdapter:
         # Merge both sources: rollouts can have richer cwd coverage, while the
         # app-server database may contain newer threads without rollout files.
         sessions_by_id = self._scan_rollouts()
+        thread_names = self._thread_names()
+        for sid, session in list(sessions_by_id.items()):
+            if sid in thread_names:
+                sessions_by_id[sid] = AgentSession(
+                    sid, thread_names[sid][:80], session.directory, session.agent, session.updated)
         try:
             pages = self._app_server_batch([("thread/list", _Pager(_thread_list_params))])
         except CodexAdapterError:
@@ -316,7 +344,7 @@ class CodexAdapter:
                 if not _SESSION_ID_RE.fullmatch(sid) or not cwd:
                     continue
                 previous = sessions_by_id.get(sid)
-                title = str(thread.get("name") or thread.get("preview") or
+                title = str(thread.get("name") or thread_names.get(sid) or thread.get("preview") or
                             (previous.title if previous else pathlib.Path(cwd).name) or "Codex session")
                 try:
                     updated = max(float(thread.get("updatedAt") or 0),

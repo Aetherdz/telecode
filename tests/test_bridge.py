@@ -1238,6 +1238,18 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in result], ["ses_aaaaaa", "ses_bbbbbb"])
         self.assertEqual(listing.call_count, 1)
 
+    def test_opencode_auto_discovery_can_choose_session_outside_home(self):
+        cfg = {"TG_BOT_TOKEN": "unused"}
+        items = [
+            {"id": "ses_home1", "directory": str(pathlib.Path.home()),
+             "time": {"updated": 10}},
+            {"id": "ses_project1", "directory": "/tmp/another-project",
+             "time": {"updated": 20}},
+        ]
+        with patch.object(tb, "_session_items", return_value=items) as listing:
+            self.assertEqual(tb.discover_session(cfg), "ses_project1")
+        self.assertEqual(listing.call_args.args[1], "")
+
     def test_session_picker_displays_only_the_selected_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         sessions = [{"id": f"ses_{i:06d}", "title": f"session {i}"} for i in range(45)]

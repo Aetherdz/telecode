@@ -46,6 +46,29 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(sessions[0].id, SID)
         self.assertEqual(sessions[0].directory, str(self.cwd))
 
+    def test_session_index_names_override_rollout_folder_titles(self):
+        index = self.root / "session_index.jsonl"
+        index.write_text(json.dumps({"id": SID, "thread_name": "Art"}) + "\n"
+                         + "not json\n"
+                         + json.dumps({"id": "no-name"}) + "\n", encoding="utf-8")
+        with patch.object(self.adapter, "_app_server_batch", return_value=[{"data": [], "nextCursor": None}]), \
+             patch.dict(os.environ, {"CODEX_HOME": str(self.root)}):
+            sessions = self.adapter.list_sessions()
+        self.assertEqual(sessions[0].title, "Art")
+
+    def test_session_index_outside_codex_home_is_ignored(self):
+        (self.root.parent / "unrelated").mkdir(exist_ok=True)
+        with patch.object(self.adapter, "_app_server_batch", return_value=[{"data": [], "nextCursor": None}]), \
+             patch.dict(os.environ, {"CODEX_HOME": str(self.root / "no-such-home")}):
+            sessions = self.adapter.list_sessions()
+        self.assertEqual(sessions[0].title, self.cwd.name)
+
+    def test_create_session_does_not_write_a_names_sidecar(self):
+        with patch.object(self.adapter, "_app_server_batch", return_value=[{"thread": {"id": SID, "updatedAt": 100}}, {}, {}]), \
+             patch.dict(os.environ, {"CODEX_HOME": str(self.root)}):
+            self.adapter.create_session("My session")
+        self.assertFalse((self.root / ".telecode-session-names.json").exists())
+
     def test_session_listing_merges_app_server_threads_from_other_workspaces(self):
         other_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         other_cwd = self.root / "outside-home-project"

@@ -5,7 +5,6 @@ import pathlib
 import re
 import shutil
 import subprocess
-import urllib.parse
 
 import telegram_bridge as tg
 
@@ -211,28 +210,21 @@ def _set_active_session(session):
 
 
 def discover_session(cfg):
-    """Newest non-archived root session (prefers this home directory)."""
-    home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
-    for query in (f"&directory={home}",):
-        try:
-            items = tg._session_items(cfg, query)
-        except Exception as e:
-            tg.log(f"[{tg.ts()}] discovery failed: {e!r}", flush=True)
+    """Newest visible non-archived root session, regardless of its workspace."""
+    try:
+        items = tg._session_items(cfg, "")
+    except Exception as e:
+        tg.log(f"[{tg.ts()}] discovery failed: {e!r}", flush=True)
+        return None
+    best = None
+    for session in items:
+        if not isinstance(session, dict) or session.get("parentID"):
             continue
-        best = None
-        for s in items:
-            if not isinstance(s, dict) or s.get("parentID"):
-                continue
-            if (s.get("time") or {}).get("archived"):
-                continue
-            directory = s.get("directory")
-            if directory and pathlib.Path(str(directory)).resolve() != pathlib.Path.home().resolve():
-                continue
-            if best is None or tg._updated(s) > tg._updated(best):
-                best = s
-        if best:
-            return best.get("id") or None
-    return None
+        if (session.get("time") or {}).get("archived"):
+            continue
+        if best is None or tg._updated(session) > tg._updated(best):
+            best = session
+    return (best or {}).get("id") or None
 
 
 def _session_by_id(cfg, sid):

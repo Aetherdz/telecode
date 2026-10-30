@@ -25,6 +25,10 @@ and this project adheres to semantic versioning.
 
 ### Fixed
 
+- Codex sessions given a name now show that name in Telegram. `thread/list`
+  omits threads with no user events, so named sessions fell back to the rollout
+  folder name; the adapter now also reads Codex's own `session_index.jsonl`
+  thread-name records.
 - Codex `/newsession` no longer fails: sessions are created with `thread/start`
   and `thread/name/set` in one app-server process (the rollout file only flushes
   when a mutating call runs in the creating process), and durability is verified

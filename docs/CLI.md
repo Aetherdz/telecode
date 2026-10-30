@@ -183,7 +183,10 @@ routing is experimental.
 The adapter merges two discovery sources: a scan of `$CODEX_HOME/sessions`
 (default `~/.codex/sessions`) rollout files, and the local app-server thread list.
 Note that `thread/list` only surfaces threads that already have user activity, so
-freshly created empty sessions are discovered through their rollout files. Models
+freshly created empty sessions are discovered through their rollout files. Named
+session titles come from the thread name — `thread/list`, then Codex's
+`session_index.jsonl` records, which cover named threads that `thread/list` omits —
+before falling back to the workspace folder name. Models
 are loaded from the app-server model catalog at picker time, so configured providers
 are not hard-coded. Telegram delivery uses argv equivalent to
 `codex queue --thread SESSION_ID --message PROMPT`. This queues the exact thread
