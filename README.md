@@ -11,7 +11,7 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-171717.svg"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white">
   <img alt="MCP stdio" src="https://img.shields.io/badge/MCP-stdio-6B7280.svg">
-  <img alt="Linux and systemd" src="https://img.shields.io/badge/platform-Linux%20%7C%20systemd-333333.svg">
+  <img alt="Linux, macOS, and Windows" src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-333333.svg">
 </p>
 
 <p align="center">
@@ -38,7 +38,7 @@ The responsive interface keeps the main navigation focused on the product while 
 - **Model switching:** browse providers and models without editing local configuration.
 - **MCP integration:** receive agent replies and approved files through local stdio tools.
 - **Privacy by default:** no public web endpoint, owner-chat authorization, local credentials, and an allowlist for outgoing files.
-- **Simple deployment:** Python standard library runtime, guided setup, foreground mode, and optional systemd integration.
+- **Simple deployment:** Python standard library runtime, guided setup, foreground mode, and optional per-user startup service.
 
 ## What is TeleCode?
 
@@ -54,14 +54,14 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 - **Send context both ways:** route text, photos, and documents into the selected session; let the agent send text or approved local files back.
 - **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound session routing currently requires OpenCode.
 - **Keep the boundary local and private:** only the configured owner chat is accepted; credentials live in a private runtime config.
-- **Install without a build step:** Python 3.11+ standard library runtime, guided setup, optional systemd service, or foreground listener for cloud shells.
+- **Install without a build step:** Python 3.11+ standard library runtime, guided setup, optional systemd/LaunchAgent/Task Scheduler startup, or foreground listener.
 - **Readable terminal setup:** The Python CLI renders an aligned, keyboard-driven menu with plain ANSI styling and no third-party dependency; the shell installer keeps the same dependency-free approach.
 
 ## Quick start
 
 ### Requirements
 
-- Linux with systemd user services for the guided service setup.
+- Linux with systemd, macOS with LaunchAgents, and Windows with Task Scheduler for per-user startup.
 - Python 3.11 or newer and Git.
 - A Telegram bot token from [@BotFather](https://t.me/BotFather).
 - Your numeric Telegram chat ID, or the option to detect it by messaging your bot.
@@ -75,7 +75,7 @@ cd telecode
 ./install.sh
 ```
 
-Run `telecode` with no arguments for the Setup/Exit menu, or run `./install.sh` for the full guided setup. Setup registers the MCP server, stores credentials locally, and enables the systemd user service when systemd is available. On containers, WSL, or other systems without systemd user services, setup completes without enabling a service and prints the foreground command (`telecode listen`) instead. Review the source and [installation guide](docs/INSTALL.md) before running it. For a guided Linux setup from a terminal, use `curl -fsSL https://raw.githubusercontent.com/Aetherdz/telecode/main/install.sh | bash -s -- --curl-bootstrap`. For updates from a source checkout, use `./install.sh --update`.
+Run `telecode` with no arguments for the Setup/Exit menu, or run `./install.sh` for the full guided setup. Setup registers the MCP server, stores credentials locally, and enables a per-user startup service (systemd on Linux, LaunchAgent on macOS, Task Scheduler on Windows). On headless systems where the OS service manager is unavailable, setup prints the foreground command (`telecode listen`). Review the source and [installation guide](docs/INSTALL.md) before running it. For a guided Linux setup from a terminal, use `curl -fsSL https://raw.githubusercontent.com/Aetherdz/telecode/main/install.sh | bash -s -- --curl-bootstrap`. For updates from a source checkout, use `./install.sh --update`.
 
 There is no published npm/Bun package or `npx`/`bunx` installer yet. TeleCode is a Python application; the guided installer installs it locally and registers its MCP server with the client you choose. Do not use `npx aetherdz/telecode` or `bunx aetherdz/telecode` as if those package names were published.
 
@@ -134,10 +134,18 @@ For safety, `tg_sendfile` rejects paths outside the configured allowlist and blo
 | --- | :---: | :---: |
 | OpenCode | Yes | Yes — default adapter, sessions from any directory |
 | Claude Code | Yes | Yes — headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`) |
-| Codex CLI, Cursor, Gemini CLI, Cline, Roo Code, Amazon Q | Yes | No |
+| Codex CLI | Yes | Experimental — set `TELECODE_AGENT=codex` |
+| Cursor Agent CLI | Yes | Experimental — create/resume chats with `TELECODE_AGENT=cursor` |
+| Gemini CLI, Cline, Roo Code, Amazon Q | Yes | No |
 | Continue, Aider, other MCP clients | Manual setup | No |
 
 MCP support and session-routing support are separate capabilities. Installing the MCP server in another client does **not** make that client an inbound Telegram target. Check [CLI integrations](docs/CLI.md) for setup details.
+
+Codex inbound routing requires Codex CLI 0.166.0 or newer. It is experimental; local thread discovery, model listing, and queue delivery were smoke-tested on Linux. Generating an agent reply still requires a usable Codex account/session. See [the assumptions and limits](docs/CLI.md#codex-cli).
+Cursor inbound routing requires the Cursor Agent CLI and `CURSOR_WORKSPACE` set to
+the project directory for new chats. Existing chats across projects are best-effort
+loaded from Cursor's local metadata, with **Open by ID** as a fallback.
+See [Cursor](docs/CLI.md#cursor).
 
 ## Security model
 

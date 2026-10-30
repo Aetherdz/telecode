@@ -23,6 +23,32 @@ and this project adheres to semantic versioning.
   `telegram_bridge` package; commands, MCP paths, and installed file names are
   unchanged.
 
+### Fixed
+
+- Codex sessions given a name now show that name in Telegram. `thread/list`
+  omits threads with no user events, so named sessions fell back to the rollout
+  folder name; the adapter now also reads Codex's own `session_index.jsonl`
+  thread-name records.
+- Codex `/newsession` no longer fails: sessions are created with `thread/start`
+  and `thread/name/set` in one app-server process (the rollout file only flushes
+  when a mutating call runs in the creating process), and durability is verified
+  with `thread/resume` instead of `thread/list`, which omits threads with no user
+  events.
+- Codex pickers are much faster: paginated `thread/list` and `model/list` pages
+  now run inside one app-server process instead of spawning one process per
+  page, `validate_session` reads the thread directly instead of re-listing all
+  sessions, and app-server shutdown no longer blocks up to ~5s when the process
+  ignores stdin EOF and SIGTERM (worst observed picker call went from ~5.1s to
+  under 0.7s). Mutating batches keep a patient shutdown so deferred writes can
+  flush.
+- The persisted active session now records which agent it belongs to, and
+  session resolution rejects (and clears) an active session saved for a
+  different agent, so a stale cross-agent selection can no longer be targeted
+  by mistake. Legacy active-session files without an agent field keep working.
+- Cursor session validation now requires a matching local chat metadata entry,
+  and queued inbound updates carry their originating agent; queued targets from
+  a different or unknown agent fail closed instead of being rerouted.
+
 ## [0.1.0] - 2026-10-28
 
 First public release. TeleCode provides an owner-only Telegram control surface for

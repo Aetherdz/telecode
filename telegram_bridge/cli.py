@@ -8,7 +8,8 @@ import time
 import telegram_bridge as tg
 
 USAGE = ("usage: telecode {setup|listen|read|wait SECONDS|send TEXT|"
-         "sendfile PATH [CAPTION]|status|get-id|--enable|--configure-cli}")
+         "sendfile PATH [CAPTION]|status|get-id|--enable|--configure-cli}\n"
+         "Run 'telecode setup' to open the interactive setup menu.")
 
 
 def cmd_read():

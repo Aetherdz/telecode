@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import subprocess
 import time
 import urllib.parse
 
@@ -52,7 +53,10 @@ def _send_session_picker(cfg, page=0, sessions=None):
         tg.SESSION_BUTTONS.clear()
         tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
         tg.ACTIVE_PICKER = "sessions"
-        text = "No OpenCode sessions were found. Create one, or check that the OpenCode service is running."
+        is_cursor = tg._agent_name(cfg) == "cursor"
+        text = ("Cursor sessions cannot be listed yet. Create a chat or open an existing thread by ID."
+                if is_cursor else
+                "No OpenCode sessions were found. Create one, or check that the OpenCode service is running.")
         tg._send_reply_picker(cfg, text,
                               [[{"text": tg.NEW_SESSION}, {"text": "Open by ID"}],
                                [{"text": "Cancel"}]], notify=False)
@@ -102,7 +106,7 @@ def _begin_session_id(cfg):
     tg.ACTIVE_PICKER = "session-id"
     tg._send_reply_picker(
         cfg,
-        "<b>Open a session by ID</b>\nSend the session ID (for example, <code>ses...</code>). Only an available session in this OpenCode workspace can be selected.",
+        "<b>Open a session by ID</b>\nSend the session ID. The configured agent must have access to it.",
         [[{"text": "Cancel"}]],
         notify=False,
     )
@@ -161,6 +165,21 @@ def _load_models_message_ref():
 
 
 def _models_from_api(cfg):
+    if tg._agent_name(cfg) == "cursor":
+        binary = (cfg.get("CURSOR_AGENT_BIN") or "agent").strip()
+        result = subprocess.run([binary, "models"], capture_output=True, text=True,
+                                timeout=30, check=False)
+        if result.returncode:
+            raise RuntimeError((result.stderr or result.stdout or "Cursor model listing failed").strip()[:300])
+        models = []
+        for line in (result.stdout or "").splitlines():
+            match = re.match(r"^\s*([^\s]+)\s+-\s+(.+?)\s*$", line)
+            if match and match.group(1).lower() not in ("available", "models"):
+                models.append({"id": match.group(1), "providerID": "Cursor",
+                               "name": match.group(2)})
+        return models
+    if tg._agent_name(cfg) == "codex":
+        return tg._codex_adapter(cfg).list_models()
     data = tg._opencode_api(cfg, "get", "/api/model", timeout=45)
     items = data.get("data") if isinstance(data, dict) else data
     out = []
@@ -176,20 +195,35 @@ def _models_from_api(cfg):
     return out
 
 
-def _write_models_cache(models):
-    temp = tg.MODELS_CACHE.with_name(f".models-cache.{os.getpid()}.tmp")
-    tg.MODELS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+def _models_cache_path(cfg=None):
+    if cfg is None:
+        return tg.MODELS_CACHE
+    agent = re.sub(r"[^a-z0-9_-]", "_", tg._agent_name(cfg)) or "opencode"
+    return tg.MODELS_CACHE.with_name(f"models-cache-{agent}.json")
+
+
+def _write_models_cache(models, cfg=None):
+    path = _models_cache_path(cfg)
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp.write_text(json.dumps({"saved": int(time.time()), "models": models},
                                ensure_ascii=False), encoding="utf-8")
     os.chmod(temp, 0o600)
-    os.replace(temp, tg.MODELS_CACHE)
+    os.replace(temp, path)
 
 
-def _read_models_cache():
+def _read_models_cache(cfg=None, max_age=None):
+    path = _models_cache_path(cfg)
     try:
-        payload = json.loads(tg.MODELS_CACHE.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
+    if max_age is not None:
+        try:
+            if time.time() - float(payload.get("saved") or 0) > max_age:
+                return []
+        except (AttributeError, TypeError, ValueError):
+            return []
     models = payload.get("models") if isinstance(payload, dict) else None
     if not isinstance(models, list):
         return []
@@ -211,6 +245,17 @@ def _ordered_providers(groups):
 def _current_model(cfg, sid):
     if not sid:
         return ""
+    if tg._agent_name(cfg) == "codex":
+        try:
+            return tg._codex_adapter(cfg).current_model(sid)
+        except Exception:
+            return ""
+    if tg._agent_name(cfg) in ("cursor", "codex"):
+        try:
+            state = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+            return str(state.get("model") or "") if state.get("id") == sid else ""
+        except (OSError, ValueError, TypeError):
+            return ""
     try:
         data = tg._opencode_api(cfg, "get",
                                 f"/api/session/{urllib.parse.quote(sid, safe='')}", timeout=20)
@@ -226,17 +271,21 @@ def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     if models_snapshot is not None:
         models = models_snapshot
     else:
-        try:
-            models = tg._models_from_api(cfg)
-            if models:
-                tg._write_models_cache(models)
-        except Exception as e:
-            tg.log(f"[{tg.ts()}] model listing failed: {e!r}", flush=True)
-            models = tg._read_models_cache()
+        # Each agent has its own short-lived cache. This keeps the model picker
+        # responsive without mixing catalogs or pinning a hard-coded list.
+        models = tg._read_models_cache(cfg, max_age=300)
+        if not models:
+            try:
+                models = tg._models_from_api(cfg)
+                if models:
+                    tg._write_models_cache(models, cfg)
+            except Exception as e:
+                tg.log(f"[{tg.ts()}] model listing failed: {e!r}", flush=True)
+                models = tg._read_models_cache(cfg)
     if not models:
         tg.ACTIVE_PICKER = None
         tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
-        tg.send_text(cfg, "Unable to load models from OpenCode. Check that the service is running, then send /models again.")
+        tg.send_text(cfg, f"Unable to load models from {tg._agent_name(cfg)}. Check that its CLI is available, then send /models again.")
         tg._send_keyboard(cfg, "Model list unavailable. Use Models or /models to retry.")
         return
     groups = tg._group_models(models)
@@ -402,6 +451,22 @@ def _switch_session_model(cfg, model):
     model_name = tg._html_escape(model.get("name") or model.get("id") or "model")
     provider = tg._html_escape(model.get("providerID") or "")
     session_name = tg._html_escape(tg.session_title(tg._session_by_id(cfg, sid) or {"id": sid}))
+    if tg._agent_name(cfg) == "codex":
+        tg.send_text(cfg, "Codex lists models from its live catalog, but queued messages use the model already set on that Codex session. Change the model in Codex to switch it.")
+        return
+    if tg._agent_name(cfg) in ("cursor", "codex"):
+        try:
+            state = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            state = {"id": sid}
+        state["model"] = model["id"]
+        state["modelProvider"] = model.get("providerID") or ""
+        temp = tg.ACTIVE_SESSION.with_suffix(".tmp")
+        temp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        os.chmod(temp, 0o600)
+        os.replace(temp, tg.ACTIVE_SESSION)
+        tg.send_text(cfg, f"<b>Model selected:</b> {model_name}\nSession: {session_name}", parse_mode="HTML")
+        return
     tg._opencode_api(
         cfg, "post", f"/api/session/{urllib.parse.quote(sid, safe='')}/model",
         {"model": {"id": model["id"], "providerID": model["providerID"]}}, timeout=30)
@@ -423,13 +488,13 @@ def handle_callback(cfg, cb):
     parts = data.split(":")
     try:
         if len(parts) == 3 and parts[1] == "p":
-            tg._models_menu(cfg, provider_index=int(parts[2]), models_snapshot=tg._read_models_cache())
+            tg._models_menu(cfg, provider_index=int(parts[2]), models_snapshot=tg._read_models_cache(cfg))
             return True
         if len(parts) == 4 and parts[1] == "l":
-            tg._models_menu(cfg, int(parts[2]), int(parts[3]), models_snapshot=tg._read_models_cache())
+            tg._models_menu(cfg, int(parts[2]), int(parts[3]), models_snapshot=tg._read_models_cache(cfg))
             return True
         if len(parts) == 4 and parts[1] == "s":
-            groups = tg._group_models(tg._read_models_cache())
+            groups = tg._group_models(tg._read_models_cache(cfg))
             providers = tg._ordered_providers(groups)
             provider_index, model_index = int(parts[2]), int(parts[3])
             if not (0 <= provider_index < len(providers)):
@@ -531,7 +596,10 @@ def handle_control_message(cfg, msg, text):
             tg._set_active_session(session)
         except Exception as e:
             tg.log(f"[{tg.ts()}] session creation failed: {e!r}", flush=True)
-            tg.send_text(cfg, "Could not create the session. Check that OpenCode is running and try again.")
+            if tg._agent_name(cfg) == "codex":
+                tg.send_text(cfg, str(e))
+            else:
+                tg.send_text(cfg, "Could not create the session. Check that the configured agent is available and try again.")
             tg._begin_new_session(cfg)
             return True
         tg._restore_primary_controls()
@@ -569,7 +637,7 @@ def handle_control_message(cfg, msg, text):
             if provider_index is not None:
                 page = tg.MODEL_SELECTION.get("page", 0) + (1 if cmd == "Next" else -1)
                 tg._models_menu(cfg, provider_index=provider_index, page=page,
-                             models_snapshot=tg._read_models_cache())
+                             models_snapshot=tg._read_models_cache(cfg))
         return True
     if cmd in ("/start", "/help", "Help"):
         if tg.ACTIVE_PICKER is not None:
@@ -648,8 +716,8 @@ def handle_control_message(cfg, msg, text):
         if not session:
             tg.send_text(cfg, "That session picker has expired. Open /session and choose again.")
             return True
-        if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", selected_sid):
-            tg.send_text(cfg, "Invalid session ID; the target was not changed.")
+        if not tg._session_by_id(cfg, selected_sid):
+            tg.send_text(cfg, "That session is no longer available; the target was not changed.")
             return True
         tg._set_active_session(session)
         tg.SESSION_PAGE = 0
@@ -676,7 +744,7 @@ def handle_control_message(cfg, msg, text):
         tg.send_text(cfg, "That session picker has expired. Open /session and choose again.")
         return True
     if cmd == tg.MODEL_BACK and tg.ACTIVE_PICKER == "models":
-        tg._models_menu(cfg, models_snapshot=tg._read_models_cache())
+        tg._models_menu(cfg, models_snapshot=tg._read_models_cache(cfg))
         return True
     if tg.ACTIVE_PICKER in ("models", "providers") and cmd in (
             "Sessions", "Current session", "Help", "Files", "/session", "/newsession",
@@ -711,9 +779,9 @@ def handle_control_message(cfg, msg, text):
     selected_provider = tg.MODEL_SELECTION.get("labels", {}).get(cmd)
     if tg.ACTIVE_PICKER == "providers" and tg.MODEL_SELECTION.get("provider") is None and selected_provider is not None:
         tg._models_menu(cfg, provider_index=selected_provider, page=0,
-                     models_snapshot=tg._read_models_cache())
+                     models_snapshot=tg._read_models_cache(cfg))
         return True
-    groups = tg._group_models(tg._read_models_cache())
+    groups = tg._group_models(tg._read_models_cache(cfg))
     providers = tg._ordered_providers(groups)
     if tg.ACTIVE_PICKER == "models" and tg.MODEL_SELECTION.get("provider") is not None:
         provider_index = tg.MODEL_SELECTION["provider"]

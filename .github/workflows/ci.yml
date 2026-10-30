@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify private secrets file permissions (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret_file="$RUNNER_TEMP/telecode-ci-secrets.env"
+          printf '%s\n' 'TG_BOT_TOKEN=12345:FAKE_TOKEN_NOT_VALID' 'TG_CHAT_ID=1' > "$secret_file"
+          chmod 600 "$secret_file"
+          test "$(stat -c '%a' "$secret_file" 2>/dev/null || stat -f '%Lp' "$secret_file")" = 600
+      - name: Run Windows installer setup
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          export HOME="$(cygpath -u "$RUNNER_TEMP")/telecode-install-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          bash ./install.sh --bootstrap
+          config_file="$(cygpath -w "$XDG_CONFIG_HOME/telegram-bridge/telegram.env")"
+          echo "TELECODE_BOOTSTRAP_SECRET_FILE=$config_file" >> "$GITHUB_ENV"
+      - name: Verify installer-created secrets file ACL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $secretFile = $env:TELECODE_BOOTSTRAP_SECRET_FILE
+          $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+          $acl = Get-Acl $secretFile
+          $unexpected = $acl.Access | Where-Object { $_.IdentityReference.Value -ne $identity -or $_.AccessControlType -ne 'Allow' }
+          if ($unexpected) { throw "Secrets file has unexpected ACL entries: $unexpected" }
+          if (-not ($acl.Access | Where-Object { $_.IdentityReference.Value -eq $identity -and $_.FileSystemRights.ToString().Contains('FullControl') })) { throw 'Current runner identity lacks full control' }
+      - name: Prepare Windows service credentials
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $config = Join-Path $env:RUNNER_TEMP 'telecode-service-config'
+          New-Item -ItemType Directory -Force -Path $config | Out-Null
+          $secretFile = Join-Path $config 'telegram.env'
+          Set-Content -Path $secretFile -Encoding utf8NoBOM -Value @('TG_BOT_TOKEN=12345:FAKE_TOKEN_NOT_VALID', 'TG_CHAT_ID=1')
+          $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+          icacls $secretFile /inheritance:r /grant:r "${identity}:(F)"
+          $acl = Get-Acl $secretFile
+          $bad = $acl.Access | Where-Object { $_.IdentityReference.Value -ne $identity -or $_.AccessControlType -ne 'Allow' }
+          if ($bad) { throw "Service credentials have unexpected ACL entries: $bad" }
+          "TELEGRAM_BRIDGE_HOME=$config" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TELECODE_SERVICE_APP_DIR=$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TELECODE_TASK_NAME=TeleCode-CI-$env:GITHUB_RUN_ID" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Install and query real Windows scheduled task
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python service_manager.py install 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'service-install.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Scheduled task installation failed' }
+          schtasks /query /tn $env:TELECODE_TASK_NAME 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'service-query.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Scheduled task was not queryable after install' }
+      - name: Prepare macOS service credentials
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          config="$RUNNER_TEMP/telecode-service-config"
+          mkdir -p "$config"
+          printf '%s\n' 'TG_BOT_TOKEN=12345:FAKE_TOKEN_NOT_VALID' 'TG_CHAT_ID=1' > "$config/telegram.env"
+          chmod 600 "$config/telegram.env"
+          test "$(stat -f '%Lp' "$config/telegram.env")" = 600
+          echo "TELEGRAM_BRIDGE_HOME=$config" >> "$GITHUB_ENV"
+          echo "TELECODE_SERVICE_APP_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "TELECODE_LAUNCH_AGENT_PATH=$RUNNER_TEMP/telecode-launchagent/org.telecode.telegram-bridge.plist" >> "$GITHUB_ENV"
+      - name: Generate and validate real macOS LaunchAgent plist
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -o pipefail
+          plist="$(python service_manager.py generate-macos-plist)"
+          plutil -lint "$plist" 2>&1 | tee "$RUNNER_TEMP/plutil.log"
+          if ! launchctl bootstrap "gui/$(id -u)" "$plist" 2>&1 | tee "$RUNNER_TEMP/launchctl-bootstrap.log"; then
+            echo '::warning::launchctl bootstrap unavailable on this headless runner; plist lint passed.'
+          fi
+      - name: Remove Windows scheduled task (always)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not $env:TELECODE_TASK_NAME) { Write-Host 'No CI task was created; skipping task cleanup.'; exit 0 }
+          python service_manager.py uninstall 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'service-uninstall.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Scheduled task uninstall command failed' }
+          $remaining = Get-ScheduledTask -TaskName $env:TELECODE_TASK_NAME -ErrorAction SilentlyContinue
+          if ($remaining) { throw 'Scheduled task still exists after uninstall' }
+      - name: Remove macOS LaunchAgent (always)
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          if [[ -z "${TELECODE_LAUNCH_AGENT_PATH:-}" ]]; then
+            echo 'No CI LaunchAgent was generated; skipping cleanup.'
+            exit 0
+          fi
+          python service_manager.py uninstall
+      - name: Run portable test suites
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest -v \
+            tests.test_cursor_adapter \
+            tests.test_codex_adapter \
+            tests.test_installer \
+            tests.test_setup_cli \
+            tests.test_get_telegram_id \
+            tests.test_telegram_api_local \
+            tests.test_service_manager \
+            tests.test_bridge 2>&1 | tee "$RUNNER_TEMP/ci-test.log"
+      - name: Run Windows portable test suites
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest -v \
+            tests.test_cursor_adapter \
+            tests.test_codex_adapter \
+            tests.test_setup_cli \
+            tests.test_get_telegram_id \
+            tests.test_telegram_api_local \
+            tests.test_service_manager \
+            tests.test_bridge 2>&1 | tee "$RUNNER_TEMP/ci-test.log"
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/telecode-ci-secrets.env
+            ${{ runner.temp }}/ci-test.log
+            ${{ runner.temp }}/service-*.log
+            ${{ runner.temp }}/plutil.log
+            ${{ runner.temp }}/launchctl-bootstrap.log
+          if-no-files-found: ignore

@@ -66,12 +66,18 @@ from .telegram import (  # noqa: F401
 
 # --- agents.py ---
 from .agents import (  # noqa: F401
+    _agent_adapter,
+    _agent_name,
+    _agent_identity,
+    _codex_adapter,
     _opencode_bin,
     _opencode_api,
     create_session,
     _session_items,
     list_sessions,
     _active_session_id,
+    _active_session_record,
+    _active_session_matches_agent,
     _set_active_session,
     discover_session,
     _session_by_id,
@@ -117,6 +123,7 @@ from .routing import (  # noqa: F401
 # --- listener.py ---
 from .listener import (  # noqa: F401
     start_opencode_listener,
+    _remove_pid_file,
     cmd_listen,
 )
 

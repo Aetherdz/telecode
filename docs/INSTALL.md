@@ -2,11 +2,10 @@
 
 ## Supported platforms
 
-The guided installer requires Python 3.11+ and Linux. Automatic startup at
-login uses systemd user services when they are available. On containers, WSL,
-macOS, or systems without a reachable systemd user bus, setup still installs
-files, registers MCP, and saves credentials, then prints the foreground command
-(`telecode listen`) instead of failing.
+The guided installer requires Python 3.11+ and Bash. Login startup uses systemd
+user services on Linux, a LaunchAgent on macOS, and a per-user Scheduled Task on
+Windows. In headless environments where the user's service-manager session is
+unavailable, setup warns and prints the foreground command (`telecode listen`).
 
 ## 1. Prepare credentials
 
@@ -50,16 +49,20 @@ long-pollers.
 
 ## 3. Startup with the operating system
 
-On Linux with systemd user services, the guided installer enables the provided
-user service:
+The guided installer enables the operating system's per-user startup service.
+On Linux, inspect it with:
 
 ```sh
 ./install.sh
 systemctl --user status telegram-bridge
 ```
 
-Without systemd user services, keep the listener running in the foreground (or
-under your own supervisor):
+On macOS, the installer writes `~/Library/LaunchAgents/org.telecode.telegram-bridge.plist`;
+on Windows, it registers the `TeleCode Telegram Bridge` Task Scheduler task. Use
+`./install.sh --uninstall` to disable/remove the startup service while preserving
+the application and private configuration. On headless systems without the
+required user session, keep the listener running in the foreground (or under your
+own supervisor):
 
 ```sh
 telecode listen
@@ -68,9 +71,9 @@ telecode listen
 Interactive setup creates the private config, shows an aligned menu where arrow
 keys and Enter (or a number) select a detected coding-agent CLI, asks before
 registering MCP, securely prompts for the bot token, then requests a numeric chat
-ID or offers automatic detection. It validates the credentials before enabling
-the systemd user service. If systemd user services are unavailable, setup
-finishes without enabling a service and prints `telecode listen`. Canceling CLI
+ID or offers automatic detection. It validates credentials before enabling the
+platform service. If the service manager is unavailable, setup finishes without
+enabling a service and prints `telecode listen`. Canceling CLI
 registration stops onboarding before credentials or service setup; run
 `telecode setup` again to retry. For config-only changes use
 `telecode --configure-cli`.
@@ -96,11 +99,12 @@ For a clean, isolated local
 installation smoke test, use `tests/test_installer.py`, which installs into a
 temporary HOME and never starts a Telegram connection.
 
-This starts the bot at user login. Enabling systemd lingering keeps user
-services running without an interactive login where supported. Disable with:
+This starts the bot at user login. On Linux, enabling systemd lingering keeps
+user services running without an interactive login where supported. Disable on
+Linux with:
 
 ```sh
-systemctl --user disable --now telegram-bridge
+./install.sh --uninstall
 ```
 
 Do not install both the service and an independent listener unless using this

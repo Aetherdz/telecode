@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import pathlib
 import tempfile
 import unittest
@@ -102,7 +103,8 @@ class CliSetupTests(unittest.TestCase):
             path.write_text("{}")
             path.chmod(0o600)
             setup_cli.atomic_write(path, '{"ok": true}\n')
-            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            if os.name != "nt":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(path.read_text(), '{"ok": true}\n')
 
     def test_menu_rows_share_one_width(self):

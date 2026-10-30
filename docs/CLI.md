@@ -8,20 +8,19 @@ TeleCode separates two capabilities:
    MCP client.
 2. **Targeted Telegram-to-session routing.** The listener must be able to enumerate
    sessions, validate a session ID, and inject a prompt into exactly one session.
-   Only OpenCode currently has this adapter.
+   OpenCode and Claude Code are supported; Codex CLI routing is experimental.
 
-Installing the MCP server does not enable targeted routing for other CLIs. The
-listener routes inbound messages through the OpenCode API regardless of which CLI
-started the MCP server, so a non-OpenCode client receives replies only when the
-agent running in the OpenCode target session calls the MCP tools.
+Installing an MCP server does not itself enable targeted routing. Configure
+`TELECODE_AGENT` to select a supported inbound adapter; other MCP clients receive
+outbound Telegram tools only.
 
 ## Support matrix
 
 | Client | Config written by installer | Format | Outbound tools | Targeted routing | Notes |
 | --- | --- | --- | --- | --- | --- |
 | OpenCode | `~/.config/opencode/opencode.json` | JSON | Yes | Yes | Verified session discovery and prompt delivery. |
-| Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | No | Adapter raises `NotImplementedError`; fails closed. |
-| Codex CLI | `~/.codex/config.toml` | TOML | Yes | No | Installer appends a table after parsing existing TOML. |
+| Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | Yes | Headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`). |
+| Codex CLI | `~/.codex/config.toml` | TOML | Yes | Experimental | Inbound via `TELECODE_AGENT=codex`; requires 0.166.0+. |
 | Cursor | `~/.cursor/mcp.json` | JSON | Yes | No | No session API used. |
 | Gemini CLI | `~/.gemini/settings.json` | JSON | Yes | No | No session API used. |
 | Cline | `~/.vscode/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | JSON | Yes | No | VS Code global storage path. |
@@ -115,7 +114,9 @@ Inbound routing is adapter-based. Set `TELECODE_AGENT` in `telegram.env`:
 | --- | --- |
 | `opencode` (default) | Route prompts through the OpenCode HTTP API. |
 | `claude-code` | Resume a Claude Code session headlessly with `claude --resume <id> --print`. |
-| unset / `auto` | Prefer OpenCode when its CLI is present, otherwise Claude Code. |
+| `codex` | Resume a Codex CLI session (experimental; see below). |
+| `cursor` | Resume a known Cursor Agent session ID headlessly (experimental; see below). |
+| unset / `auto` | Prefer Cursor Agent when `agent` is on `PATH`; otherwise OpenCode. |
 
 Claude Code sessions are listed from the local transcript store
 (`~/.claude/projects/*/*.jsonl`); their IDs are UUIDs and are validated before
@@ -171,7 +172,55 @@ TELEGRAM_BRIDGE_HOME = "/home/USER/.config/telegram-bridge"
 ```
 
 Existing content is preserved. If the file does not end with a newline, the
-installer inserts one before the appended block. Codex receives outbound tools only.
+installer inserts one before the appended block. For inbound routing, set
+`TELECODE_AGENT=codex` and ensure the listener runs as the same OS user that owns
+the Codex sessions. `CODEX_BIN` can override the `codex` executable.
+
+**Minimum version: Codex CLI 0.166.0.** The adapter uses the CLI's local app-server
+`thread/list` and `model/list` APIs, and `codex queue` for delivery. Codex inbound
+routing is experimental.
+
+The adapter merges two discovery sources: a scan of `$CODEX_HOME/sessions`
+(default `~/.codex/sessions`) rollout files, and the local app-server thread list.
+Note that `thread/list` only surfaces threads that already have user activity, so
+freshly created empty sessions are discovered through their rollout files. Named
+session titles come from the thread name — `thread/list`, then Codex's
+`session_index.jsonl` records, which cover named threads that `thread/list` omits —
+before falling back to the workspace folder name. Models
+are loaded from the app-server model catalog at picker time, so configured providers
+are not hard-coded. Telegram delivery uses argv equivalent to
+`codex queue --thread SESSION_ID --message PROMPT`. This queues the exact thread
+without opening a competing writer against an already-open Codex TUI. Queueing
+confirms delivery but does not itself return an agent response; the local Codex
+session must be available to process the queue.
+
+New sessions are created through the app-server with `thread/start` followed by
+`thread/name/set` in the same app-server process; the rollout file is only flushed
+when a mutating call runs in the process that created the thread. Durability is
+verified with `thread/resume` before the session is offered for selection.
+
+Paginated listings run all pages inside a single app-server process, and session
+validation uses a direct `thread/read` (falling back to the merged listing when
+the thread is not loaded). The app-server process is shut down with a short grace
+period; read-only calls escalate to SIGKILL quickly because Codex intermittently
+ignores both stdin EOF and SIGTERM, which used to add up to ~5s per picker
+interaction. Batches that mutate a thread keep a patient shutdown so deferred
+writes can flush.
+
+Queued inbound updates record the configured agent alongside the captured
+session ID. If the agent configuration changes before delivery, TeleCode rejects
+the stale target rather than validating a same-shaped ID in another agent. Cursor
+session IDs are accepted only when present in Cursor's local chat metadata.
+
+Queued messages use the permissions and sandbox already configured on that Codex
+thread; TeleCode does not alter them or bypass approvals. Telegram-originated
+instructions should still be treated as untrusted input.
+
+Verification: the installed 0.166.0 Linux CLI successfully queued a harmless test
+message to a real local Codex thread without model authentication. `model/list`
+returned the installed account's live catalog. Session discovery uses the app-server
+API when there are no local rollout files; this requires the same OS user and
+`CODEX_HOME` as the Codex installation.
 
 ## Cursor
 
@@ -192,6 +241,29 @@ Config path: `~/.cursor/mcp.json`.
 ```
 
 Template: [config/cursor.example.json](../config/cursor.example.json).
+
+### Cursor Agent inbound routing
+
+Cursor's CLI documents resuming a thread with `agent --resume <thread-id>` and
+non-interactive output with `--print`. Set `TELECODE_AGENT=cursor` and
+`CURSOR_WORKSPACE` to the existing project directory associated with that thread;
+`CURSOR_AGENT_BIN` can override the CLI executable (default `agent`). The adapter
+runs the CLI in that workspace and returns its text response to Telegram. Keep
+Cursor authenticated as the same OS user that runs the listener.
+
+TeleCode creates new chats with Cursor's documented `agent create-chat` command;
+the requested label is kept in TeleCode's active-session state because that command
+does not accept a title. Cursor's documented `agent ls` command is interactive, so
+TeleCode best-effort reads `~/.cursor/chats/*/*/meta.json` to list local chats
+across projects, then resumes each session in its recorded workspace. This is an
+undocumented local format: malformed, oversized, and symlinked entries are skipped.
+When Cursor has no title in metadata, TeleCode uses a short excerpt from the first
+user prompt in the local transcript (bounded read); otherwise it labels the chat
+"Untitled Cursor chat". **Open by ID** remains available as a fallback. New chats
+use `CURSOR_WORKSPACE`.
+This integration is experimental and has been smoke-tested with a real CLI install.
+Cursor headless mode has full write access; Telegram messages can therefore cause
+workspace edits.
 
 ## Gemini CLI
 
