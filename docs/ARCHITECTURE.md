@@ -17,6 +17,16 @@ control plane; it does not interpret prompts.
 | Session adapter | `adapters/opencode.py` | Session listing and prompt delivery through the OpenCode CLI. |
 | Claude Code adapter | `adapters/claude_code.py` | Fail-closed stub; raises on session listing and delivery. |
 
+The bridge implementation lives in the `telegram_bridge/` package, split into eight
+modules: `state` (paths, shared picker state, `configure()`), `util` (logging, env
+loading, Bot API transport, inbox cursor), `telegram` (keyboards, sends, edits,
+downloads), `agents` (OpenCode session discovery, targeting, prompt delivery),
+`pickers` (session/model keyboards and control-message handling), `routing`
+(injection queue), `listener` (daemon long-poll loop and auto-start), and `cli`
+(command-line entry points). Every submodule reads and writes shared bridge state
+through the package root at call time, so `tg_bridge.py` remains the installed entry
+point as a thin forwarding shim that re-exports the package.
+
 ## Data flow
 
 ### Inbound
@@ -144,8 +154,11 @@ with `ses[0-9A-Za-z_-]{6,80}` before persistence or use in a URL path.
   fsynced, then replaced. The model cache uses a per-PID temporary file, chmod `0600`,
   then replace. The installer uses `mkstemp`, `fchmod`, `fsync`, `os.replace`, and a
   directory fsync.
-- **Process umask.** `tg_bridge.py` sets `os.umask(0o077)` at import, so runtime files
-  created without an explicit mode are owner-only.
+- **Process umask.** `tg_bridge.py` applies `os.umask(0o077)` on import through the
+  `telegram_bridge` package (the call lives in `telegram_bridge/state.py`), so runtime
+  files created without an explicit mode are owner-only. Note this is a process-wide
+  side effect: importing the package or the shim, including via `tg_mcp.py`, changes
+  the umask of the importing process.
 
 ## Failure handling
 

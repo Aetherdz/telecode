@@ -48,6 +48,8 @@ Never use a production bot for development or tests.
 - Keep `stdout` clean in `tg_mcp.py`; it carries JSON-RPC frames. Log to `stderr`.
 - Validate session IDs with `ses[0-9A-Za-z_-]{6,80}` and quote them in URL paths.
 - Treat inbound Telegram text, captions, and filenames as untrusted.
+- Keep bridge code in `telegram_bridge/`; `tg_bridge.py` is the entry point and
+  re-exports the package.
 - Write state atomically: temporary file in the same directory, correct mode,
   `fsync`, `os.replace`.
 - Preserve existing file modes in installer writes. Never overwrite a config
