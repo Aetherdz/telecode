@@ -17,6 +17,17 @@ spec.loader.exec_module(tb)
 
 
 class SessionRoutingTests(unittest.TestCase):
+    def setUp(self):
+        tb.SESSION_MESSAGE_ID = None
+        tb.ACTIVE_PICKER = None
+        tb.SESSION_PAGE = 0
+        tb.SESSION_SNAPSHOT = []
+        tb.SESSION_BUTTONS.clear()
+        tb.LAST_SESSION_LABELS.clear()
+        tb.MODEL_SELECTION.update(provider=None, page=0, labels={})
+        tb.MODEL_SELECTION.pop("models", None)
+        tb.MODEL_PAGE_STATE.update(provider_index=None, page=0)
+
     def test_session_label_contains_full_id(self):
         sid = "ses_abcdefghijk12345"
         self.assertTrue(tb.session_label({"id": sid, "title": "chat"}).endswith(f"[{sid}]"))
@@ -37,11 +48,45 @@ class SessionRoutingTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     _h_sendfile({"path": f.name})
 
-    def test_claude_code_adapter_fails_closed(self):
+    def test_claude_code_adapter_resumes_session(self):
         from adapters.claude_code import ClaudeCodeAdapter
         adapter = ClaudeCodeAdapter()
-        with self.assertRaises(NotImplementedError):
-            adapter.send_message("session-id", "hello")
+        with patch.object(adapter, "binary", "true-claude"):
+            with patch.object(tb.subprocess, "run") as run:
+                run.return_value = tb.subprocess.CompletedProcess([], 0, stdout="done", stderr="")
+                reply = adapter.send_message("0123abcd-00aa-22bb-33cc-44dd55ee66ff", "hello")
+        self.assertEqual(reply, "done")
+        self.assertIn("--resume", run.call_args.args[0])
+
+    def test_claude_code_adapter_rejects_bad_session_id(self):
+        from adapters.claude_code import ClaudeCodeAdapter
+        adapter = ClaudeCodeAdapter()
+        with patch.object(tb.subprocess, "run") as run:
+            self.assertIsNone(adapter.send_message("not valid", "hello"))
+        run.assert_not_called()
+
+    def test_agent_adapter_respects_explicit_setting(self):
+        from adapters.claude_code import ClaudeCodeAdapter
+        from adapters.opencode import OpenCodeAdapter
+        self.assertIsInstance(tb._agent_adapter({"TELECODE_AGENT": "claude-code"}), ClaudeCodeAdapter)
+        self.assertIsInstance(tb._agent_adapter({"TELECODE_AGENT": "opencode"}), OpenCodeAdapter)
+
+    def test_try_prompt_routes_through_selected_adapter(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TELECODE_AGENT": "opencode"}
+        sent = {}
+        class FakeAdapter:
+            name = "fake"
+            def send_message(self, sid, text, delivery="queue"):
+                sent.update(sid=sid, text=text, delivery=delivery)
+                return "ok"
+        with patch.object(tb, "_agent_adapter", return_value=FakeAdapter()):
+            self.assertTrue(tb._try_prompt(cfg, "ses_abcdefgh", "hello", "steer"))
+        self.assertEqual(sent, {"sid": "ses_abcdefgh", "text": "hello", "delivery": "steer"})
+
+    def test_try_prompt_rejects_invalid_session_id(self):
+        with patch.object(tb, "_agent_adapter") as factory:
+            self.assertFalse(tb._try_prompt({}, "not valid", "hello", "queue"))
+        factory.assert_not_called()
 
     def test_stale_session_button_does_not_become_agent_prompt(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -185,16 +230,17 @@ class SessionRoutingTests(unittest.TestCase):
         prompt.assert_called_once()
         self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
 
-    def test_create_session_posts_title_and_home_directory(self):
+    def test_create_session_posts_title_and_current_directory(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         created = {"id": "ses_created1", "title": "A new session"}
-        with patch.object(tb.pathlib.Path, "home", return_value=pathlib.Path("/tmp")), \
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(tb.os, "getcwd", return_value=temp), \
              patch.object(tb, "_opencode_api", return_value={"data": created}) as call:
             session = tb.create_session(cfg, "  A   new session  ")
         self.assertEqual(session["title"], "A new session")
         self.assertEqual(session["id"], "ses_created1")
         self.assertEqual(call.call_args.args[1:3], ("post", "/api/session"))
-        self.assertEqual(call.call_args.args[3], {"title": "A new session", "directory": "/tmp"})
+        self.assertEqual(call.call_args.args[3], {"title": "A new session", "directory": temp})
 
     def test_session_picker_attaches_create_action_to_every_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -219,21 +265,21 @@ class SessionRoutingTests(unittest.TestCase):
                 prompt.assert_called_once()
                 self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
 
-    def test_create_session_rejects_api_response_from_another_directory(self):
+    def test_create_session_accepts_any_requested_directory(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         created = {"id": "ses_created1", "title": "A new session", "directory": "/tmp/elsewhere"}
-        with patch.object(tb.pathlib.Path, "home", return_value=pathlib.Path("/tmp/home")), \
+        with tempfile.TemporaryDirectory() as temp, \
              patch.object(tb, "_opencode_api", return_value={"data": created}):
-            with self.assertRaisesRegex(RuntimeError, "outside the configured home directory"):
-                tb.create_session(cfg, "A new session")
+            session = tb.create_session(cfg, "A new session", directory=temp)
+        self.assertEqual(session["directory"], temp)
 
     def test_create_session_uses_api_directory_field(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
-        home = pathlib.Path.home().resolve()
-        created = {"id": "ses_created1", "title": "session", "directory": str(home)}
-        with patch.object(tb, "_opencode_api", return_value=created):
-            session = tb.create_session(cfg, "session")
-        self.assertEqual(session["directory"], str(home))
+        with tempfile.TemporaryDirectory() as temp:
+            created = {"id": "ses_created1", "title": "session", "directory": temp}
+            with patch.object(tb, "_opencode_api", return_value=created):
+                session = tb.create_session(cfg, "session", directory=temp)
+            self.assertEqual(session["directory"], temp)
 
     def test_create_session_rejects_empty_and_long_names_before_api(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -1062,25 +1108,23 @@ class SessionRoutingTests(unittest.TestCase):
         keyboard = __import__("json").loads(api.call_args.args[2]["reply_markup"])["keyboard"]
         self.assertEqual(keyboard[0][0]["text"], "A < B")
 
-    def test_session_listing_falls_back_when_directory_filter_is_unsupported(self):
+    def test_session_listing_returns_empty_on_api_failure(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
-        all_sessions = [
-            {"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}},
-            {"id": "ses_bbbbbb", "directory": "/tmp/other", "time": {}},
-            {"id": "ses_cccccc", "parentID": "ses_parent", "directory": str(pathlib.Path.home()), "time": {}},
-            {"id": "ses_dddddd", "directory": str(pathlib.Path.home()), "time": {"archived": 1}},
-        ]
-        with patch.object(tb, "_session_items", side_effect=[RuntimeError("filter unsupported"), all_sessions]):
+        with patch.object(tb, "_session_items", side_effect=RuntimeError("api down")) as listing:
             result = tb.list_sessions(cfg)
-        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
+        self.assertEqual(result, [])
+        self.assertEqual(listing.call_count, 1)
 
-    def test_session_listing_retries_unfiltered_when_filtered_result_is_empty(self):
+    def test_session_listing_returns_sessions_from_any_directory(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
-        fallback = [{"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}}]
-        with patch.object(tb, "_session_items", side_effect=[[], fallback]) as listing:
+        items = [
+            {"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}},
+            {"id": "ses_bbbbbb", "directory": "/some/other/project", "time": {}},
+        ]
+        with patch.object(tb, "_session_items", return_value=items) as listing:
             result = tb.list_sessions(cfg)
-        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
-        self.assertEqual(listing.call_count, 2)
+        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa", "ses_bbbbbb"])
+        self.assertEqual(listing.call_count, 1)
 
     def test_session_picker_displays_only_the_selected_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}

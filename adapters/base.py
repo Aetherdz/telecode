@@ -8,6 +8,8 @@ class AgentSession:
     id: str
     title: str
     directory: str = ""
+    agent: str = ""
+    updated: float = 0.0
 
 
 class AgentAdapter(Protocol):
@@ -15,4 +17,4 @@ class AgentAdapter(Protocol):
 
     def list_sessions(self) -> list[AgentSession]: ...
     def validate_session(self, session_id: str) -> AgentSession | None: ...
-    def send_message(self, session_id: str, text: str, delivery: str = "queue") -> bool: ...
+    def send_message(self, session_id: str, text: str, delivery: str = "queue") -> str | None: ...
