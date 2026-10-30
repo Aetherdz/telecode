@@ -74,12 +74,20 @@ The bot answers only `TG_CHAT_ID`; there is no parameter that selects another ch
 ## Session routing
 
 Injection targets are validated before use. OpenCode session IDs must match
-`ses[0-9A-Za-z_-]{6,80}`; Claude Code session IDs must be UUID-shaped. Any
+`ses[0-9A-Za-z_-]{6,80}`; Codex session IDs must be UUID-shaped. Any
 selected session is re-verified against the live session list before each
 delivery, and a selection that no longer resolves is cleared rather than
 routed blindly. Messages are routed to one configured agent at a time
 (`TELECODE_AGENT`); the bridge never shells out to more than the configured
 agent CLI, and no message content is treated as bridge commands.
+
+Codex inbound routing is experimental. Codex runs in its default read-only sandbox
+unless `TELECODE_CODEX_WORKSPACE_WRITE=1` is explicitly set in `telegram.env`. That
+opt-in adds `sandbox_mode=workspace-write`, allowing Telegram-originated prompts to
+modify files in the selected session's working directory. Telegram messages remain
+untrusted input; enable this only when that risk is acceptable. TeleCode never adds
+an approval bypass or disables the sandbox. Codex CLI output and execution are
+bounded by a 10-minute timeout and a 64 KiB combined captured-output limit.
 
 ## Secret handling
 
@@ -91,6 +99,11 @@ loader enforces:
 3. Mode bits outside `0600` are absent (`st_mode & 0o077 == 0`).
 4. The file is owned by the current user on non-Windows platforms.
 5. `TG_BOT_TOKEN` and `TG_CHAT_ID` are present.
+
+On Windows, setup removes inherited ACLs from `telegram.env` and grants full
+control only to the installing user; CI verifies the resulting ACL. The Windows
+loader does not currently re-check ACLs each time it reads the file, so keep the
+runtime directory private and avoid changing its ACL after installation.
 
 `TG_BOT_TOKEN` is used only in Telegram Bot API URLs and multipart requests. It is not
 written to the inbox, the state files, or MCP responses. Diagnostics go to stderr and

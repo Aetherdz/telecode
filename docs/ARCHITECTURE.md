@@ -12,10 +12,12 @@ control plane; it does not interpret prompts.
 | Command-line interface | `tg_bridge.py` via `telecode` | `listen`, `read`, `wait`, `send`, `sendfile`, `status`, `--enable`, `--configure-cli`. |
 | MCP stdio server | `tg_mcp.py` | Exposes the seven agent-facing tools over newline-delimited JSON-RPC. |
 | Installer engine | `setup_cli.py` | Detects CLIs, validates config shape, backs up, writes atomically. |
-| Shell installer | `install.sh` | Copies files, creates the launcher and private env template, optionally enables systemd. |
-| Autostart installer | `install_autostart.sh` | Copies the core files and enables the user unit without the CLI picker. |
+| Shell installer | `install.sh` | Copies files, creates the launcher and private env template, optionally enables the OS user service. |
+| Autostart installer | `install_autostart.sh` | Enables the OS per-user startup service without the CLI picker. |
+| Cross-platform service helper | `service_manager.py` | Installs/removes a Windows logon task or macOS LaunchAgent; Linux uses systemd. |
 | Session adapter | `adapters/opencode.py` | Session listing and prompt delivery through the OpenCode CLI. |
-| Claude Code adapter | `adapters/claude_code.py` | Fail-closed stub; raises on session listing and delivery. |
+| Claude Code adapter | `adapters/claude_code.py` | Session discovery from transcripts and headless `claude --resume` delivery. |
+| Codex CLI adapter | `adapters/codex.py` | Experimental session listing and resume-based inbound routing. |
 
 The bridge implementation lives in the `telegram_bridge/` package, split into eight
 modules: `state` (paths, shared picker state, `configure()`), `util` (logging, env

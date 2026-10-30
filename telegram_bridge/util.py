@@ -44,7 +44,8 @@ def load_env():
 
 def api(token, method, params=None, timeout=60):
     params = dict(params or {})
-    url = f"https://api.telegram.org/bot{token}/{method}"
+    api_base = os.environ.get("TELECODE_TELEGRAM_API_BASE", "https://api.telegram.org").rstrip("/")
+    url = f"{api_base}/bot{token}/{method}"
     data = urllib.parse.urlencode(params).encode()
     req = urllib.request.Request(url, data=data)
     with urllib.request.urlopen(req, timeout=timeout) as r:

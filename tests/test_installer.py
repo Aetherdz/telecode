@@ -10,6 +10,19 @@ from unittest.mock import patch
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+def assert_private_file(testcase, path):
+    if os.name == "nt":
+        literal = str(path.resolve()).replace("'", "''")
+        script = ("$id=[Security.Principal.WindowsIdentity]::GetCurrent().Name; "
+                  f"$a=Get-Acl -LiteralPath '{literal}'; "
+                  "$bad=@($a.Access | Where-Object { $_.IdentityReference.Value -ne $id -or $_.AccessControlType -ne 'Allow' }); "
+                  "if ($bad.Count -gt 0 -or -not ($a.Access | Where-Object { $_.IdentityReference.Value -eq $id -and $_.FileSystemRights.ToString().Contains('FullControl') })) { exit 1 }")
+        run = subprocess.run(["pwsh", "-NoProfile", "-Command", script], capture_output=True, text=True)
+        testcase.assertEqual(run.returncode, 0, run.stderr or run.stdout)
+    else:
+        testcase.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+
 class InstallerTests(unittest.TestCase):
     def test_installer_accepts_curl_bootstrap_flag_without_extra_args(self):
         text = (ROOT / "install.sh").read_text()
@@ -46,7 +59,7 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue((app / "config/opencode.example.json").is_file())
             self.assertTrue((app / ".env.example").is_file())
             self.assertTrue((app / "get_telegram_id.py").is_file())
-            self.assertEqual((home / "config/telegram-bridge/telegram.env").stat().st_mode & 0o777, 0o600)
+            assert_private_file(self, home / "config/telegram-bridge/telegram.env")
             help_run = subprocess.run(
                 [str(home / ".local/bin/telecode"), "help"],
                 env=env, capture_output=True, text=True, check=False,
@@ -164,6 +177,7 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(run.returncode, 2)
             self.assertIn("does not support whitespace", run.stderr)
 
+    @unittest.skipIf(os.name == "nt", "systemd-specific fallback is not applicable on Windows")
     def test_enable_without_systemctl_reports_foreground_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = pathlib.Path(tmp)

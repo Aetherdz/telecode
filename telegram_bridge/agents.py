@@ -9,6 +9,16 @@ import urllib.parse
 import telegram_bridge as tg
 
 
+def _agent_name(cfg):
+    return (cfg.get("TELECODE_AGENT") or "opencode").strip().lower()
+
+
+def _codex_adapter(cfg):
+    from adapters.codex import CodexAdapter
+    return CodexAdapter(binary=(cfg.get("CODEX_BIN") or "codex").strip(),
+                        workspace_write=cfg.get("TELECODE_CODEX_WORKSPACE_WRITE"))
+
+
 def _opencode_bin(cfg) -> str:
     explicit = (cfg.get("OPENCODE_BIN") or "").strip()
     if explicit:
@@ -67,6 +77,14 @@ def _session_items(cfg, query: str):
 
 def list_sessions(cfg):
     """Return non-archived root sessions, falling back to an unfiltered API query."""
+    if tg._agent_name(cfg) == "codex":
+        try:
+            return [{"id": s.id, "title": s.title, "directory": s.directory,
+                     "time": {"updated": s.updated}, "agent": s.agent}
+                    for s in tg._codex_adapter(cfg).list_sessions()]
+        except Exception as e:
+            tg.log(f"[{tg.ts()}] Codex session listing failed: {e!r}", flush=True)
+            return []
     home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
     try:
         items = tg._session_items(cfg, f"&directory={home}")
@@ -145,6 +163,8 @@ def discover_session(cfg):
 
 
 def _session_by_id(cfg, sid):
+    if tg._agent_name(cfg) == "codex":
+        return next((s for s in tg.list_sessions(cfg) if str(s.get("id")) == str(sid)), None)
     if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid or "")):
         return None
     return next((s for s in tg.list_sessions(cfg) if str(s.get("id")) == sid), None)
@@ -152,6 +172,12 @@ def _session_by_id(cfg, sid):
 
 def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
+    if tg._agent_name(cfg) == "codex":
+        selected = tg._active_session_id()
+        if selected and tg._session_by_id(cfg, selected):
+            return selected, "telegram-selected"
+        sessions = tg.list_sessions(cfg)
+        return (str(sessions[0]["id"]), "discovered") if sessions else ("", "none")
     selected = tg._active_session_id()
     if selected and re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", selected):
         # Do not route stale or cross-directory selections into another project.
@@ -174,6 +200,15 @@ def resolve_session(cfg):
 
 def _try_prompt(cfg, sid, body_text, delivery):
     """One admit attempt into a session. Returns True on success."""
+    if tg._agent_name(cfg) == "codex":
+        from adapters.codex import CodexAdapterError
+        try:
+            reply = tg._codex_adapter(cfg).send_message(sid, body_text, delivery)
+        except CodexAdapterError as e:
+            tg.send_text(cfg, str(e))
+            return True
+        tg.send_text(cfg, reply[:6000])
+        return True
     if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid)):
         tg.log(f"[{tg.ts()}] prompt rejected invalid session id", flush=True)
         return False

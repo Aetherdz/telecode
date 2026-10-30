@@ -105,6 +105,7 @@ install_if_changed "$SOURCE_DIR/telegram-bridge.py" "$APP_DIR/telegram-bridge.py
 install_if_changed "$SOURCE_DIR/telegram-bridge.service" "$APP_DIR/telegram-bridge.service"
 install_if_changed "$SOURCE_DIR/SKILL.md" "$APP_DIR/SKILL.md"
 install_if_changed "$SOURCE_DIR/setup_cli.py" "$APP_DIR/setup_cli.py"
+install_if_changed "$SOURCE_DIR/service_manager.py" "$APP_DIR/service_manager.py"
 install_if_changed "$SOURCE_DIR/get_telegram_id.py" "$APP_DIR/get_telegram_id.py"
 install_if_changed "$SOURCE_DIR/.env.example" "$APP_DIR/.env.example"
 mkdir -p "$CONFIG_DIR/files"
@@ -142,6 +143,13 @@ if [[ ! -f "$CONFIG_DIR/telegram.env" ]]; then
   install -m 0600 "$SOURCE_DIR/.env.example" "$CONFIG_DIR/telegram.env"
 fi
 chmod 0600 "$CONFIG_DIR/telegram.env"
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW*|MSYS*|CYGWIN*)
+    if command -v cygpath >/dev/null 2>&1; then
+      TELEGRAM_BRIDGE_HOME="$(cygpath -w "$CONFIG_DIR")" "$PYTHON" "$APP_DIR/service_manager.py" secure-config
+    fi
+    ;;
+esac
 
 cat <<EOF
 Installed to: $APP_DIR
@@ -159,8 +167,26 @@ if [[ "${1:-}" == "--update" ]]; then
 fi
 
 if [[ "${1:-}" == "--uninstall" ]]; then
-  echo "Uninstall is not automated. Disable the service, then remove $APP_DIR and $BIN_DIR/telecode; config at $CONFIG_DIR is preserved." >&2
-  exit 2
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*|Darwin)
+      service_config="$CONFIG_DIR"
+      service_app="$APP_DIR"
+      if [[ "$(uname -s 2>/dev/null || true)" != Darwin ]] && command -v cygpath >/dev/null 2>&1; then
+        service_config="$(cygpath -w "$CONFIG_DIR")"
+        service_app="$(cygpath -w "$APP_DIR")"
+      fi
+      TELECODE_SERVICE_APP_DIR="$service_app" TELEGRAM_BRIDGE_HOME="$service_config" "$PYTHON" "$APP_DIR/service_manager.py" uninstall || exit $?
+      ;;
+    *)
+      if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+        systemctl --user disable --now telegram-bridge.service >/dev/null 2>&1 || true
+        rm -f "$UNIT_DIR/telegram-bridge.service"
+        systemctl --user daemon-reload || true
+      fi
+      echo "Service removed if present. App at $APP_DIR and private config at $CONFIG_DIR are preserved."
+      ;;
+  esac
+  exit 0
 fi
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
@@ -172,10 +198,11 @@ TeleCode guided setup and commands:
   telecode status       show listener status
   telecode listen       run the listener in this terminal
   telecode help         show this help
+  ./install.sh --uninstall  remove OS startup service; keep app and config
 
-Automatic startup uses systemd user services. When they are unavailable
-(containers, WSL, systems without systemd), setup still completes and prints
-the foreground command instead of failing.
+Automatic startup uses systemd on Linux, a LaunchAgent on macOS, or a per-user
+Scheduled Task on Windows. When the OS service manager is unavailable (for
+example, a headless runner), setup prints the foreground command instead.
 
 Create a bot with @BotFather and keep its token private. For your numeric
 account ID, message @Getmyid_bot, or choose automatic detection and send /start
@@ -207,6 +234,18 @@ check_service_paths() {
 
 enable_user_service() {
   check_credentials || return 1
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*|Darwin)
+      service_config="$CONFIG_DIR"
+      service_app="$APP_DIR"
+      if [[ "$(uname -s 2>/dev/null || true)" != Darwin ]] && command -v cygpath >/dev/null 2>&1; then
+        service_config="$(cygpath -w "$CONFIG_DIR")"
+        service_app="$(cygpath -w "$APP_DIR")"
+      fi
+      TELECODE_SERVICE_APP_DIR="$service_app" TELEGRAM_BRIDGE_HOME="$service_config" "$PYTHON" "$APP_DIR/service_manager.py" install
+      return $?
+      ;;
+  esac
   check_service_paths || return 2
   if ! have_systemd_user; then
     echo "systemd user services are not available in this environment." >&2
@@ -335,5 +374,5 @@ PY
   exit 0
 fi
 
-echo "Usage: install.sh [--bootstrap|--update|--enable|--start|--status|--configure-cli|get-id]" >&2
+echo "Usage: install.sh [--bootstrap|--update|--enable|--uninstall|--start|--status|--configure-cli|get-id]" >&2
 exit 2

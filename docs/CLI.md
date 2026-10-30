@@ -8,20 +8,19 @@ TeleCode separates two capabilities:
    MCP client.
 2. **Targeted Telegram-to-session routing.** The listener must be able to enumerate
    sessions, validate a session ID, and inject a prompt into exactly one session.
-   Only OpenCode currently has this adapter.
+   OpenCode and Claude Code are supported; Codex CLI routing is experimental.
 
-Installing the MCP server does not enable targeted routing for other CLIs. The
-listener routes inbound messages through the OpenCode API regardless of which CLI
-started the MCP server, so a non-OpenCode client receives replies only when the
-agent running in the OpenCode target session calls the MCP tools.
+Installing an MCP server does not itself enable targeted routing. Configure
+`TELECODE_AGENT` to select a supported inbound adapter; other MCP clients receive
+outbound Telegram tools only.
 
 ## Support matrix
 
 | Client | Config written by installer | Format | Outbound tools | Targeted routing | Notes |
 | --- | --- | --- | --- | --- | --- |
 | OpenCode | `~/.config/opencode/opencode.json` | JSON | Yes | Yes | Verified session discovery and prompt delivery. |
-| Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | No | Adapter raises `NotImplementedError`; fails closed. |
-| Codex CLI | `~/.codex/config.toml` | TOML | Yes | No | Installer appends a table after parsing existing TOML. |
+| Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | Yes | Headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`). |
+| Codex CLI | `~/.codex/config.toml` | TOML | Yes | Experimental | Inbound via `TELECODE_AGENT=codex`; requires 0.166.0+. |
 | Cursor | `~/.cursor/mcp.json` | JSON | Yes | No | No session API used. |
 | Gemini CLI | `~/.gemini/settings.json` | JSON | Yes | No | No session API used. |
 | Cline | `~/.vscode/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | JSON | Yes | No | VS Code global storage path. |
@@ -171,7 +170,37 @@ TELEGRAM_BRIDGE_HOME = "/home/USER/.config/telegram-bridge"
 ```
 
 Existing content is preserved. If the file does not end with a newline, the
-installer inserts one before the appended block. Codex receives outbound tools only.
+installer inserts one before the appended block. For inbound routing, set
+`TELECODE_AGENT=codex` and ensure the listener runs as the same OS user that owns
+the Codex sessions. `CODEX_BIN` can override the `codex` executable.
+
+**Minimum version: Codex CLI 0.166.0.** This is the exact version whose
+`codex exec --help` and `codex exec resume --help` were checked for this adapter.
+Codex inbound routing is experimental and has not yet been tested against a real
+user installation.
+
+The adapter best-effort scans `$CODEX_HOME/sessions` (default `~/.codex/sessions`)
+for `rollout-*.jsonl` files and reads `session_meta.payload.id` and `cwd`. It resumes
+the selected session in its recorded working directory using argv equivalent to
+`codex exec --json --skip-git-repo-check resume SESSION_ID -- PROMPT`. `--json`
+produces newline-delimited JSON events. `--skip-git-repo-check` allows resuming
+outside a Git repository; `--` separates the Telegram prompt from CLI options.
+Malformed or oversized rollout files are skipped; an unreadable session index
+degrades to an empty listing.
+
+By default Codex retains its read-only sandbox. To explicitly grant workspace write
+access, set `TELECODE_CODEX_WORKSPACE_WRITE=1` in `telegram.env`; this adds
+`-c sandbox_mode=workspace-write`. This trusts Telegram-originated instructions to
+modify files in the selected working directory. Do not use it for untrusted chats.
+No approval bypass or sandbox-disabling option is added.
+
+Verification assumptions: these CLI flags and prompt placement were checked using
+the official 0.166.0 Linux package; a nonexistent UUID reached the CLI's “no rollout
+found” response without authentication or model execution. Official OpenAI
+non-interactive docs confirm `exec`, `resume`, `--json` JSONL output, and the
+read-only default/workspace-write sandbox guidance. The rollout directory/metadata
+shape was cross-checked against Codex source and examples, but is not a stable
+public session-listing API; session discovery is therefore best-effort.
 
 ## Cursor
 

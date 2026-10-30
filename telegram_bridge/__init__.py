@@ -66,6 +66,8 @@ from .telegram import (  # noqa: F401
 
 # --- agents.py ---
 from .agents import (  # noqa: F401
+    _agent_name,
+    _codex_adapter,
     _opencode_bin,
     _opencode_api,
     create_session,
