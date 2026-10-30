@@ -103,8 +103,24 @@ TELEGRAM_BRIDGE_HOME="$HOME/.config/telegram-bridge" telecode status
 ```
 
 The output must show a listener state and an inject target. In Telegram, `/session`
-must list sessions from the current home directory. If the target is `(none)`, the
-OpenCode service is not reachable or no root session exists in the home directory.
+lists root sessions from every project directory, not only the home directory. If
+the target is `(none)`, the configured agent is not reachable or no root session
+exists.
+
+## Choosing the routing agent
+
+Inbound routing is adapter-based. Set `TELECODE_AGENT` in `telegram.env`:
+
+| Value | Behavior |
+| --- | --- |
+| `opencode` (default) | Route prompts through the OpenCode HTTP API. |
+| `claude-code` | Resume a Claude Code session headlessly with `claude --resume <id> --print`. |
+| unset / `auto` | Prefer OpenCode when its CLI is present, otherwise Claude Code. |
+
+Claude Code sessions are listed from the local transcript store
+(`~/.claude/projects/*/*.jsonl`); their IDs are UUIDs and are validated before
+use. Outbound MCP tools (`tg_send`, `tg_sendfile`, `tg_read`, `tg_status`)
+behave identically regardless of the selected agent.
 
 ## Claude Code
 

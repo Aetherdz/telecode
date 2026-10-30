@@ -132,8 +132,8 @@ For safety, `tg_sendfile` rejects paths outside the configured allowlist and blo
 
 | Client | Outbound MCP tools | Inbound session routing |
 | --- | :---: | :---: |
-| OpenCode | Yes | Yes — current supported adapter |
-| Claude Code | Yes | No — adapter intentionally fails closed |
+| OpenCode | Yes | Yes — default adapter, sessions from any directory |
+| Claude Code | Yes | Yes — headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`) |
 | Codex CLI, Cursor, Gemini CLI, Cline, Roo Code, Amazon Q | Yes | No |
 | Continue, Aider, other MCP clients | Manual setup | No |
 

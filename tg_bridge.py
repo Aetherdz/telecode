@@ -164,30 +164,57 @@ def _opencode_api(cfg, method, path, body=None, timeout=60):
     return json.loads(txt) if txt else None
 
 
-def create_session(cfg, title):
-    """Create a root OpenCode session in the user's home directory."""
+SESSION_ID_RE = re.compile(r"^(?:ses[0-9A-Za-z_-]{6,80}|[0-9a-fA-F-]{8,64})$")
+
+
+def _agent_adapter(cfg):
+    """Resolve the routing adapter from TELECODE_AGENT (opencode | claude-code)."""
+    import adapters.claude_code as cc
+    import adapters.opencode as oc
+    name = (cfg.get("TELECODE_AGENT") or "").strip().lower()
+    if name in ("", "opencode", "auto"):
+        if cfg.get("TELECODE_AGENT") is None and _claude_cli_available() and not _opencode_cli_available(cfg):
+            return cc.ClaudeCodeAdapter()
+        return oc.OpenCodeAdapter(binary=_opencode_bin(cfg))
+    if name in ("claude", "claude-code", "claudecode"):
+        return cc.ClaudeCodeAdapter()
+    return oc.OpenCodeAdapter(binary=_opencode_bin(cfg))
+
+
+def _opencode_cli_available(cfg) -> bool:
+    try:
+        subprocess.run([_opencode_bin(cfg), "--version"], capture_output=True, timeout=10)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _claude_cli_available() -> bool:
+    try:
+        subprocess.run(["claude", "--version"], capture_output=True, timeout=10)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def create_session(cfg, title, directory=None):
+    """Create a root OpenCode session in the given directory (default: current)."""
     title = " ".join(str(title or "").split())
     if not title:
         raise ValueError("Session name is required.")
     if len(title) > SESSION_NAME_MAX_LENGTH:
         raise ValueError(f"Session name must be {SESSION_NAME_MAX_LENGTH} characters or fewer.")
+    target = str(pathlib.Path(directory or os.getcwd()).resolve())
     result = _opencode_api(
         cfg, "post", "/api/session",
-        {"title": title, "directory": str(pathlib.Path.home().resolve())}, timeout=30)
+        {"title": title, "directory": target}, timeout=30)
     session = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), dict) else result
     if not isinstance(session, dict):
         raise RuntimeError("OpenCode did not return the created session.")
     sid = str(session.get("id") or "")
-    if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", sid):
+    if not SESSION_ID_RE.match(sid) or not sid.startswith("ses"):
         raise RuntimeError("OpenCode returned an invalid session ID.")
-    directory = str(session.get("directory") or pathlib.Path.home().resolve())
-    home = pathlib.Path.home().resolve()
-    try:
-        if pathlib.Path(directory).resolve() != home:
-            raise RuntimeError("OpenCode created the session outside the configured home directory.")
-    except (OSError, RuntimeError) as e:
-        raise RuntimeError("OpenCode created the session outside the configured home directory.") from e
-    return {"id": sid, "title": str(session.get("title") or title), "directory": str(home)}
+    return {"id": sid, "title": str(session.get("title") or title), "directory": target}
 
 
 def start_opencode_listener(cfg):
@@ -237,33 +264,18 @@ def _session_items(cfg, query: str):
 
 
 def list_sessions(cfg):
-    """Return non-archived root sessions, falling back to an unfiltered API query."""
-    home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
+    """Return non-archived root sessions from any project directory."""
     try:
-        items = _session_items(cfg, f"&directory={home}")
-        if not items:
-            items = _session_items(cfg, "")
+        items = _session_items(cfg, "")
     except Exception as e:
         log(f"[{ts()}] session listing failed: {e!r}", flush=True)
-        try:
-            items = _session_items(cfg, "")
-        except Exception as fallback_error:
-            log(f"[{ts()}] unfiltered session listing failed: {fallback_error!r}", flush=True)
-            return []
-    home_path = pathlib.Path.home().resolve()
+        return []
     sessions = []
     for session in items:
         if not isinstance(session, dict) or session.get("parentID"):
             continue
         if (session.get("time") or {}).get("archived"):
             continue
-        directory = str(session.get("directory") or "")
-        if directory:
-            try:
-                if pathlib.Path(directory).resolve() != home_path:
-                    continue
-            except (OSError, RuntimeError):
-                continue
         sessions.append(session)
     return sessions
 
@@ -414,7 +426,7 @@ def _session_buttons(sessions):
 
 
 def _send_session_picker(cfg, page=0, sessions=None):
-    global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER
+    global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER, SESSION_MESSAGE_ID
     sessions = list_sessions(cfg) if sessions is None else sessions
     if not sessions:
         global SESSION_SNAPSHOT, ACTIVE_PICKER
@@ -884,6 +896,33 @@ def handle_callback(cfg, cb):
     return False
 
 
+def _files_listing(cfg):
+    """Return (text, html) describing received files for the active session."""
+    sid, _ = resolve_session(cfg)
+    directory = FILES / (sid if sid else "unassigned")
+    entries = sorted((p for p in directory.iterdir() if p.is_file()),
+                     key=lambda p: p.stat().st_mtime, reverse=True) if directory.exists() else []
+    if not entries:
+        return "No files have been received for the active session.", False
+    return "Files for this session:\n" + "\n".join(str(p) for p in entries[:20]), False
+
+
+def _current_session_message(cfg):
+    """Return (text, parse_mode) describing the active session target."""
+    sid, _ = resolve_session(cfg)
+    session = _session_by_id(cfg, sid) if sid else None
+    if session:
+        return (f"<b>Active session:</b> {_html_escape(session_title(session))}\n"
+                f"<b>Session ID:</b> <code>{_html_escape(sid)}</code>"), "HTML"
+    return f"Active session: <code>{_html_escape(sid or 'not set')}</code>", "HTML"
+
+
+HELP_TEXT = ("<b>Commands</b>\n/session selects a session\n/current shows the active target\n"
+             "/models switches its model\n/files lists received files\n\n"
+             "Send any text to the active session. Agent replies arrive through "
+             "<code>tg_send</code> and <code>tg_sendfile</code>.")
+
+
 def handle_control_message(cfg, msg, text):
     """Handle Telegram keyboard commands before normal agent injection."""
     global SESSION_PAGE, SESSION_SNAPSHOT, ACTIVE_PICKER
@@ -985,32 +1024,22 @@ def handle_control_message(cfg, msg, text):
         SESSION_PAGE = 0
         SESSION_BUTTONS.clear()
         ACTIVE_PICKER = None
-        _send_keyboard(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.",
+        _send_keyboard(cfg, HELP_TEXT,
                        configure=(cmd == "/start"), parse_mode="HTML")
         return True
     if cmd in ("/files", "Files"):
         if ACTIVE_PICKER is not None:
             _invalidate_model_message_ref()
             _restore_primary_controls()
-        sid, _ = resolve_session(cfg)
-        directory = FILES / (sid if sid else "unassigned")
-        entries = sorted((p for p in directory.iterdir() if p.is_file()),
-                         key=lambda p: p.stat().st_mtime, reverse=True) if directory.exists() else []
-        if not entries:
-            send_text(cfg, "No files have been received for the active session.")
-        else:
-            send_text(cfg, "Files for this session:\n" + "\n".join(str(p) for p in entries[:20]))
+        body, _ = _files_listing(cfg)
+        send_text(cfg, body)
         return True
     if cmd in ("/current", "Current session"):
         if ACTIVE_PICKER is not None:
             _invalidate_model_message_ref()
             _restore_primary_controls()
-        sid, _ = resolve_session(cfg)
-        session = _session_by_id(cfg, sid) if sid else None
-        if session:
-            send_text(cfg, f"<b>Active session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(sid)}</code>", parse_mode="HTML")
-        else:
-            send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
+        body, mode = _current_session_message(cfg)
+        send_text(cfg, body, parse_mode=mode)
         return True
     if cmd in ("/session", "Sessions"):
         if ACTIVE_PICKER is not None:
@@ -1077,23 +1106,15 @@ def handle_control_message(cfg, msg, text):
             "Sessions", "Current session", "Help", "Files", "/session",
             "/current", "/help", "/files"):
         if cmd in ("Current session", "/current"):
-            sid, _ = resolve_session(cfg)
-            session = _session_by_id(cfg, sid) if sid else None
-            if session:
-                send_text(cfg, f"<b>Active session:</b> {_html_escape(session_title(session))}\n<b>Session ID:</b> <code>{_html_escape(sid)}</code>", parse_mode="HTML")
-            else:
-                send_text(cfg, f"Active session: <code>{_html_escape(sid or 'not set')}</code>", parse_mode="HTML")
+            body, mode = _current_session_message(cfg)
+            send_text(cfg, body, parse_mode=mode)
             return True
         if cmd in ("Help", "/help"):
-            send_text(cfg, "<b>Commands</b>\n/session selects a session\n/current shows the active target\n/models switches its model\n/files lists received files\n\nSend any text to the active session. Agent replies arrive through <code>tg_send</code> and <code>tg_sendfile</code>.", parse_mode="HTML")
+            send_text(cfg, HELP_TEXT, parse_mode="HTML")
             return True
         if cmd in ("Files", "/files"):
-            sid, _ = resolve_session(cfg)
-            directory = FILES / (sid if sid else "unassigned")
-            entries = sorted((p for p in directory.iterdir() if p.is_file()),
-                             key=lambda p: p.stat().st_mtime, reverse=True) if directory.exists() else []
-            send_text(cfg, "No files have been received for the active session." if not entries else
-                      "Files for this session:\n" + "\n".join(str(p) for p in entries[:20]))
+            body, _ = _files_listing(cfg)
+            send_text(cfg, body)
             return True
         if cmd in ("Sessions", "/session"):
             SESSION_PAGE = 0
@@ -1139,32 +1160,25 @@ def handle_control_message(cfg, msg, text):
 
 
 def discover_session(cfg):
-    """Newest non-archived root session (prefers this home directory)."""
-    home = urllib.parse.quote(str(pathlib.Path.home()), safe="")
-    for query in (f"&directory={home}",):
-        try:
-            items = _session_items(cfg, query)
-        except Exception as e:
-            log(f"[{ts()}] discovery failed: {e!r}", flush=True)
+    """Newest non-archived root session from any project directory."""
+    try:
+        items = _session_items(cfg, "")
+    except Exception as e:
+        log(f"[{ts()}] discovery failed: {e!r}", flush=True)
+        return None
+    best = None
+    for s in items:
+        if not isinstance(s, dict) or s.get("parentID"):
             continue
-        best = None
-        for s in items:
-            if not isinstance(s, dict) or s.get("parentID"):
-                continue
-            if (s.get("time") or {}).get("archived"):
-                continue
-            directory = s.get("directory")
-            if directory and pathlib.Path(str(directory)).resolve() != pathlib.Path.home().resolve():
-                continue
-            if best is None or _updated(s) > _updated(best):
-                best = s
-        if best:
-            return best.get("id") or None
-    return None
+        if (s.get("time") or {}).get("archived"):
+            continue
+        if best is None or _updated(s) > _updated(best):
+            best = s
+    return (best or {}).get("id") or None
 
 
 def _session_by_id(cfg, sid):
-    if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid or "")):
+    if not SESSION_ID_RE.match(str(sid or "")):
         return None
     return next((s for s in list_sessions(cfg) if str(s.get("id")) == sid), None)
 
@@ -1172,8 +1186,8 @@ def _session_by_id(cfg, sid):
 def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
     selected = _active_session_id()
-    if selected and re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", selected):
-        # Do not route stale or cross-directory selections into another project.
+    if selected and SESSION_ID_RE.match(selected):
+        # Do not route stale selections into a deleted or archived session.
         if _session_by_id(cfg, selected):
             return selected, "telegram-selected"
         try:
@@ -1183,29 +1197,27 @@ def resolve_session(cfg):
             pass
     mode = (cfg.get("OPENCODE_SESSION_MODE") or "auto").strip().lower()
     pin = (cfg.get("OPENCODE_SESSION_ID") or "").strip()
-    if mode in ("pin", "pinned") and pin and re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", pin):
+    if mode in ("pin", "pinned") and pin and SESSION_ID_RE.match(pin):
         return pin, "pinned"
     sid = discover_session(cfg)
-    if sid and re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", sid):
+    if sid and SESSION_ID_RE.match(sid):
         return sid, "discovered"
     return "", "none"
 
 
 def _try_prompt(cfg, sid, body_text, delivery):
-    """One admit attempt into a session. Returns True on success."""
-    if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid)):
+    """One admit attempt into a session via the active agent adapter."""
+    if not SESSION_ID_RE.match(str(sid)):
         log(f"[{ts()}] prompt rejected invalid session id", flush=True)
         return False
-    body = json.dumps({"text": body_text, "delivery": delivery})
-    cmd = [_opencode_bin(cfg), "api", "post", f"/api/session/{urllib.parse.quote(sid, safe='')}/prompt", "-d", body]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        adapter = _agent_adapter(cfg)
+        adapter.send_message(sid, body_text, delivery=delivery)
+        log(f"[{ts()}] prompt sid={sid} ({delivery}) via {adapter.name}", flush=True)
+        return True
     except Exception as e:
         log(f"[{ts()}] prompt sid={sid} {delivery}: error {e!r}", flush=True)
         return False
-    tail = ((r.stdout or "").strip() + " " + (r.stderr or "").strip()).strip().replace("\n", " ")[:150]
-    log(f"[{ts()}] prompt sid={sid} {delivery}: rc={r.returncode} {tail}", flush=True)
-    return r.returncode == 0
 
 
 def inject_record(cfg: dict, rec: dict) -> bool:
