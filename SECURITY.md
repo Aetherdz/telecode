@@ -81,13 +81,10 @@ routed blindly. Messages are routed to one configured agent at a time
 (`TELECODE_AGENT`); the bridge never shells out to more than the configured
 agent CLI, and no message content is treated as bridge commands.
 
-Codex inbound routing is experimental. Codex runs in its default read-only sandbox
-unless `TELECODE_CODEX_WORKSPACE_WRITE=1` is explicitly set in `telegram.env`. That
-opt-in adds `sandbox_mode=workspace-write`, allowing Telegram-originated prompts to
-modify files in the selected session's working directory. Telegram messages remain
-untrusted input; enable this only when that risk is acceptable. TeleCode never adds
-an approval bypass or disables the sandbox. Codex CLI output and execution are
-bounded by a 10-minute timeout and a 64 KiB combined captured-output limit.
+Codex inbound routing is experimental. Queued prompts inherit the selected Codex
+thread's existing permissions and sandbox; TeleCode does not change them or bypass
+approvals. Telegram messages remain untrusted input. Codex queue responses are
+bounded by a 30-second timeout and 500-character diagnostic limit.
 
 ## Secret handling
 

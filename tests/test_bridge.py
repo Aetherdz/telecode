@@ -1017,6 +1017,16 @@ class SessionRoutingTests(unittest.TestCase):
             with patch.object(tb, "MODELS_CACHE", cache):
                 self.assertEqual(tb._read_models_cache(), [])
 
+    def test_models_cache_is_separate_per_agent(self):
+        cursor = [{"id": "cursor-model", "providerID": "Cursor", "name": "Cursor model"}]
+        codex = [{"id": "codex-model", "providerID": "openai", "name": "Codex model"}]
+        with tempfile.TemporaryDirectory() as temp, patch.object(
+                tb, "MODELS_CACHE", pathlib.Path(temp) / "models-cache.json"):
+            tb._write_models_cache(cursor, {"TELECODE_AGENT": "cursor"})
+            tb._write_models_cache(codex, {"TELECODE_AGENT": "codex"})
+            self.assertEqual(tb._read_models_cache({"TELECODE_AGENT": "cursor"}), cursor)
+            self.assertEqual(tb._read_models_cache({"TELECODE_AGENT": "codex"}), codex)
+
     def test_group_models_is_sorted_and_grouped(self):
         models = [
             {"id": "b", "providerID": "p", "name": "Beta"},

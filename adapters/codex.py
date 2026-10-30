@@ -3,54 +3,20 @@ import json
 import itertools
 import os
 import pathlib
+import queue
 import re
-import signal
 import subprocess
 import threading
+import time
 
 from .base import AgentSession
 
 _SESSION_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _MAX_ROLLOUT_BYTES = 8 * 1024 * 1024
-_MAX_OUTPUT_CHARS = 32 * 1024
 
 
 class CodexAdapterError(RuntimeError):
     """A clear, user-displayable Codex adapter failure."""
-
-
-def _read_bounded(stream, chunks):
-    collected = bytearray()
-    while True:
-        try:
-            chunk = stream.read(8192)
-        except (OSError, ValueError):
-            break
-        if not chunk:
-            break
-        remaining = _MAX_OUTPUT_CHARS - len(collected)
-        if remaining > 0:
-            collected.extend(chunk[:remaining])
-    chunks.append(collected.decode("utf-8", errors="replace"))
-
-
-def _kill_process_tree(process):
-    if os.name == "nt":
-        try:
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                           capture_output=True, text=True, timeout=10, check=False)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=2)
 
 
 def _codex_home():
@@ -60,18 +26,150 @@ def _codex_home():
 class CodexAdapter:
     name = "codex"
 
-    def __init__(self, binary="codex", timeout=600, sessions_root=None, workspace_write=None):
+    def __init__(self, binary="codex", timeout=600, sessions_root=None,
+                 model=None, model_provider=None, workspace=None):
         self.binary = binary
         self.timeout = timeout
         self.sessions_root = pathlib.Path(sessions_root) if sessions_root else _codex_home() / "sessions"
-        self.workspace_write = workspace_write
+        self.model = str(model or "").strip()
+        self.model_provider = str(model_provider or "").strip()
+        self.workspace = pathlib.Path(workspace or os.environ.get("CODEX_WORKSPACE") or pathlib.Path.home()).expanduser().resolve()
+
+    def _app_server(self, method, params=None, timeout=45):
+        """Make one JSONL RPC to Codex's local app-server without requiring an API token for local metadata."""
+        output = queue.Queue()
+        try:
+            process = subprocess.Popen(
+                [self.binary, "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, text=True, bufsize=1,
+            )
+        except FileNotFoundError as exc:
+            raise CodexAdapterError("Codex CLI was not found. Install Codex CLI or set CODEX_BIN.") from exc
+        except OSError as exc:
+            raise CodexAdapterError(f"Could not start Codex app-server: {exc}") from exc
+
+        def read_output():
+            try:
+                for line in process.stdout:
+                    output.put(line)
+            finally:
+                output.put(None)
+
+        reader = threading.Thread(target=read_output, daemon=True)
+        reader.start()
+        try:
+            process.stdin.write(json.dumps({"method": "initialize", "id": 1, "params": {
+                "clientInfo": {"name": "telecode", "title": "TeleCode", "version": "1.0"},
+                "capabilities": {"experimentalApi": True},
+            }}) + "\n")
+            process.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+            process.stdin.write(json.dumps({"method": method, "id": 2, "params": params or {}}) + "\n")
+            process.stdin.flush()
+            deadline = time.monotonic() + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise CodexAdapterError(f"Codex app-server {method} timed out.")
+                try:
+                    line = output.get(timeout=remaining)
+                except queue.Empty as exc:
+                    raise CodexAdapterError(f"Codex app-server {method} timed out.") from exc
+                if line is None:
+                    raise CodexAdapterError(f"Codex app-server exited during {method}.")
+                try:
+                    message = json.loads(line)
+                except ValueError:
+                    continue
+                if message.get("id") != 2:
+                    continue
+                if "error" in message:
+                    detail = message["error"].get("message") or "Codex app-server request failed."
+                    raise CodexAdapterError(str(detail)[:500])
+                return message.get("result") or {}
+        except (BrokenPipeError, OSError) as exc:
+            raise CodexAdapterError(f"Codex app-server connection failed: {exc}") from exc
+        finally:
+            try:
+                process.stdin.close()
+            except OSError:
+                pass
+            if process.poll() is None:
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=2)
+            reader.join(timeout=1)
+
+    def list_models(self):
+        models = []
+        cursor = None
+        while True:
+            params = {"limit": 100, "includeHidden": False}
+            if cursor:
+                params["cursor"] = cursor
+            result = self._app_server("model/list", params, timeout=45)
+            for item in result.get("data", []):
+                model_id = str(item.get("id") or item.get("model") or "").strip()
+                if model_id:
+                    models.append({"id": model_id,
+                                   "providerID": str(item.get("modelProvider") or "openai"),
+                                   "name": str(item.get("displayName") or model_id)})
+            cursor = result.get("nextCursor")
+            if not cursor:
+                break
+        return models
+
+    def create_session(self, title):
+        title = " ".join(str(title or "").split())
+        if not title:
+            raise CodexAdapterError("Session name is required.")
+        if not self.workspace.is_dir():
+            raise CodexAdapterError("Codex workspace does not exist.")
+        params = {
+            "cwd": str(self.workspace), "approvalPolicy": "never", "sandbox": "read-only",
+        }
+        if self.model:
+            params["model"] = self.model
+        if self.model_provider:
+            params["modelProvider"] = self.model_provider
+        result = self._app_server("thread/start", params)
+        thread = result.get("thread") or {}
+        sid = str(thread.get("id") or "")
+        if not _SESSION_ID_RE.fullmatch(sid):
+            raise CodexAdapterError("Codex did not return a valid thread ID.")
+        try:
+            self._app_server("thread/name/set", {"threadId": sid, "name": title})
+        except CodexAdapterError:
+            pass
+        persisted = self._app_server("thread/list", {"limit": 100, "sortKey": "updated_at"})
+        if not any(str(item.get("id") or "") == sid for item in persisted.get("data", [])):
+            raise CodexAdapterError(
+                "Codex created an in-memory thread, but does not persist an empty session yet. "
+                "Create a session in Codex first, then select it in TeleCode."
+            )
+        return AgentSession(sid, title, str(self.workspace), self.name,
+                            updated=float(thread.get("updatedAt") or 0))
+
+    def set_session_model(self, session_id, model_id):
+        if not _SESSION_ID_RE.fullmatch(str(session_id or "")):
+            raise CodexAdapterError("Invalid Codex session ID.")
+        return self._app_server("thread/settings/update", {
+            "threadId": session_id, "model": str(model_id),
+        })
+
+    def current_model(self, session_id):
+        result = self._app_server("thread/read", {"threadId": session_id})
+        return str((result.get("thread") or {}).get("model") or "")
 
     def list_sessions(self):
-        if not self.sessions_root.is_dir():
-            return []
         found = {}
         try:
-            paths = itertools.islice(self.sessions_root.rglob("rollout-*.jsonl"), 5000)
+            paths = itertools.islice(self.sessions_root.rglob("rollout-*.jsonl"), 5000) if self.sessions_root.is_dir() else ()
             for path in paths:
                 try:
                     if path.stat().st_size > _MAX_ROLLOUT_BYTES:
@@ -92,7 +190,24 @@ class CodexAdapter:
                     continue
         except OSError as exc:
             raise CodexAdapterError(f"Could not read Codex sessions: {exc}") from exc
-        return sorted(found.values(), key=lambda session: session.updated, reverse=True)[:100]
+        local = sorted(found.values(), key=lambda session: session.updated, reverse=True)[:100]
+        if local:
+            return local
+        # Empty app-server threads are persisted in Codex's state DB before a
+        # rollout file exists, so use the supported thread/list API as fallback.
+        try:
+            result = self._app_server("thread/list", {"limit": 100, "sortKey": "updated_at"})
+        except CodexAdapterError:
+            return []
+        sessions = []
+        for thread in result.get("data", []):
+            sid = str(thread.get("id") or "")
+            cwd = str(thread.get("cwd") or self.workspace)
+            if _SESSION_ID_RE.fullmatch(sid):
+                title = str(thread.get("name") or thread.get("preview") or pathlib.Path(cwd).name or "Codex session")
+                sessions.append(AgentSession(sid, title[:80], cwd, self.name,
+                                             updated=float(thread.get("updatedAt") or 0)))
+        return sessions
 
     def validate_session(self, session_id):
         if not _SESSION_ID_RE.fullmatch(str(session_id or "")):
@@ -102,64 +217,28 @@ class CodexAdapter:
     def build_argv(self, session_id, text):
         if not _SESSION_ID_RE.fullmatch(str(session_id or "")):
             raise CodexAdapterError("Invalid Codex session ID.")
-        args = [self.binary, "exec", "--json", "--skip-git-repo-check", "resume", session_id]
-        allow_write = self.workspace_write
-        if allow_write is None:
-            allow_write = os.environ.get("TELECODE_CODEX_WORKSPACE_WRITE", "")
-        if str(allow_write).strip().lower() in ("1", "true", "yes", "on"):
-            args += ["-c", "sandbox_mode=workspace-write"]
-        return args + ["--", str(text)]
+        # Avoid opening a second writer with `exec resume`; Codex's queue
+        # command targets the existing thread directly, including a live TUI.
+        return [self.binary, "queue", "--thread", session_id, "--message", str(text)]
 
     def send_message(self, session_id, text, delivery="queue"):
         session = self.validate_session(session_id)
         if session is None:
             raise CodexAdapterError("That Codex session is no longer available. Select a current session and resend.")
         try:
-            popen_options = {"cwd": session.directory, "stdout": subprocess.PIPE,
-                             "stderr": subprocess.PIPE}
-            if os.name == "nt":
-                popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-            else:
-                popen_options["start_new_session"] = True
-            process = subprocess.Popen(self.build_argv(session_id, text), **popen_options)
-            stdout, stderr = [], []
-            readers = [threading.Thread(target=_read_bounded, args=(process.stdout, stdout), daemon=True),
-                       threading.Thread(target=_read_bounded, args=(process.stderr, stderr), daemon=True)]
-            for reader in readers:
-                reader.start()
-            try:
-                returncode = process.wait(timeout=self.timeout)
-            except subprocess.TimeoutExpired:
-                _kill_process_tree(process)
-                raise
-            finally:
-                for reader in readers:
-                    reader.join(timeout=2)
-                process.stdout.close()
-                process.stderr.close()
+            result = subprocess.run(self.build_argv(session_id, text), cwd=session.directory,
+                                    capture_output=True, text=True,
+                                    timeout=min(float(self.timeout), 30), check=False)
         except FileNotFoundError as exc:
             raise CodexAdapterError("Codex CLI was not found. Install Codex CLI or set CODEX_BIN, then restart TeleCode.") from exc
         except subprocess.TimeoutExpired as exc:
-            raise CodexAdapterError("Codex did not finish before the 10-minute timeout.") from exc
+            raise CodexAdapterError("Codex did not queue the message before the timeout.") from exc
         except OSError as exc:
             raise CodexAdapterError(f"Could not start Codex CLI: {exc}") from exc
-        output = stdout[0] if stdout else ""
-        if returncode:
-            detail = (stderr[0] if stderr else output or "Codex exited with an error.").strip().replace("\n", " ")[:500]
+        output = (result.stdout or "").strip()
+        if result.returncode:
+            detail = (result.stderr or output or "Codex exited with an error.").strip().replace("\n", " ")[:500]
             if "no rollout found" in detail.lower() or "thread not found" in detail.lower():
                 raise CodexAdapterError("That Codex session no longer exists. Select a current session and resend.")
             raise CodexAdapterError(f"Codex failed: {detail}")
-        replies = []
-        for line in output.splitlines():
-            try:
-                event = json.loads(line)
-            except (ValueError, TypeError):
-                continue
-            if isinstance(event, dict):
-                item = event.get("item") or event.get("data") or {}
-                if event.get("type") in ("item.completed", "response_item") and isinstance(item, dict):
-                    if item.get("type") == "agent_message":
-                        text_value = item.get("text")
-                        if isinstance(text_value, str):
-                            replies.append(text_value)
-        return "\n".join(replies).strip() or output.strip() or "Codex completed without a text response."
+        return output or "Message queued for the selected Codex session."

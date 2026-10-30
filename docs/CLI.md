@@ -176,33 +176,28 @@ installer inserts one before the appended block. For inbound routing, set
 `TELECODE_AGENT=codex` and ensure the listener runs as the same OS user that owns
 the Codex sessions. `CODEX_BIN` can override the `codex` executable.
 
-**Minimum version: Codex CLI 0.166.0.** This is the exact version whose
-`codex exec --help` and `codex exec resume --help` were checked for this adapter.
-Codex inbound routing is experimental and has not yet been tested against a real
-user installation.
+**Minimum version: Codex CLI 0.166.0.** The adapter uses the CLI's local app-server
+`thread/list` and `model/list` APIs, and `codex queue` for delivery. Codex inbound
+routing is experimental.
 
-The adapter best-effort scans `$CODEX_HOME/sessions` (default `~/.codex/sessions`)
-for `rollout-*.jsonl` files and reads `session_meta.payload.id` and `cwd`. It resumes
-the selected session in its recorded working directory using argv equivalent to
-`codex exec --json --skip-git-repo-check resume SESSION_ID -- PROMPT`. `--json`
-produces newline-delimited JSON events. `--skip-git-repo-check` allows resuming
-outside a Git repository; `--` separates the Telegram prompt from CLI options.
-Malformed or oversized rollout files are skipped; an unreadable session index
-degrades to an empty listing.
+The adapter first scans `$CODEX_HOME/sessions` (default `~/.codex/sessions`) for
+rollouts; if none are found, it queries the local app-server thread list. Models are
+loaded from the app-server model catalog at picker time, so configured providers
+are not hard-coded. Telegram delivery uses argv equivalent to
+`codex queue --thread SESSION_ID --message PROMPT`. This queues the exact thread
+without opening a competing writer against an already-open Codex TUI. Queueing
+confirms delivery but does not itself return an agent response; the local Codex
+session must be available to process the queue.
 
-By default Codex retains its read-only sandbox. To explicitly grant workspace write
-access, set `TELECODE_CODEX_WORKSPACE_WRITE=1` in `telegram.env`; this adds
-`-c sandbox_mode=workspace-write`. This trusts Telegram-originated instructions to
-modify files in the selected working directory. Do not use it for untrusted chats.
-No approval bypass or sandbox-disabling option is added.
+Queued messages use the permissions and sandbox already configured on that Codex
+thread; TeleCode does not alter them or bypass approvals. Telegram-originated
+instructions should still be treated as untrusted input.
 
-Verification assumptions: these CLI flags and prompt placement were checked using
-the official 0.166.0 Linux package; a nonexistent UUID reached the CLI's “no rollout
-found” response without authentication or model execution. Official OpenAI
-non-interactive docs confirm `exec`, `resume`, `--json` JSONL output, and the
-read-only default/workspace-write sandbox guidance. The rollout directory/metadata
-shape was cross-checked against Codex source and examples, but is not a stable
-public session-listing API; session discovery is therefore best-effort.
+Verification: the installed 0.166.0 Linux CLI successfully queued a harmless test
+message to a real local Codex thread without model authentication. `model/list`
+returned the installed account's live catalog. Session discovery uses the app-server
+API when there are no local rollout files; this requires the same OS user and
+`CODEX_HOME` as the Codex installation.
 
 ## Cursor
 

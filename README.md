@@ -141,7 +141,7 @@ For safety, `tg_sendfile` rejects paths outside the configured allowlist and blo
 
 MCP support and session-routing support are separate capabilities. Installing the MCP server in another client does **not** make that client an inbound Telegram target. Check [CLI integrations](docs/CLI.md) for setup details.
 
-Codex inbound routing requires Codex CLI 0.166.0 or newer. It is experimental and has not yet been verified against a real Codex installation; see [the assumptions and limits](docs/CLI.md#codex-cli).
+Codex inbound routing requires Codex CLI 0.166.0 or newer. It is experimental; local thread discovery, model listing, and queue delivery were smoke-tested on Linux. Generating an agent reply still requires a usable Codex account/session. See [the assumptions and limits](docs/CLI.md#codex-cli).
 Cursor inbound routing requires the Cursor Agent CLI and `CURSOR_WORKSPACE` set to
 the project directory for new chats. Existing chats across projects are best-effort
 loaded from Cursor's local metadata, with **Open by ID** as a fallback.

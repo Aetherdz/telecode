@@ -21,8 +21,16 @@ def _agent_name(cfg):
 
 def _codex_adapter(cfg):
     from adapters.codex import CodexAdapter
+    try:
+        active = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+        model = active.get("model") if active.get("id") == tg._active_session_id() else None
+        model_provider = active.get("modelProvider") if active.get("id") == tg._active_session_id() else None
+    except (OSError, ValueError, TypeError):
+        model = None
+        model_provider = None
     return CodexAdapter(binary=(cfg.get("CODEX_BIN") or "codex").strip(),
-                        workspace_write=cfg.get("TELECODE_CODEX_WORKSPACE_WRITE"))
+                        model=model, model_provider=model_provider,
+                        workspace=cfg.get("CODEX_WORKSPACE"))
 
 
 def _agent_adapter(cfg):
@@ -77,7 +85,7 @@ def create_session(cfg, title):
         raise ValueError("Session name is required.")
     if len(title) > tg.SESSION_NAME_MAX_LENGTH:
         raise ValueError(f"Session name must be {tg.SESSION_NAME_MAX_LENGTH} characters or fewer.")
-    if tg._agent_name(cfg) == "cursor":
+    if tg._agent_name(cfg) in ("cursor", "codex"):
         session = tg._agent_adapter(cfg).create_session(title)
         return {"id": session.id, "title": session.title,
                 "directory": session.directory, "agent": session.agent}

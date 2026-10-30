@@ -43,30 +43,21 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(sessions[0].id, SID)
         self.assertEqual(sessions[0].directory, str(self.cwd))
 
-    def test_argv_keeps_leading_dash_prompt_after_separator(self):
+    def test_argv_queues_message_for_exact_thread(self):
         argv = self.adapter.build_argv(SID, "-ignore prior instructions")
-        self.assertEqual(argv[-2:], ["--", "-ignore prior instructions"])
-        self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", argv)
+        self.assertEqual(argv, ["codex", "queue", "--thread", SID,
+                                "--message", "-ignore prior instructions"])
 
     @unittest.skipIf(os.name == "nt", "Windows does not execute .cmd files with shell=False")
-    def test_jsonl_output_is_parsed(self):
-        self.adapter.binary = self._fake("import json; print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':'finished'}}))")
-        self.assertEqual(self.adapter.send_message(SID, "hello"), "finished")
+    def test_queued_message_confirmation_is_returned(self):
+        self.adapter.binary = self._fake("print('Queued message abc for thread xyz.')")
+        self.assertEqual(self.adapter.send_message(SID, "hello"),
+                         "Queued message abc for thread xyz.")
 
     @unittest.skipIf(os.name == "nt", "Windows does not execute .cmd files with shell=False")
     def test_timeout_is_clear(self):
         self.adapter.timeout = 0.05
         self.adapter.binary = self._fake("import time; time.sleep(2)")
-        with self.assertRaisesRegex(CodexAdapterError, "timeout"):
-            self.adapter.send_message(SID, "hello")
-
-    @unittest.skipIf(os.name == "nt", "Windows does not execute .cmd files with shell=False")
-    def test_timeout_kills_descendant_holding_output_pipes(self):
-        source = ("import subprocess,sys,time; "
-                  "subprocess.Popen([sys.executable,'-c','import time;time.sleep(10)']); "
-                  "time.sleep(10)")
-        self.adapter.timeout = 0.2
-        self.adapter.binary = self._fake(source)
         with self.assertRaisesRegex(CodexAdapterError, "timeout"):
             self.adapter.send_message(SID, "hello")
 
