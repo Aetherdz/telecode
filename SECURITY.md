@@ -71,6 +71,16 @@ Every update is checked before storage or routing:
 
 The bot answers only `TG_CHAT_ID`; there is no parameter that selects another chat.
 
+## Session routing
+
+Injection targets are validated before use. OpenCode session IDs must match
+`ses[0-9A-Za-z_-]{6,80}`; Claude Code session IDs must be UUID-shaped. Any
+selected session is re-verified against the live session list before each
+delivery, and a selection that no longer resolves is cleared rather than
+routed blindly. Messages are routed to one configured agent at a time
+(`TELECODE_AGENT`); the bridge never shells out to more than the configured
+agent CLI, and no message content is treated as bridge commands.
+
 ## Secret handling
 
 `telegram.env` is loaded on every listener or tool call that needs credentials. The

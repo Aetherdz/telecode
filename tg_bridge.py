@@ -29,12 +29,14 @@ This file is the installed entry point; the implementation lives in the
 telegram_bridge package next to it. Module attributes are forwarded to the
 package so patching `tg_bridge.X` still governs every submodule call.
 """
+import atexit
 import json
 import os
 import pathlib
 import queue
 import re
 import secrets
+import signal
 import stat
 import subprocess
 import sys

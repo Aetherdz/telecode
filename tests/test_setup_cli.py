@@ -105,6 +105,38 @@ class CliSetupTests(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(path.read_text(), '{"ok": true}\n')
 
+    def test_menu_rows_share_one_width(self):
+        with patch.object(setup_cli, "discover", return_value=(True, None, True)), \
+             patch.dict(setup_cli.os.environ, {"NO_COLOR": "1"}):
+            lines = setup_cli._menu_lines([setup_cli.HOSTS[0], setup_cli.HOSTS[-1]], 0)
+        box = lines[:4]  # top border, two rows, bottom border
+        self.assertEqual(len({len(line) for line in box}), 1)
+        self.assertIn("\u276f 1. OpenCode", lines[1])
+        self.assertIn("manual setup", lines[2])
+
+    def test_host_state_labels_detection_and_manual_setup(self):
+        with patch.object(setup_cli, "discover",
+                          side_effect=lambda host: (host[1] == "opencode",
+                                                    host[1] in ("opencode", "cursor"),
+                                                    host[3])):
+            self.assertEqual(setup_cli.host_state(setup_cli.HOSTS[0]),
+                             ("CLI + config found", "ok"))
+            self.assertEqual(setup_cli.host_state(setup_cli.HOSTS[3]),
+                             ("config found", "warn"))
+        self.assertEqual(setup_cli.host_state(setup_cli.HOSTS[-1]),
+                         ("manual setup", "dim"))
+
+    def test_eof_during_confirmation_cancels_cleanly(self):
+        host = setup_cli.HOSTS[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "opencode.json"
+            with patch.object(setup_cli, "selectable_hosts", return_value=[host]), \
+                 patch.object(setup_cli, "choose", return_value=host), \
+                 patch.object(setup_cli, "discover", return_value=(True, path, True)), \
+                 patch("builtins.input", side_effect=EOFError):
+                self.assertEqual(setup_cli.main(), 2)
+            self.assertFalse(path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

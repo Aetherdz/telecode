@@ -2,9 +2,11 @@
 
 ## Supported platforms
 
-The guided installer requires Python 3.11+ and is supported on Linux with
-systemd user services. macOS and Windows are not currently supported by the
-guided installer.
+The guided installer requires Python 3.11+ and Linux. Automatic startup at
+login uses systemd user services when they are available. On containers, WSL,
+macOS, or systems without a reachable systemd user bus, setup still installs
+files, registers MCP, and saves credentials, then prints the foreground command
+(`telecode listen`) instead of failing.
 
 ## 1. Prepare credentials
 
@@ -48,19 +50,30 @@ long-pollers.
 
 ## 3. Startup with the operating system
 
-On Linux with systemd user services, install the provided user service:
+On Linux with systemd user services, the guided installer enables the provided
+user service:
 
 ```sh
 ./install.sh
 systemctl --user status telegram-bridge
 ```
 
-Interactive setup creates the private config, uses arrow keys and Enter to select
-a detected coding-agent CLI, asks before registering MCP, securely prompts for
-the bot token, then requests a numeric chat ID or offers automatic detection.
-It validates the credentials before enabling the systemd user service. Canceling CLI registration
-stops onboarding before credentials or service setup; run `telecode setup` again
-to retry. For config-only changes use `telecode --configure-cli`.
+Without systemd user services, keep the listener running in the foreground (or
+under your own supervisor):
+
+```sh
+telecode listen
+```
+
+Interactive setup creates the private config, shows an aligned menu where arrow
+keys and Enter (or a number) select a detected coding-agent CLI, asks before
+registering MCP, securely prompts for the bot token, then requests a numeric chat
+ID or offers automatic detection. It validates the credentials before enabling
+the systemd user service. If systemd user services are unavailable, setup
+finishes without enabling a service and prints `telecode listen`. Canceling CLI
+registration stops onboarding before credentials or service setup; run
+`telecode setup` again to retry. For config-only changes use
+`telecode --configure-cli`.
 
 To configure a coding-agent CLI, run `telecode setup` and choose a detected
 client with the arrow keys, then press Enter. It detects installed OpenCode, Claude Code, Codex,

@@ -1,5 +1,7 @@
 import importlib.util
+import os
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -43,11 +45,45 @@ class SessionRoutingTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     _h_sendfile({"path": f.name})
 
-    def test_claude_code_adapter_fails_closed(self):
+    def test_claude_code_adapter_resumes_session(self):
         from adapters.claude_code import ClaudeCodeAdapter
         adapter = ClaudeCodeAdapter()
-        with self.assertRaises(NotImplementedError):
-            adapter.send_message("session-id", "hello")
+        with patch.object(adapter, "binary", "true-claude"):
+            with patch.object(tb.subprocess, "run") as run:
+                run.return_value = tb.subprocess.CompletedProcess([], 0, stdout="done", stderr="")
+                reply = adapter.send_message("0123abcd-00aa-22bb-33cc-44dd55ee66ff", "hello")
+        self.assertEqual(reply, "done")
+        self.assertIn("--resume", run.call_args.args[0])
+
+    def test_claude_code_adapter_rejects_bad_session_id(self):
+        from adapters.claude_code import ClaudeCodeAdapter
+        adapter = ClaudeCodeAdapter()
+        with patch.object(tb.subprocess, "run") as run:
+            self.assertIsNone(adapter.send_message("not valid", "hello"))
+        run.assert_not_called()
+
+    def test_agent_adapter_respects_explicit_setting(self):
+        from adapters.claude_code import ClaudeCodeAdapter
+        from adapters.opencode import OpenCodeAdapter
+        self.assertIsInstance(tb._agent_adapter({"TELECODE_AGENT": "claude-code"}), ClaudeCodeAdapter)
+        self.assertIsInstance(tb._agent_adapter({"TELECODE_AGENT": "opencode"}), OpenCodeAdapter)
+
+    def test_try_prompt_routes_through_selected_adapter(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TELECODE_AGENT": "opencode"}
+        sent = {}
+        class FakeAdapter:
+            name = "fake"
+            def send_message(self, sid, text, delivery="queue"):
+                sent.update(sid=sid, text=text, delivery=delivery)
+                return "ok"
+        with patch.object(tb, "_agent_adapter", return_value=FakeAdapter()):
+            self.assertTrue(tb._try_prompt(cfg, "ses_abcdefgh", "hello", "steer"))
+        self.assertEqual(sent, {"sid": "ses_abcdefgh", "text": "hello", "delivery": "steer"})
+
+    def test_try_prompt_rejects_invalid_session_id(self):
+        with patch.object(tb, "_agent_adapter") as factory:
+            self.assertFalse(tb._try_prompt({}, "not valid", "hello", "queue"))
+        factory.assert_not_called()
 
     def test_stale_session_button_does_not_become_agent_prompt(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -88,7 +124,10 @@ class SessionRoutingTests(unittest.TestCase):
         tb.ACTIVE_PICKER = None
         tb.ACTIVE_PICKER = "sessions"
         label = tb._session_buttons([{"id": "ses_abcdef123456", "title": "work"}])["ses_abcdef123456"]
-        self.assertFalse(label == "work")
+        self.assertEqual(label, "work")
+        tb.ACTIVE_PICKER = None
+        tb.LAST_SESSION_LABELS.clear()
+        tb.LAST_SESSION_LABELS.add(label)
         with patch.object(tb, "send_text") as send, patch.object(tb, "_send_keyboard"):
             self.assertTrue(tb.handle_control_message(cfg, {}, label))
         send.assert_called_once()
@@ -194,13 +233,14 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.NEW_SESSION))
         self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
 
-    def test_empty_session_picker_cancel_restores_main_keyboard(self):
+    def test_empty_session_picker_cancel_closes_without_extra_message(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         tb.ACTIVE_PICKER = "sessions"
         tb.SESSION_SNAPSHOT = []
-        with patch.object(tb, "_send_keyboard") as keyboard:
+        with patch.object(tb, "_send_keyboard") as keyboard, patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_called_once_with(cfg, "Menu")
+        send.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_session_picker_attachment_is_consumed_without_prompting_name(self):
@@ -222,16 +262,17 @@ class SessionRoutingTests(unittest.TestCase):
         prompt.assert_called_once()
         self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
 
-    def test_create_session_posts_title_and_home_directory(self):
+    def test_create_session_posts_title_and_current_directory(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         created = {"id": "ses_created1", "title": "A new session"}
-        with patch.object(tb.pathlib.Path, "home", return_value=pathlib.Path("/tmp")), \
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(tb.os, "getcwd", return_value=temp), \
              patch.object(tb, "_opencode_api", return_value={"data": created}) as call:
             session = tb.create_session(cfg, "  A   new session  ")
         self.assertEqual(session["title"], "A new session")
         self.assertEqual(session["id"], "ses_created1")
         self.assertEqual(call.call_args.args[1:3], ("post", "/api/session"))
-        self.assertEqual(call.call_args.args[3], {"title": "A new session", "directory": "/tmp"})
+        self.assertEqual(call.call_args.args[3], {"title": "A new session", "directory": temp})
 
     def test_session_picker_attaches_create_action_to_every_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -245,7 +286,7 @@ class SessionRoutingTests(unittest.TestCase):
     def test_new_session_button_and_slash_command_aliases_always_start_name_prompt(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         for picker_state in (None, "sessions", "models", "providers"):
-            for command in (tb.NEW_SESSION, "/newsession"):
+            for command in (tb.NEW_SESSION,):
                 tb.ACTIVE_PICKER = picker_state
                 with self.subTest(state=picker_state, command=command), \
                      patch.object(tb, "_send_reply_picker") as prompt, \
@@ -256,21 +297,21 @@ class SessionRoutingTests(unittest.TestCase):
                 prompt.assert_called_once()
                 self.assertEqual(tb.ACTIVE_PICKER, "new-session-name")
 
-    def test_create_session_rejects_api_response_from_another_directory(self):
+    def test_create_session_accepts_any_requested_directory(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
         created = {"id": "ses_created1", "title": "A new session", "directory": "/tmp/elsewhere"}
-        with patch.object(tb.pathlib.Path, "home", return_value=pathlib.Path("/tmp/home")), \
+        with tempfile.TemporaryDirectory() as temp, \
              patch.object(tb, "_opencode_api", return_value={"data": created}):
-            with self.assertRaisesRegex(RuntimeError, "outside the configured home directory"):
-                tb.create_session(cfg, "A new session")
+            session = tb.create_session(cfg, "A new session", directory=temp)
+        self.assertEqual(session["directory"], temp)
 
     def test_create_session_uses_api_directory_field(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
-        home = pathlib.Path.home().resolve()
-        created = {"id": "ses_created1", "title": "session", "directory": str(home)}
-        with patch.object(tb, "_opencode_api", return_value=created):
-            session = tb.create_session(cfg, "session")
-        self.assertEqual(session["directory"], str(home))
+        with tempfile.TemporaryDirectory() as temp:
+            created = {"id": "ses_created1", "title": "session", "directory": temp}
+            with patch.object(tb, "_opencode_api", return_value=created):
+                session = tb.create_session(cfg, "session", directory=temp)
+            self.assertEqual(session["directory"], temp)
 
     def test_create_session_rejects_empty_and_long_names_before_api(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -303,7 +344,7 @@ class SessionRoutingTests(unittest.TestCase):
         verify.assert_called_once_with(cfg, "ses_created1")
         select.assert_called_once_with(session)
         self.assertIn("Review task", send.call_args.args[1])
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_unverified_session_is_not_selected(self):
@@ -337,6 +378,7 @@ class SessionRoutingTests(unittest.TestCase):
         create.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
         send.assert_called_once()
+        self.assertIn("cancelled", send.call_args.args[1].lower())
 
     def test_repeated_navigation_buttons_do_not_create_a_session(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -356,7 +398,7 @@ class SessionRoutingTests(unittest.TestCase):
              patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
         create.assert_not_called()
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
         send.assert_called_once()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
@@ -438,7 +480,7 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, "/start"))
         create.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
-        send.assert_called_once()
+        send.assert_not_called()
 
     def test_start_help_control_is_not_used_as_a_session_title(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -635,12 +677,13 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertNotIn("input_field_placeholder", markup)
         self.assertEqual(markup["keyboard"][0][0]["text"], "test (1)")
 
-    def test_model_close_restores_keyboard_after_picker(self):
+    def test_model_close_returns_to_main_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
-        with patch.object(tb, "_send_keyboard") as show:
+        with patch.object(tb, "_send_keyboard") as show, patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_CLOSE))
-        show.assert_called_once_with(cfg)
+        show.assert_called_once_with(cfg, "Menu")
+        send.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_close_removes_saved_model_message_reference(self):
@@ -659,7 +702,7 @@ class SessionRoutingTests(unittest.TestCase):
                 self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
             create.assert_not_called()
             send.assert_not_called()
-            keyboard.assert_called_once_with(cfg)
+            keyboard.assert_called_once_with(cfg, "Menu")
             self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_labels_are_not_consumed_when_no_model_picker_is_active(self):
@@ -733,7 +776,7 @@ class SessionRoutingTests(unittest.TestCase):
         with patch.object(tb, "resolve_session", return_value=("ses_abcdefgh", None)), \
              patch.object(tb, "send_text"), patch.object(tb, "_send_keyboard") as keyboard:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Files"))
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_not_called()
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_startup_configures_commands_only_when_requested(self):
@@ -787,7 +830,7 @@ class SessionRoutingTests(unittest.TestCase):
         commands = __import__("json").loads(api.call_args.args[2]["commands"])
         self.assertIn({"command": "models", "description": "Choose a model"}, commands)
         self.assertIn({"command": "model", "description": "Choose a model"}, commands)
-        self.assertIn({"command": "newsession", "description": "Create and select a session"}, commands)
+        self.assertNotIn({"command": "newsession", "description": "Create and select a session"}, commands)
         self.assertIn({"command": "files", "description": "List received files"}, commands)
         self.assertIn({"command": "start", "description": "Show TeleCode controls"}, commands)
         self.assertIn({"command": "current", "description": "Show the active session"}, commands)
@@ -800,7 +843,7 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertTrue(handled)
         self.assertIsNone(tb.ACTIVE_PICKER)
         hide.assert_not_called()
-        keyboard.assert_called_once_with(cfg)
+        keyboard.assert_called_once_with(cfg, "Menu")
 
     def test_menu_command_resets_picker_state_and_restores_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -810,7 +853,7 @@ class SessionRoutingTests(unittest.TestCase):
         tb.SESSION_BUTTONS["stale"] = "ses_abcdef1"
         with patch.object(tb, "_hide_picker_keyboard"), patch.object(tb, "_send_keyboard") as show:
             self.assertTrue(tb.handle_control_message(cfg, {}, "/menu"))
-        show.assert_called_once_with(cfg)
+        show.assert_called_once_with(cfg, "Menu")
         self.assertIsNone(tb.ACTIVE_PICKER)
         self.assertEqual(tb.SESSION_SNAPSHOT, [])
         self.assertEqual(tb.SESSION_BUTTONS, {})
@@ -826,11 +869,14 @@ class SessionRoutingTests(unittest.TestCase):
     def test_help_controls_escape_model_picker_and_show_help(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
         tb.ACTIVE_PICKER = "models"
-        with patch.object(tb, "_hide_picker_keyboard"), patch.object(tb, "_send_keyboard"), \
+        with patch.object(tb, "_hide_picker_keyboard"), \
+             patch.object(tb, "_send_keyboard") as keyboard, \
              patch.object(tb, "send_text") as send:
             self.assertTrue(tb.handle_control_message(cfg, {}, "Help"))
         self.assertIsNone(tb.ACTIVE_PICKER)
-        send.assert_called_once()
+        send.assert_not_called()
+        keyboard.assert_called_once()
+        self.assertEqual(keyboard.call_args.kwargs.get("parse_mode"), "HTML")
 
     def test_sessions_button_escapes_model_picker(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -914,12 +960,12 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_session_label_cannot_select_outside_active_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
-        sessions = [{"id": f"ses_{n:06d}", "title": f"session {n}"} for n in range(12)]
+        sessions = [{"id": f"ses_{n:06d}", "title": f"session {n}"} for n in range(45)]
         with patch.object(tb, "list_sessions", return_value=sessions), \
              patch.object(tb, "_active_session_id", return_value=""), patch.object(tb, "api"), \
              patch.object(tb, "send_text"), patch.object(tb, "_set_active_session") as select:
             tb._send_session_picker(cfg, page=0, sessions=sessions)
-            handled = tb.handle_control_message(cfg, {}, "session 10")
+            handled = tb.handle_control_message(cfg, {}, "session 40")
         self.assertFalse(handled)
         select.assert_not_called()
 
@@ -1086,25 +1132,23 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIn("Choose a session", api.call_args.args[2]["text"])
         self.assertNotIn("A < B", api.call_args.args[2]["text"])
 
-    def test_session_listing_falls_back_when_directory_filter_is_unsupported(self):
+    def test_session_listing_returns_empty_on_api_failure(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
-        all_sessions = [
-            {"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}},
-            {"id": "ses_bbbbbb", "directory": "/tmp/other", "time": {}},
-            {"id": "ses_cccccc", "parentID": "ses_parent", "directory": str(pathlib.Path.home()), "time": {}},
-            {"id": "ses_dddddd", "directory": str(pathlib.Path.home()), "time": {"archived": 1}},
-        ]
-        with patch.object(tb, "_session_items", side_effect=[RuntimeError("filter unsupported"), all_sessions]):
+        with patch.object(tb, "_session_items", side_effect=RuntimeError("api down")) as listing:
             result = tb.list_sessions(cfg)
-        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
+        self.assertEqual(result, [])
+        self.assertEqual(listing.call_count, 1)
 
-    def test_session_listing_retries_unfiltered_when_filtered_result_is_empty(self):
+    def test_session_listing_returns_sessions_from_any_directory(self):
         cfg = {"TG_BOT_TOKEN": "unused"}
-        fallback = [{"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}}]
-        with patch.object(tb, "_session_items", side_effect=[[], fallback]) as listing:
+        items = [
+            {"id": "ses_aaaaaa", "directory": str(pathlib.Path.home()), "time": {}},
+            {"id": "ses_bbbbbb", "directory": "/some/other/project", "time": {}},
+        ]
+        with patch.object(tb, "_session_items", return_value=items) as listing:
             result = tb.list_sessions(cfg)
-        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa"])
-        self.assertEqual(listing.call_count, 2)
+        self.assertEqual([item["id"] for item in result], ["ses_aaaaaa", "ses_bbbbbb"])
+        self.assertEqual(listing.call_count, 1)
 
     def test_session_picker_displays_only_the_selected_page(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1138,6 +1182,17 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertTrue(tb.handle_control_message(cfg, {}, "Next"))
         listing.assert_not_called()
         self.assertEqual(tb.SESSION_PAGE, 1)
+
+    def test_menu_button_without_slash_restores_main_keyboard(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        for picker in (None, "sessions", "models", "providers", "new-session-name"):
+            tb.ACTIVE_PICKER = picker
+            with self.subTest(picker=picker), \
+                 patch.object(tb, "_send_keyboard") as keyboard, \
+                 patch.object(tb, "send_text") as send:
+                self.assertTrue(tb.handle_control_message(cfg, {}, "menu"))
+            self.assertTrue(keyboard.called)
+            send.assert_not_called()
 
     def test_keyboard_button_ignores_unicode_variation_selector(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1193,6 +1248,23 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertEqual(sum(1 for row in rows if row[0]["text"].startswith("Model ")), 20)
             self.assertEqual(rows[-2][0]["text"], "Next")
             self.assertTrue(tb.handle_control_message(cfg, {}, "Cancel"))
+        self.assertIsNone(tb.ACTIVE_PICKER)
+
+    def test_provider_page_has_back_instead_of_cancel(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        models = [{"id": "model-id", "providerID": "provider", "name": "Model"}]
+        with patch.object(tb, "_models_from_api", return_value=models), \
+             patch.object(tb, "_write_models_cache"), \
+             patch.object(tb, "_send_reply_picker") as picker, \
+             patch.object(tb, "_load_models_message_ref", return_value=""), \
+             patch.object(tb, "_read_models_cache", return_value=models):
+            tb._models_menu(cfg)
+        labels = [button["text"] for row in picker.call_args.args[2] for button in row]
+        self.assertIn(tb.MODEL_BACK_MAIN, labels)
+        self.assertNotIn(tb.MODEL_CLOSE, labels)
+        with patch.object(tb, "_send_keyboard") as keyboard:
+            self.assertTrue(tb.handle_control_message(cfg, {}, tb.MODEL_BACK_MAIN))
+        keyboard.assert_called_once_with(cfg, "Menu")
         self.assertIsNone(tb.ACTIVE_PICKER)
 
     def test_model_provider_selection_uses_bottom_keyboard(self):
@@ -1259,6 +1331,41 @@ class SessionRoutingTests(unittest.TestCase):
         )
         emoji = [ch for source in sources for ch in source if ord(ch) >= 0x1F000]
         self.assertEqual(emoji, [])
+
+    def test_menu_exits_cleanly_on_q(self):
+        with patch("builtins.input", return_value="q"), patch("builtins.print"):
+            self.assertEqual(tb.cmd_menu(), 0)
+
+    def test_no_arguments_without_tty_prints_usage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = os.environ.copy()
+            env["TELEGRAM_BRIDGE_HOME"] = tmp
+            run = subprocess.run([sys.executable, str(BRIDGE)], stdin=subprocess.DEVNULL,
+                                 capture_output=True, text=True, check=False, env=env)
+        self.assertEqual(run.returncode, 2)
+        self.assertIn("menu", run.stderr)
+
+    def test_listener_pid_file_is_removed_only_for_own_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pidfile = pathlib.Path(tmp) / "listener.pid"
+            with patch.object(tb, "PID", pidfile):
+                pidfile.write_text(str(os.getpid()))
+                tb._remove_pid_file()
+                self.assertFalse(pidfile.exists())
+                pidfile.write_text("1")
+                tb._remove_pid_file()
+                self.assertTrue(pidfile.exists())
+
+    def test_session_picker_header_is_short_and_separated_from_rows(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        sessions = [{"id": "ses_abcdefgh", "title": "work"}]
+        with patch.object(tb, "list_sessions", return_value=sessions), \
+             patch.object(tb, "_active_session_id", return_value=""), \
+             patch.object(tb, "api") as api:
+            tb._send_session_picker(cfg)
+        body = api.call_args.args[2]["text"]
+        self.assertEqual(body, "Sessions")
+        self.assertNotIn("Choose", body)
 
 
 if __name__ == "__main__":

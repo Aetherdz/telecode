@@ -16,8 +16,7 @@ keyboard has these rows:
 ```text
 [ Sessions ]        [ Current session ]
 [ New session ]     [ Models ]
-[ Help ]
-[ /menu ] [ /session ] [ /newsession ] [ /models ]
+[ Help ] [ menu ]
 ```
 
 Labels are English text only. There is no emoji in the keyboard. Each label is
@@ -31,11 +30,12 @@ text and do not use message parse mode.
 | --- | --- | --- |
 | `Sessions` | `/session` | Sends the paginated session picker. |
 | `Current session` | `/current` | Reports the active session title and ID. |
-| `New session` | `/newsession` | Prompts for a name, creates a root OpenCode session, and selects it as the active target. |
+| `New session` | - | Prompts for a name, creates a root OpenCode session, and selects it as the active target. |
 | `Models` | `/models` | Sends the bottom reply-keyboard provider/model picker. |
 | `Help` | `/help` | Restores this keyboard and prints command help. |
+| `menu` | `/menu` | Restores this keyboard. |
 
-The help text is fixed: it lists `/session`, `/newsession`, `/current`, and `/models`, states that
+The help text is fixed: it lists `/session`, `/current`, and `/models`, states that
 plain text is routed to the active session, and notes that replies arrive through
 `tg_send` and `tg_sendfile`.
 
@@ -63,7 +63,7 @@ plain text is routed to the active session, and notes that replies arrive throug
 
 ## Create a session
 
-Choose `New session` from the main keyboard or session picker, or send `/newsession`.
+Choose `New session` from the main keyboard or session picker.
 `Create session` is also recognized as a text alias for this action.
 TeleCode asks for a name and creates an OpenCode root session using `POST /api/session`
 with the current user's home directory as the API working directory. Names are

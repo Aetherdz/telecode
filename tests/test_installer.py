@@ -1,5 +1,6 @@
 import os
 import pathlib
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -162,6 +163,30 @@ class InstallerTests(unittest.TestCase):
                                  env=env, capture_output=True, text=True, check=False)
             self.assertEqual(run.returncode, 2)
             self.assertIn("does not support whitespace", run.stderr)
+
+    def test_enable_without_systemctl_reports_foreground_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp)
+            env = os.environ.copy()
+            env.update({"HOME": str(home), "XDG_CONFIG_HOME": str(home / "config"),
+                        "XDG_DATA_HOME": str(home / "data")})
+            subprocess.run(["bash", str(ROOT / "install.sh"), "--bootstrap"], cwd=ROOT,
+                           env=env, capture_output=True, text=True, check=True)
+            config = home / "config/telegram-bridge/telegram.env"
+            config.write_text("TG_BOT_TOKEN=12345:" + "a" * 25 + "\nTG_CHAT_ID=123\n")
+            shim = home / "bin"
+            shim.mkdir()
+            for name in ("bash", "python3", "grep", "sed", "mktemp", "chmod", "mv",
+                         "mkdir", "install", "dirname", "basename", "realpath", "cat", "rm"):
+                target = shutil.which(name)
+                if target:
+                    os.symlink(target, shim / name)
+            env["PATH"] = str(shim)
+            run = subprocess.run(["bash", str(home / "data/telegram-bridge/install.sh"), "--enable"],
+                                 env=env, capture_output=True, text=True, check=False)
+            self.assertEqual(run.returncode, 3, run.stderr)
+            self.assertIn("systemd user services are not available", run.stderr)
+            self.assertIn("telecode listen", run.stderr)
 
 
 if __name__ == "__main__":
