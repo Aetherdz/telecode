@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import urllib.parse
 
@@ -10,7 +11,12 @@ import telegram_bridge as tg
 
 
 def _agent_name(cfg):
-    return (cfg.get("TELECODE_AGENT") or "opencode").strip().lower()
+    configured = (cfg.get("TELECODE_AGENT") or "").strip().lower()
+    if configured:
+        return configured
+    # Keep explicit configuration authoritative, but make Cursor work out of
+    # the box for installs that have Cursor Agent and no TELECODE_AGENT entry.
+    return "cursor" if shutil.which((cfg.get("CURSOR_AGENT_BIN") or "agent").strip()) else "opencode"
 
 
 def _codex_adapter(cfg):
@@ -27,6 +33,18 @@ def _agent_adapter(cfg):
     if name in ("claude-code", "claude"):
         from adapters.claude_code import ClaudeCodeAdapter
         return ClaudeCodeAdapter(binary=(cfg.get("CLAUDE_CODE_BIN") or "claude").strip())
+    if name == "cursor":
+        from adapters.cursor import CursorAdapter
+        try:
+            active = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+            model = active.get("model") if active.get("id") == tg._active_session_id() else None
+        except (OSError, ValueError, TypeError):
+            model = None
+        return CursorAdapter(
+            binary=(cfg.get("CURSOR_AGENT_BIN") or "agent").strip(),
+            workspace=cfg.get("CURSOR_WORKSPACE"),
+            model=model,
+        )
     from adapters.opencode import OpenCodeAdapter
     return OpenCodeAdapter(binary=tg._opencode_bin(cfg))
 
@@ -59,6 +77,10 @@ def create_session(cfg, title):
         raise ValueError("Session name is required.")
     if len(title) > tg.SESSION_NAME_MAX_LENGTH:
         raise ValueError(f"Session name must be {tg.SESSION_NAME_MAX_LENGTH} characters or fewer.")
+    if tg._agent_name(cfg) == "cursor":
+        session = tg._agent_adapter(cfg).create_session(title)
+        return {"id": session.id, "title": session.title,
+                "directory": session.directory, "agent": session.agent}
     result = tg._opencode_api(
         cfg, "post", "/api/session",
         {"title": title, "directory": str(pathlib.Path.home().resolve())}, timeout=30)
@@ -104,6 +126,14 @@ def list_sessions(cfg):
                     for s in tg._agent_adapter(cfg).list_sessions()]
         except Exception as e:
             tg.log(f"[{tg.ts()}] Claude Code session listing failed: {e!r}", flush=True)
+            return []
+    if tg._agent_name(cfg) == "cursor":
+        try:
+            return [{"id": s.id, "title": s.title, "directory": s.directory,
+                     "time": {"updated": s.updated}, "agent": s.agent}
+                    for s in tg._agent_adapter(cfg).list_sessions()]
+        except Exception as e:
+            tg.log(f"[{tg.ts()}] Cursor session listing failed: {e!r}", flush=True)
             return []
     try:
         # The session picker is deliberately not restricted to the startup
@@ -171,7 +201,12 @@ def discover_session(cfg):
 
 
 def _session_by_id(cfg, sid):
-    if tg._agent_name(cfg) in ("codex", "claude-code", "claude"):
+    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor"):
+        if tg._agent_name(cfg) == "cursor":
+            session = tg._agent_adapter(cfg).validate_session(sid)
+            return ({"id": session.id, "title": session.title,
+                     "directory": session.directory, "agent": session.agent}
+                    if session else None)
         return next((s for s in tg.list_sessions(cfg) if str(s.get("id")) == str(sid)), None)
     if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid or "")):
         return None
@@ -180,7 +215,7 @@ def _session_by_id(cfg, sid):
 
 def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
-    if tg._agent_name(cfg) in ("codex", "claude-code", "claude"):
+    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor"):
         selected = tg._active_session_id()
         if selected and tg._session_by_id(cfg, selected):
             return selected, "telegram-selected"
@@ -217,12 +252,13 @@ def _try_prompt(cfg, sid, body_text, delivery):
         reply = adapter.send_message(sid, body_text, delivery)
     except Exception as e:
         from adapters.codex import CodexAdapterError
-        if isinstance(e, CodexAdapterError):
+        from adapters.cursor import CursorAdapterError
+        if isinstance(e, (CodexAdapterError, CursorAdapterError)):
             tg.send_text(cfg, str(e))
             return True
         tg.log(f"[{tg.ts()}] prompt sid={sid} {delivery}: error {e!r}", flush=True)
         return False
-    if adapter.name in ("codex", "claude-code") and isinstance(reply, str) and reply:
+    if adapter.name in ("codex", "claude-code", "cursor") and isinstance(reply, str) and reply:
         tg.send_text(cfg, reply[:6000])
         return True
     return bool(reply)

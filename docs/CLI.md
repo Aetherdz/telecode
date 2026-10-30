@@ -114,7 +114,9 @@ Inbound routing is adapter-based. Set `TELECODE_AGENT` in `telegram.env`:
 | --- | --- |
 | `opencode` (default) | Route prompts through the OpenCode HTTP API. |
 | `claude-code` | Resume a Claude Code session headlessly with `claude --resume <id> --print`. |
-| unset / `auto` | Prefer OpenCode when its CLI is present, otherwise Claude Code. |
+| `codex` | Resume a Codex CLI session (experimental; see below). |
+| `cursor` | Resume a known Cursor Agent session ID headlessly (experimental; see below). |
+| unset / `auto` | Prefer Cursor Agent when `agent` is on `PATH`; otherwise OpenCode. |
 
 Claude Code sessions are listed from the local transcript store
 (`~/.claude/projects/*/*.jsonl`); their IDs are UUIDs and are validated before
@@ -221,6 +223,29 @@ Config path: `~/.cursor/mcp.json`.
 ```
 
 Template: [config/cursor.example.json](../config/cursor.example.json).
+
+### Cursor Agent inbound routing
+
+Cursor's CLI documents resuming a thread with `agent --resume <thread-id>` and
+non-interactive output with `--print`. Set `TELECODE_AGENT=cursor` and
+`CURSOR_WORKSPACE` to the existing project directory associated with that thread;
+`CURSOR_AGENT_BIN` can override the CLI executable (default `agent`). The adapter
+runs the CLI in that workspace and returns its text response to Telegram. Keep
+Cursor authenticated as the same OS user that runs the listener.
+
+TeleCode creates new chats with Cursor's documented `agent create-chat` command;
+the requested label is kept in TeleCode's active-session state because that command
+does not accept a title. Cursor's documented `agent ls` command is interactive, so
+TeleCode best-effort reads `~/.cursor/chats/*/*/meta.json` to list local chats
+across projects, then resumes each session in its recorded workspace. This is an
+undocumented local format: malformed, oversized, and symlinked entries are skipped.
+When Cursor has no title in metadata, TeleCode uses a short excerpt from the first
+user prompt in the local transcript (bounded read); otherwise it labels the chat
+"Untitled Cursor chat". **Open by ID** remains available as a fallback. New chats
+use `CURSOR_WORKSPACE`.
+This integration is experimental and has been smoke-tested with a real CLI install.
+Cursor headless mode has full write access; Telegram messages can therefore cause
+workspace edits.
 
 ## Gemini CLI
 

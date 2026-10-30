@@ -6,7 +6,7 @@ does not itself guarantee that a client exposes APIs for enumerating sessions
 or injecting a prompt into a chosen session; unsupported operations must be
 reported as unavailable rather than guessed.
 
-Claude Code can use the bridge MCP tools for outbound Telegram replies. Its
-session adapter is intentionally a fail-closed stub until a stable supported
-session targeting interface is available; do not claim Telegram-to-Claude
-session injection based on MCP support alone.
+Cursor CLI and Codex CLI adapters are experimental. Cursor can resume a known
+thread but does not expose a documented machine-readable session-list API. Codex
+session discovery reads local rollout files and is best-effort. Keep these
+limitations explicit; an MCP integration alone does not imply inbound routing.

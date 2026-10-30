@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import subprocess
 import time
 import urllib.parse
 
@@ -52,7 +53,10 @@ def _send_session_picker(cfg, page=0, sessions=None):
         tg.SESSION_BUTTONS.clear()
         tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
         tg.ACTIVE_PICKER = "sessions"
-        text = "No OpenCode sessions were found. Create one, or check that the OpenCode service is running."
+        is_cursor = tg._agent_name(cfg) == "cursor"
+        text = ("Cursor sessions cannot be listed yet. Create a chat or open an existing thread by ID."
+                if is_cursor else
+                "No OpenCode sessions were found. Create one, or check that the OpenCode service is running.")
         tg._send_reply_picker(cfg, text,
                               [[{"text": tg.NEW_SESSION}, {"text": "Open by ID"}],
                                [{"text": "Cancel"}]], notify=False)
@@ -102,7 +106,7 @@ def _begin_session_id(cfg):
     tg.ACTIVE_PICKER = "session-id"
     tg._send_reply_picker(
         cfg,
-        "<b>Open a session by ID</b>\nSend the session ID (for example, <code>ses...</code>). Only an available session in this OpenCode workspace can be selected.",
+        "<b>Open a session by ID</b>\nSend the session ID. The configured agent must have access to it.",
         [[{"text": "Cancel"}]],
         notify=False,
     )
@@ -161,6 +165,19 @@ def _load_models_message_ref():
 
 
 def _models_from_api(cfg):
+    if tg._agent_name(cfg) == "cursor":
+        binary = (cfg.get("CURSOR_AGENT_BIN") or "agent").strip()
+        result = subprocess.run([binary, "models"], capture_output=True, text=True,
+                                timeout=30, check=False)
+        if result.returncode:
+            raise RuntimeError((result.stderr or result.stdout or "Cursor model listing failed").strip()[:300])
+        models = []
+        for line in (result.stdout or "").splitlines():
+            match = re.match(r"^\s*([^\s]+)\s+-\s+(.+?)\s*$", line)
+            if match and match.group(1).lower() not in ("available", "models"):
+                models.append({"id": match.group(1), "providerID": "Cursor",
+                               "name": match.group(2)})
+        return models
     data = tg._opencode_api(cfg, "get", "/api/model", timeout=45)
     items = data.get("data") if isinstance(data, dict) else data
     out = []
@@ -211,6 +228,12 @@ def _ordered_providers(groups):
 def _current_model(cfg, sid):
     if not sid:
         return ""
+    if tg._agent_name(cfg) == "cursor":
+        try:
+            state = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+            return str(state.get("model") or "") if state.get("id") == sid else ""
+        except (OSError, ValueError, TypeError):
+            return ""
     try:
         data = tg._opencode_api(cfg, "get",
                                 f"/api/session/{urllib.parse.quote(sid, safe='')}", timeout=20)
@@ -402,6 +425,18 @@ def _switch_session_model(cfg, model):
     model_name = tg._html_escape(model.get("name") or model.get("id") or "model")
     provider = tg._html_escape(model.get("providerID") or "")
     session_name = tg._html_escape(tg.session_title(tg._session_by_id(cfg, sid) or {"id": sid}))
+    if tg._agent_name(cfg) == "cursor":
+        try:
+            state = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            state = {"id": sid}
+        state["model"] = model["id"]
+        temp = tg.ACTIVE_SESSION.with_suffix(".tmp")
+        temp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        os.chmod(temp, 0o600)
+        os.replace(temp, tg.ACTIVE_SESSION)
+        tg.send_text(cfg, f"<b>Model selected:</b> {model_name}\nSession: {session_name}", parse_mode="HTML")
+        return
     tg._opencode_api(
         cfg, "post", f"/api/session/{urllib.parse.quote(sid, safe='')}/model",
         {"model": {"id": model["id"], "providerID": model["providerID"]}}, timeout=30)
@@ -648,8 +683,8 @@ def handle_control_message(cfg, msg, text):
         if not session:
             tg.send_text(cfg, "That session picker has expired. Open /session and choose again.")
             return True
-        if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", selected_sid):
-            tg.send_text(cfg, "Invalid session ID; the target was not changed.")
+        if not tg._session_by_id(cfg, selected_sid):
+            tg.send_text(cfg, "That session is no longer available; the target was not changed.")
             return True
         tg._set_active_session(session)
         tg.SESSION_PAGE = 0

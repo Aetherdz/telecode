@@ -121,6 +121,7 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest -v \
+            tests.test_cursor_adapter \
             tests.test_codex_adapter \
             tests.test_installer \
             tests.test_setup_cli \
@@ -134,6 +135,7 @@ jobs:
         run: |
           set -o pipefail
           python -m unittest -v \
+            tests.test_cursor_adapter \
             tests.test_codex_adapter \
             tests.test_setup_cli \
             tests.test_get_telegram_id \
