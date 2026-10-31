@@ -8,7 +8,8 @@ TeleCode separates two capabilities:
    MCP client.
 2. **Targeted Telegram-to-session routing.** The listener must be able to enumerate
    sessions, validate a session ID, and inject a prompt into exactly one session.
-   OpenCode and Claude Code are supported; Codex CLI routing is experimental.
+    OpenCode and Claude Code are supported; Codex CLI and Cursor routing are
+    experimental.
 
 Installing an MCP server does not itself enable targeted routing. Configure
 `TELECODE_AGENT` to select a supported inbound adapter; other MCP clients receive
@@ -21,7 +22,7 @@ outbound Telegram tools only.
 | OpenCode | `~/.config/opencode/opencode.json` | JSON | Yes | Yes | Verified session discovery and prompt delivery. |
 | Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | Yes | Headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`). |
 | Codex CLI | `~/.codex/config.toml` | TOML | Yes | Experimental | Inbound via `TELECODE_AGENT=codex`; requires 0.166.0+. |
-| Cursor | `~/.cursor/mcp.json` | JSON | Yes | No | No session API used. |
+| Cursor | `~/.cursor/mcp.json` | JSON | Yes | Experimental | Uses Cursor Agent CLI and best-effort local chat metadata. |
 | Gemini CLI | `~/.gemini/settings.json` | JSON | Yes | No | No session API used. |
 | Cline | `~/.vscode/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | JSON | Yes | No | VS Code global storage path. |
 | Roo Code | `~/.vscode/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json` | JSON | Yes | No | VS Code global storage path. |
@@ -150,10 +151,11 @@ writes:
 
 Template: [config/claude-code.example.json](../config/claude-code.example.json).
 
-Claude Code can deliver outbound replies and read queued owner messages. It cannot
-be selected as the inbound Telegram target: `adapters/claude_code.py` deliberately
-raises `NotImplementedError` for session listing and delivery. This is a documented
-capability limit, not a configuration error.
+Claude Code can deliver outbound replies and read queued owner messages. It can
+also be selected as the inbound Telegram target with
+`TELECODE_AGENT=claude-code`. The adapter enumerates local transcript sessions
+and resumes a selected session headlessly; treat Telegram-originated instructions
+as untrusted input and review Claude Code's permissions before enabling routing.
 
 ## Codex CLI
 
