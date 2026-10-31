@@ -283,8 +283,8 @@ def backup(path):
     return dest
 
 
-def atomic_write(path, contents):
-    old_mode = (path.stat().st_mode & 0o777) if path.exists() else 0o600
+def atomic_write(path, contents, mode=None):
+    old_mode = mode if mode is not None else ((path.stat().st_mode & 0o777) if path.exists() else 0o600)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     temp = pathlib.Path(temp_name)
     try:

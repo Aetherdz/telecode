@@ -16,6 +16,7 @@ import webbrowser
 from pathlib import Path
 
 import setup_cli
+from telegram_bridge import detection
 
 HOST = "127.0.0.1"
 SESSION_SECONDS = 15 * 60
@@ -33,6 +34,25 @@ def _telegram(method: str, token: str, params: dict | None = None):
     if not isinstance(result, dict) or not result.get("ok"):
         raise ValueError("Telegram rejected the request")
     return result.get("result")
+
+
+def _detect_chats(token: str, *, attempts: int = 5, interval: float = 1.0):
+    """Poll our own bot briefly for private chats; never wait on Telegram long-poll."""
+    found = {}
+    for attempt in range(attempts):
+        updates = _telegram("getUpdates", token, {"timeout": 0, "allowed_updates": json.dumps(["message"])}) or []
+        if isinstance(updates, list):
+            for update in updates:
+                if not isinstance(update, dict):
+                    continue
+                message = update.get("message")
+                chat = message.get("chat") if isinstance(message, dict) else None
+                if isinstance(chat, dict) and chat.get("type") == "private" and chat.get("id") is not None:
+                    found[str(chat["id"])] = True
+        if found or attempt + 1 == attempts:
+            break
+        time.sleep(interval)
+    return list(found)
 
 
 def run_setup_web() -> int:
@@ -150,7 +170,7 @@ def run_setup_web() -> int:
                 return self.send(400, b"Invalid request")
             path = urllib.parse.urlsplit(self.path).path
             if path == "/api/clients":
-                return self.json(200, {"clients": [{"name": h[0], "key": h[1], "detected": bool(setup_cli.discover(h)[0] or setup_cli.discover(h)[1]), "supported": h[3], "config": str(setup_cli.discover(h)[1] or (h[2][0] if h[2] else ""))} for h in setup_cli.HOSTS if h[1]]})
+                return self.json(200, {"clients": detection.clients(setup_cli)})
             if path in ("/api/telegram/validate", "/api/telegram/test", "/api/telegram/detect-id"):
                 token = str(data.get("token", "")).strip()
                 if not TOKEN_RE.fullmatch(token):
@@ -160,9 +180,7 @@ def run_setup_web() -> int:
                         result = _telegram("getMe", token)
                         return self.json(200, {"valid": True, "bot": result.get("username") if isinstance(result, dict) else None})
                     if path.endswith("detect-id"):
-                        updates = _telegram("getUpdates", token, {"timeout": 0, "allowed_updates": json.dumps(["message"])}) or []
-                        ids = list(dict.fromkeys(str(x["message"]["chat"]["id"]) for x in updates if isinstance(x, dict) and isinstance(x.get("message"), dict) and x["message"].get("chat", {}).get("type") == "private"))
-                        return self.json(200, {"chat_ids": ids})
+                        return self.json(200, {"chat_ids": _detect_chats(token)})
                     chat_id = str(data.get("chat_id", "")).strip()
                     if not re.fullmatch(r"-?\d+", chat_id):
                         return self.json(400, {"error": "Enter a numeric chat ID"})
@@ -179,10 +197,15 @@ def run_setup_web() -> int:
                     return self.json(400, {"error": "Invalid setup values or missing confirmation"})
                 try:
                     config, content = setup_cli.register_for_web(cli)
+                    allowed = {p.resolve() for host in setup_cli.HOSTS if host[1] == cli for p in host[2]}
+                    if config.resolve() not in allowed or config.is_symlink():
+                        raise ValueError("Unknown or unsafe config destination")
                     runtime = setup_cli.RUNTIME_CONFIG
                     runtime.mkdir(parents=True, exist_ok=True, mode=0o700)
                     runtime.chmod(0o700)
                     credentials = runtime / "telegram.env"
+                    if credentials.resolve() != (runtime / "telegram.env").resolve() or credentials.is_symlink():
+                        raise PermissionError
                     if credentials.is_symlink() or (credentials.exists() and credentials.stat().st_uid != os.getuid()):
                         raise PermissionError
                     lines = credentials.read_text().splitlines() if credentials.exists() else []
@@ -190,8 +213,7 @@ def run_setup_web() -> int:
                     setup_cli.backup(config) if config.exists() else None
                     setup_cli.atomic_write(config, content)
                     setup_cli.backup(credentials) if credentials.exists() else None
-                    setup_cli.atomic_write(credentials, "\n".join(lines + [f"TG_BOT_TOKEN={bot}", f"TG_CHAT_ID={chat}"]) + "\n")
-                    credentials.chmod(0o600)
+                    setup_cli.atomic_write(credentials, "\n".join(lines + [f"TG_BOT_TOKEN={bot}", f"TG_CHAT_ID={chat}"]) + "\n", mode=0o600)
                 except (OSError, ValueError, json.JSONDecodeError):
                     return self.json(500, {"error": "Setup failed; inspect local config and backups before retrying"})
                 succeeded.set()
