@@ -179,9 +179,9 @@ def cmd_install():
 
 
 def main():
-        if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
-            print(USAGE)
-            return 0
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(USAGE)
+        return 0
     if len(sys.argv) > 1 and sys.argv[1] == "get-id":
         helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
         if not helper.is_file():

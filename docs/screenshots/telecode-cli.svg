@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="425" viewBox="0 0 920 425" role="img" aria-labelledby="title desc">
+  <title id="title">TeleCode installer dry-run terminal preview</title>
+  <desc id="desc">Actual plain-text output from install.sh --dry-run, displayed in a dark terminal frame. It shows the Python check, planned file update, and no-change dry-run summary.</desc>
+  <rect width="920" height="425" rx="14" fill="#101214"/>
+  <rect width="920" height="42" rx="14" fill="#202427"/>
+  <circle cx="24" cy="21" r="6" fill="#777"/><circle cx="46" cy="21" r="6" fill="#777"/><circle cx="68" cy="21" r="6" fill="#777"/>
+  <text x="460" y="27" fill="#d5d9dc" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" text-anchor="middle">TeleCode · installer dry-run</text>
+  <g fill="#e6e9eb" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="15">
+    <text x="28" y="82">▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀</text>
+    <text x="28" y="104">  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄</text>
+    <text x="28" y="126">  █   █     █     █     █     █   █ █   █ █</text>
+    <text x="28" y="148">  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀</text>
+    <text x="28" y="177">  Telegram ⇄ OpenCode &amp; any CLI</text>
+    <text x="28" y="213">TeleCode installer 0.1.0</text>
+    <text x="28" y="250" fill="#6ccf9a">ok</text><text x="63" y="250">Checking Python 3.11+</text>
+    <text x="28" y="279" fill="#8f969b">[dry-run]</text><text x="118" y="279">Preparing install directories</text>
+    <text x="28" y="308" fill="#8f969b">[dry-run]</text><text x="118" y="308">Would update 38 runtime file(s)</text>
+    <text x="28" y="337" fill="#8f969b">[dry-run]</text><text x="118" y="337">Checking installed CLI imports</text>
+    <text x="28" y="366" fill="#8f969b">[dry-run]</text><text x="118" y="366">Creating private config (0600)</text>
+    <text x="28" y="399" fill="#bdc3c7">Dry run complete; no files were changed.</text>
+  </g>
+</svg>

@@ -68,7 +68,14 @@ own supervisor):
 telecode listen
 ```
 
-Interactive setup creates the private config, shows an aligned menu where arrow
+Interactive setup offers Browser (recommended) or Terminal on a TTY. The browser
+wizard binds only to `127.0.0.1`, uses a one-time local URL, and expires after
+15 minutes. From SSH, forward its displayed port with the suggested `ssh -L`
+command. Use `./install.sh --web` or `telecode setup --web` to open it directly;
+`--browser-setup` remains an alias. Use `./install.sh --cli` or
+`telecode setup --cli` for the unchanged terminal flow.
+
+Interactive terminal setup creates the private config, shows an aligned menu where arrow
 keys and Enter (or a number) select a detected coding-agent CLI, asks before
 registering MCP, securely prompts for the bot token, then requests a numeric chat
 ID or offers automatic detection. It validates credentials before enabling the
@@ -95,6 +102,16 @@ and starts guided setup. Review `install.sh` before running it. Alternatively,
 clone and inspect the project, then run `./install.sh` yourself. To refresh
 installed files from a checkout, run `./install.sh --update`; private config is
 preserved.
+
+See the [terminal installer preview](screenshots/telecode-cli.svg) and the
+[browser wizard step wireframe](screenshots/telecode-setup-steps.svg). The
+wireframe is explicitly a design preview, not a screenshot of runtime behavior.
+Installer options include `--verbose`, `--quiet`, `--yes`, `--dry-run`, `--update`,
+`--help`, `--version`, `--curl-bootstrap`, `--web`, and `--cli`. Dry-run prints the
+plan without writing files; a repeated install reports files already up to date.
+Output from setup steps is captured and only shown on failure, with a short tail
+and remediation hint. `NO_COLOR` disables ANSI color; non-TTY output is plain text.
+
 For a clean, isolated local
 installation smoke test, use `tests/test_installer.py`, which installs into a
 temporary HOME and never starts a Telegram connection.

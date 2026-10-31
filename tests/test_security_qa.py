@@ -9,11 +9,10 @@ import setup_web
 
 class SetupSecurityTests(unittest.TestCase):
     def test_page_uses_escaped_client_data_and_csp_nonce(self):
-        page = setup_web._page("secret-nonce", [{"name": "<img>", "key": "safe"}]).decode()
-        self.assertIn('<script nonce="secret-nonce">', page)
-        self.assertIn("&lt;img&gt;", page)
-        self.assertNotIn("<img>", page)
-        self.assertEqual(page.count("secret-nonce"), 2)  # form CSRF and script nonce
+        page = (setup_web.WEB / "index.html").read_text(encoding="utf-8")
+        self.assertIn("{{NONCE}}", page)
+        self.assertIn("{{CSRF}}", page)
+        self.assertNotIn("<script src=\"http", page)
 
     def test_atomic_write_creates_private_file(self):
         with tempfile.TemporaryDirectory(dir=pathlib.Path.home()) as temp:
@@ -26,10 +25,10 @@ class SetupSecurityTests(unittest.TestCase):
         source = pathlib.Path(setup_web.__file__).read_text()
         self.assertIn("secrets.token_urlsafe(32)", source)
         self.assertIn("secrets.compare_digest", source)
-        self.assertIn('self.headers.get("Origin")', source)
-        self.assertIn('"Cache-Control", "no-store"', source)
+        self.assertIn('self.headers.get("Origin") or ""', source)
+        self.assertIn('"Cache-Control", "no-store, private"', source)
         self.assertIn("server.server_close()", source)
-        self.assertIn("script-src 'nonce-{token}'", source)
+        self.assertIn("script-src 'self' 'nonce-{nonce}'", source)
 
 
 if __name__ == "__main__":

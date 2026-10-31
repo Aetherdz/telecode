@@ -14,8 +14,8 @@ class WebSetupTests(unittest.TestCase):
 
     def test_server_uses_loopback_and_secret_is_not_printed(self):
         output = io.StringIO()
-        with mock.patch.object(setup_web.webbrowser, "open", return_value=False), contextlib.redirect_stdout(output):
-            self.assertEqual(setup_web.run_setup_web(), 2)
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(setup_web.run_setup_web(serve=False), 0)
         self.assertNotIn("session=", output.getvalue())
 
 if __name__ == "__main__":

@@ -9,6 +9,9 @@ and this project adheres to semantic versioning.
 
 ### Added
 
+- Local browser setup with loopback serving, one-time session access, CSRF
+  protection, and metadata-only session discovery.
+- Arabic/English wizard UI with responsive and dark-mode support.
 - `telegram_bridge/` package with eight modules (`state`, `util`, `telegram`,
   `agents`, `pickers`, `routing`, `listener`, `cli`).
 - Telegram reply and inline keyboard controls now use the Bot API button styles:
@@ -19,12 +22,16 @@ and this project adheres to semantic versioning.
 
 ### Changed
 
+- Installer and CLI setup entry points expose browser and terminal modes; the
+  installer keeps successful steps quiet and reports failures with concise logs.
 - `tg_bridge.py` is now a thin entry point and forwarding shim that re-exports the
   `telegram_bridge` package; commands, MCP paths, and installed file names are
   unchanged.
 
 ### Fixed
 
+- Session summaries exclude message contents; the folder browser rejects
+  traversal and symlink escapes.
 - Codex sessions given a name now show that name in Telegram. `thread/list`
   omits threads with no user events, so named sessions fell back to the rollout
   folder name; the adapter now also reads Codex's own `session_index.jsonl`
@@ -122,3 +129,14 @@ outbound MCP tools for other MCP-capable clients.
 - The systemd unit runs with a hardened filesystem and privilege profile.
 - Documentation calls out token rotation after any `telegram.env` exposure and
   instructs reporters to use a private advisory rather than a public issue.
+# Unreleased
+
+## Added
+- Local browser setup entry points with loopback-only serving, one-time session access, CSRF checks, and metadata-only session discovery.
+- Arabic/English wizard UI with responsive and dark-mode support.
+
+## Changed
+- Installer and CLI setup entry points now expose explicit browser and terminal modes; installer output stays quiet on success.
+
+## Fixed
+- Session summaries exclude message contents and folder browsing rejects traversal and symlink escapes.

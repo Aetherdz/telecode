@@ -978,7 +978,6 @@ if [[ -z "$COMMAND" || "$COMMAND" == "--setup" || "$COMMAND" == "setup" ]]; then
     fail "Interactive setup requires a terminal. Rerun install.sh in a terminal, or use --yes."
     exit 2
   fi
-<<<<<<< HEAD
   printf 'Setup: Browser (recommended) / Terminal [B/t]: '
   IFS= read -r setup_choice || { fail "Setup choice was not received."; exit 130; }
   case "${setup_choice,,}" in
@@ -988,15 +987,6 @@ if [[ -z "$COMMAND" || "$COMMAND" == "--setup" || "$COMMAND" == "setup" ]]; then
       ;;
     t|terminal|cli) ;;
     *) fail "Choose Browser or Terminal."; exit 2 ;;
-=======
-  printf 'Setup mode: 1) terminal  2) browser  (q to cancel): '
-  IFS= read -r setup_mode || exit 2
-  case "$setup_mode" in
-    2) exec "$APP_DIR/install.sh" --web ;;
-    1) ;;
-    q|Q) exit 2 ;;
-    *) fail "Choose 1 or 2."; exit 2 ;;
->>>>>>> 7689253 (Complete secure browser setup backend routing)
   esac
   TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" "$PYTHON" "$APP_DIR/setup_cli.py" || {
     fail "CLI integration was cancelled or could not be configured; listener was not enabled."

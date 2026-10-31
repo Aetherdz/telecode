@@ -6,7 +6,8 @@
   <meta name="color-scheme" content="light dark">
   <title>TeleCode Setup</title>
   <link rel="stylesheet" href="/app.css">
-  <script src="/app.js" defer></script>
+  <script src="/app.js" defer nonce="{{NONCE}}"></script>
+  <script nonce="{{NONCE}}">window.__TELECODE__={csrf:"{{CSRF}}"};</script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="#" aria-label="TeleCode home"><span class="brand-mark">T</span> TeleCode</a><div class="toolbar"><button id="language" class="quiet" type="button" aria-label="Switch language">العربية</button><button id="theme" class="icon-button" type="button" aria-label="Switch color theme">◐</button></div></header>

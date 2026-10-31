@@ -77,6 +77,19 @@ cd telecode
 
 Run `telecode` with no arguments for the Setup/Exit menu, or run `./install.sh` for the full guided setup. Setup registers the MCP server, stores credentials locally, and enables a per-user startup service (systemd on Linux, LaunchAgent on macOS, Task Scheduler on Windows). On headless systems where the OS service manager is unavailable, setup prints the foreground command (`telecode listen`). Review the source and [installation guide](docs/INSTALL.md) before running it. For a guided Linux setup from a terminal, use `curl -fsSL https://raw.githubusercontent.com/Aetherdz/telecode/main/install.sh | bash -s -- --curl-bootstrap`. For updates from a source checkout, use `./install.sh --update`.
 
+### Browser setup
+
+The interactive installer offers Browser (recommended) or Terminal. Select the
+browser directly with `./install.sh --web` or `telecode setup --web`; use
+`--cli` to retain the terminal wizard. The local wizard binds only to
+`127.0.0.1`, uses a one-time link, and expires after 15 minutes. Remote shells
+show an SSH port-forward hint. Session discovery displays metadata only and
+remains manual where the format has not been verified.
+
+![Terminal installer and CLI preview](docs/screenshots/telecode-cli.svg)
+
+![Browser wizard three-step layout preview (wireframe, not runtime-captured)](docs/screenshots/telecode-setup-steps.svg)
+
 There is no published npm/Bun package or `npx`/`bunx` installer yet. TeleCode is a Python application; the guided installer installs it locally and registers its MCP server with the client you choose. Do not use `npx aetherdz/telecode` or `bunx aetherdz/telecode` as if those package names were published.
 
 After setup, restart your coding-agent CLI so it loads the MCP server. Check the bridge with:

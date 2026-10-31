@@ -38,6 +38,18 @@ In a terminal, the setup selector moves with the up/down arrows and confirms
 with Enter; press `q` to cancel. If the terminal does not support raw key input,
 the selector falls back to a numbered prompt.
 
+For onboarding, `telecode setup --web` opens the temporary local browser wizard,
+while `telecode setup --cli` keeps the terminal wizard. `./install.sh --web` and
+`./install.sh --cli` are equivalent installer entry points. Bare interactive
+`telecode setup` offers Browser (recommended) or Terminal. The launcher menu
+offers Setup, Status, Listen, and Exit. Terminal colors are used only on a TTY;
+set `NO_COLOR` to disable them.
+
+The browser wizard detects session metadata only for formats confirmed by the
+implementation; other agent session locations remain manual. It never reads
+message contents. Its read-only folder browser is limited to directories under
+the home directory.
+
 ## Shared registration values
 
 The installer computes two values:
