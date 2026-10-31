@@ -288,22 +288,31 @@ def atomic_write(path, contents, mode=None):
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     temp = pathlib.Path(temp_name)
     try:
-        os.fchmod(fd, old_mode)
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, old_mode)
+        stream = os.fdopen(fd, "w", encoding="utf-8")
+        fd = None  # fdopen now owns and closes the descriptor on all paths.
+        with stream:
             stream.write(contents)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temp, path)
         dir_fd = os.open(path.parent, os.O_RDONLY)
         try:
-            os.fsync(dir_fd)
+            try:
+                os.fsync(dir_fd)
+            except OSError:
+                # Content is already fsynced and replaced; some filesystems do
+                # not support syncing directory entries.
+                pass
         finally:
             os.close(dir_fd)
-    except Exception:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+    except BaseException:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
         temp.unlink(missing_ok=True)
         raise
 

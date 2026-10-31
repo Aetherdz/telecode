@@ -65,7 +65,7 @@ class ServiceManagerTests(unittest.TestCase):
             with generated.open("rb") as stream:
                 plist = plistlib.load(stream)
             self.assertEqual(plist["Label"], "org.telecode.telegram-bridge")
-            self.assertEqual(plist["ProgramArguments"][1:], [str(app / "telegram-bridge.py"), "listen"])
+            self.assertEqual(plist["ProgramArguments"][1:], [str((app / "telegram-bridge.py").resolve()), "listen"])
             self.assertEqual(plist["EnvironmentVariables"]["TELEGRAM_BRIDGE_HOME"], str(config.resolve()))
             if os.name != "nt":
                 self.assertEqual(generated.stat().st_mode & 0o777, 0o600)
