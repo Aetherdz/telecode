@@ -20,3 +20,4 @@ models-message.json
 build/
 *.egg-info/
 .hallmark/
+.work/

@@ -3,12 +3,15 @@
 import json
 import os
 import pathlib
+import re
 import shutil
 import tempfile
 import time
 import tomllib
 import unicodedata
 import sys
+
+from telegram_bridge import ui
 
 
 HOME = pathlib.Path.home()
@@ -73,29 +76,27 @@ def selectable_hosts():
 
 
 def _color_enabled():
-    return (sys.stdout.isatty() and sys.platform != "win32"
-            and "NO_COLOR" not in os.environ
-            and os.environ.get("TERM", "") != "dumb")
+    return ui.supports_color()
 
 
 def _paint(text, code):
-    return f"\033[{code}m{text}\033[0m" if _color_enabled() else text
+    return ui.paint(text, code)
 
 
 def _accent(text):
-    return _paint(text, "1;38;2;48;179;239")
+    return ui.accent(text)
 
 
 def _dim(text):
-    return _paint(text, "2")
+    return ui.dim(text)
 
 
 def _green(text):
-    return _paint(text, "32")
+    return ui.green(text)
 
 
 def _yellow(text):
-    return _paint(text, "33")
+    return ui.yellow(text)
 
 
 def host_state(host):
@@ -129,8 +130,8 @@ def _state_text(state, tone):
 def _menu_rows(options):
     labels = [f"{index}. {host[0]}" for index, host in enumerate(options, 1)]
     states = [host_state(host) for host in options]
-    label_width = max(len(label) for label in labels)
-    state_width = max(len(state) for state, _ in states)
+    label_width = max(_columns(label) for label in labels)
+    state_width = max(_columns(state) for state, _ in states)
     return labels, states, label_width, state_width
 
 
@@ -138,24 +139,42 @@ def _box(title, rows, width):
     inner = width - 2
     heading = f"\u2500 {title} "
     top = "\u250c" + heading + "\u2500" * max(0, inner - len(heading)) + "\u2510"
-    body = ["\u2502" + row.ljust(inner) + "\u2502" for row in rows]
+    body = ["\u2502" + _pad_display(row, inner) + "\u2502" for row in rows]
     bottom = "\u2514" + "\u2500" * inner + "\u2518"
     return [_dim(top)] + body + [_dim(bottom)]
+
+
+def _columns(text):
+    """Approximate terminal display width without counting ANSI escapes."""
+    plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+    width = 0
+    for index, char in enumerate(plain):
+        if unicodedata.combining(char):
+            continue
+        if char == "\u200d" or (index and plain[index - 1] == "\u200d"):
+            continue
+        width += 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+    return width
+
+
+def _pad_display(text, width):
+    return text + " " * max(0, width - _columns(text))
 
 
 def _menu_lines(options, selected):
     labels, states, label_width, state_width = _menu_rows(options)
     rows = []
     for index, (label, (state, tone)) in enumerate(zip(labels, states)):
-        plain = f" {label:<{label_width}}  {state:<{state_width}} "
+        padded_label = _pad_display(label, label_width)
+        padded_state = _pad_display(state, state_width)
         if index == selected:
-            rows.append(_accent(("\u276f " + label).ljust(label_width + 2)
-                                + "  " + state.ljust(state_width) + " "))
+            rows.append(_accent(_pad_display("\u276f " + label, label_width + 2)
+                                + "  " + padded_state + " "))
         else:
-            rows.append("  " + label.ljust(label_width)
-                        + "  " + _state_text(state.ljust(state_width), tone) + " ")
+            rows.append("  " + padded_label
+                        + "  " + _state_text(padded_state, tone) + " ")
     title = "Select the coding-agent CLI to configure"
-    width = max(label_width + state_width + 8, len(title) + 6)
+    width = max(label_width + state_width + 8, _columns(title) + 6)
     lines = _box(title, rows, width)
     lines.append(_dim("\u2191/\u2193 move \u00b7 1-9 jump \u00b7 Enter select \u00b7 q cancel"))
     return lines
@@ -179,13 +198,14 @@ def _choose_numbered(options):
     print(_accent("Select the coding-agent CLI to configure"))
     print(_dim("-" * (label_width + state_width + 6)))
     for label, (state, tone) in zip(labels, states):
-        row = f"  {label:<{label_width}}  {_state_text(state.ljust(state_width), tone)}"
+        row = "  " + _pad_display(label, label_width) + "  " + _state_text(_pad_display(state, state_width), tone)
         print(row.rstrip())
     print(_dim("-" * (label_width + state_width + 6)))
     while True:
         try:
             answer = input("Enter a number (or q to cancel): ").strip().lower()
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
+            print()
             return None
         if answer in ("q", "quit", "skip"):
             return None
@@ -263,8 +283,8 @@ def backup(path):
     return dest
 
 
-def atomic_write(path, contents):
-    old_mode = (path.stat().st_mode & 0o777) if path.exists() else 0o600
+def atomic_write(path, contents, mode=None):
+    old_mode = mode if mode is not None else ((path.stat().st_mode & 0o777) if path.exists() else 0o600)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     temp = pathlib.Path(temp_name)
     try:
@@ -377,8 +397,36 @@ TELEGRAM_BRIDGE_HOME = {json.dumps(str(RUNTIME_CONFIG))}
     return existing.rstrip() + "\n" + block
 
 
+def register_for_web(cli, config_path=None):
+    """Return the canonical config destination and proposed content for the wizard.
+
+    The browser never chooses a destination path. Only known client IDs and
+    repository-defined paths are accepted; callers must display/confirm before
+    writing and use backup() plus atomic_write().
+    """
+    host = next((item for item in HOSTS if item[1] == cli), None)
+    if host is None or not host[3]:
+        raise ValueError("Choose a supported coding CLI.")
+    _, detected_config, supported = discover(host)
+    config = detected_config or host[2][0]
+    if cli == "claude" and config_path is not None:
+        if config_path not in host[2]:
+            raise ValueError("Unsupported Claude config scope.")
+        config = config_path
+    if config.suffix == ".toml":
+        content = register_codex_toml(config)
+    elif config.suffix == ".json":
+        content = register_json(config, host)
+    else:
+        raise ValueError("Automatic config editing is unavailable for this client.")
+    return config, content
+
+
 def main():
     options = selectable_hosts()
+    if not options:
+        print("No coding-agent CLI integrations are available.")
+        return 2
     if len(options) == 1 and options[0][1] is None:
         print("No supported coding-agent CLI detected.")
         options = HOSTS

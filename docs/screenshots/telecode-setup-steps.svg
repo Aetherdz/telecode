@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="490" viewBox="0 0 1080 490" role="img" aria-labelledby="title desc">
+  <title id="title">TeleCode browser wizard step layout</title>
+  <desc id="desc">Static wireframe illustration of the three browser setup steps: agent and sessions, Telegram credentials, and review and activation. This is a design preview, not a screenshot captured from a running wizard.</desc>
+  <rect width="1080" height="490" rx="14" fill="#f4f4f2"/>
+  <rect x="24" y="24" width="1032" height="442" rx="10" fill="#fff" stroke="#c9ccca"/>
+  <text x="52" y="66" fill="#171918" font-family="Georgia,serif" font-size="26">TeleCode · Local setup</text>
+  <text x="52" y="101" fill="#555d59" font-family="Arial,sans-serif" font-size="15">Wireframe preview — not captured runtime output</text>
+  <g font-family="Arial,sans-serif" font-size="17" fill="#171918">
+    <rect x="52" y="136" width="298" height="286" rx="8" fill="#fafaf9" stroke="#bbc1bd"/><text x="74" y="173" font-size="14" fill="#626964">01 / AGENT AND SESSIONS</text>
+    <rect x="74" y="194" width="112" height="58" rx="5" fill="#fff" stroke="#777"/><text x="86" y="229">OpenCode</text>
+    <rect x="198" y="194" width="126" height="58" rx="5" fill="#fff" stroke="#777"/><text x="210" y="229">Claude Code</text>
+    <rect x="74" y="270" width="250" height="88" rx="5" fill="#eef2ef"/><text x="89" y="300" font-size="14">Sessions loaded: 3</text><text x="89" y="326" font-size="13" fill="#59615d">Path and recent metadata only</text>
+    <rect x="378" y="136" width="298" height="286" rx="8" fill="#fafaf9" stroke="#bbc1bd"/><text x="400" y="173" font-size="14" fill="#626964">02 / TELEGRAM CREDENTIALS</text>
+    <text x="400" y="213" font-size="14">Bot token</text><rect x="400" y="228" width="252" height="42" rx="5" fill="#fff" stroke="#777"/><text x="414" y="255" fill="#59615d">••••••••••••</text>
+    <text x="400" y="307" font-size="14">Chat ID</text><rect x="400" y="322" width="252" height="42" rx="5" fill="#fff" stroke="#777"/><text x="414" y="349" fill="#59615d">••••1234</text>
+    <rect x="704" y="136" width="298" height="286" rx="8" fill="#fafaf9" stroke="#bbc1bd"/><text x="726" y="173" font-size="14" fill="#626964">03 / REVIEW AND ACTIVATE</text>
+    <text x="726" y="216" font-size="14">Agent · session count</text><text x="726" y="253" font-size="14">Bot · masked chat ID</text><text x="726" y="290" font-size="14">Service mode · files</text>
+    <rect x="726" y="330" width="230" height="42" rx="5" fill="#e8ece9" stroke="#69716c"/><text x="747" y="357" font-size="14">Confirm and apply</text>
+  </g>
+</svg>

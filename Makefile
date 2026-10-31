@@ -7,6 +7,7 @@ check:
 	python3 -m py_compile tg_bridge.py tg_mcp.py telegram_bridge/*.py setup_cli.py get_telegram_id.py
 	bash -n install.sh install_autostart.sh
 	node --check assets/site.js
+	node --check telegram_bridge/web/app.js
 	python3 -c 'from html.parser import HTMLParser; HTMLParser().feed(open("index.html", encoding="utf-8").read())'
 
 site:
