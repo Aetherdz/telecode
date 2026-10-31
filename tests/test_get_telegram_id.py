@@ -26,7 +26,7 @@ class GetTelegramIdTests(unittest.TestCase):
             path.write_text("original\n")
             before = set(path.parent.iterdir())
             if not hasattr(os, "fchmod"):
-                self.skipTest("fchmod unavailable on this platform")
+                self.skipTest("fchmod failure injection is unavailable on this platform")
             with patch.object(helper.os, "fchmod", side_effect=OSError("chmod failed")):
                 with self.assertRaisesRegex(OSError, "chmod failed"):
                     helper._write_private(path, ["replacement"])
@@ -43,6 +43,34 @@ class GetTelegramIdTests(unittest.TestCase):
                     helper._write_private(path, ["replacement"])
             self.assertEqual(path.read_text(), "original\n")
             self.assertEqual(set(path.parent.iterdir()), before)
+
+    def test_write_private_replace_failure_does_not_close_descriptor_twice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "telegram.env"
+            real_fdopen = helper.os.fdopen
+            opened = []
+            class TrackingStream:
+                def __init__(self, stream): self.stream = stream
+                def __enter__(self): return self
+                def __exit__(self, *args): return self.stream.__exit__(*args)
+                def write(self, *args): return self.stream.write(*args)
+                def flush(self): return self.stream.flush()
+                def fileno(self): return self.stream.fileno()
+                @property
+                def closed(self): return self.stream.closed
+            def tracking_fdopen(fd, *args, **kwargs):
+                stream = TrackingStream(real_fdopen(fd, *args, **kwargs))
+                opened.append(stream)
+                return stream
+            with patch.object(helper.os, "fdopen", side_effect=tracking_fdopen), \
+                 patch.object(helper.os, "replace", side_effect=OSError("replace failed")), \
+                 patch.object(helper.os, "close", wraps=helper.os.close) as close:
+                with self.assertRaisesRegex(OSError, "replace failed"):
+                    helper._write_private(path, ["replacement"])
+            self.assertEqual(len(opened), 1)
+            self.assertTrue(opened[0].closed)
+            close.assert_not_called()
+            self.assertFalse(list(path.parent.glob(".telegram.env.*")))
 
     def test_write_private_interrupt_closes_and_cleans_temp(self):
         with tempfile.TemporaryDirectory() as tmp:

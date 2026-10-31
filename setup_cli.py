@@ -297,16 +297,16 @@ def atomic_write(path, contents, mode=None):
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temp, path)
-        dir_fd = os.open(path.parent, os.O_RDONLY)
         try:
+            dir_fd = os.open(path.parent, os.O_RDONLY)
             try:
                 os.fsync(dir_fd)
-            except OSError:
-                # Content is already fsynced and replaced; some filesystems do
-                # not support syncing directory entries.
-                pass
-        finally:
-            os.close(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            # Some platforms/filesystems cannot open or sync directory entries.
+            # File content is already fsynced and the replacement has succeeded.
+            pass
     except BaseException:
         if fd is not None:
             try:
