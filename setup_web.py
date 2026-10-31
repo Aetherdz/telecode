@@ -110,8 +110,8 @@ def run_setup_web() -> int:
                     return False
             return True
 
-        def authenticated(self):
-            if not self.trusted():
+        def authenticated(self, post=False):
+            if not self.trusted(post=post):
                 return False
             cookies = self.headers.get("Cookie", "")
             return any(secrets.compare_digest(part.strip().removeprefix("telecode=").strip('"'), secret)
@@ -155,7 +155,7 @@ def run_setup_web() -> int:
             return self.send(200, body, asset[1])
 
         def do_POST(self):
-            if not self.authenticated() or not self.trusted(post=True):
+            if not self.authenticated(post=True):
                 return self.send(403, b"Forbidden")
             if self.headers.get_content_type() != "application/json":
                 return self.send(415, b"Unsupported media type")
