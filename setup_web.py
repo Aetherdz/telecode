@@ -221,9 +221,9 @@ def run_setup_web(*, browser_open=None, serve=True) -> int:
                         chat_id = chats[0] if chats else ""
                         self.server.pending_chat_id = chat_id
                         return self.json(200, {"ok": bool(chat_id), "pending": not bool(chat_id), "chat_id_masked": detection.mask_chat_id(chat_id) if chat_id else ""})
-                chat_id = str(data.get("chat_id", "")).strip()
-                if data.get("use_detected"):
-                    chat_id = getattr(self.server, "pending_chat_id", "")
+                    chat_id = str(data.get("chat_id", "")).strip()
+                    if data.get("use_detected"):
+                        chat_id = getattr(self.server, "pending_chat_id", "")
                     if not re.fullmatch(r"-?\d+", chat_id):
                         return self.json(400, {"error": "Enter a numeric chat ID"})
                     _telegram("sendMessage", token, {"chat_id": chat_id, "text": "TeleCode setup test"})
