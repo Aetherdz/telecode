@@ -299,14 +299,18 @@ def atomic_write(path, contents, mode=None):
         os.replace(temp, path)
         try:
             dir_fd = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(dir_fd)
-            finally:
-                os.close(dir_fd)
         except OSError:
             # Some platforms/filesystems cannot open or sync directory entries.
             # File content is already fsynced and the replacement has succeeded.
-            pass
+            dir_fd = None
+        if dir_fd is not None:
+            try:
+                try:
+                    os.fsync(dir_fd)
+                except OSError:
+                    pass
+            finally:
+                os.close(dir_fd)
     except BaseException:
         if fd is not None:
             try:
