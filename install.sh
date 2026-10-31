@@ -118,7 +118,9 @@ Commands:
   --start, listen     run the listener in this terminal
   --status, status    show listener status
   --configure-cli     configure a coding-agent CLI (MCP registration)
-  --browser-setup     temporary loopback-only browser setup wizard
+  --web               temporary loopback-only browser setup wizard
+  --cli               terminal setup wizard
+  --browser-setup     alias for --web
   get-id              detect your private chat ID through your own bot
   --bootstrap         install files only (used by package managers/tests)
 
@@ -606,8 +608,12 @@ INSTALL_FILES=(
   "service_manager.py"
   "get_telegram_id.py"
   ".env.example"
+  "telegram_bridge/web/index.html"
+  "telegram_bridge/web/app.css"
+  "telegram_bridge/web/app.js"
 )
 for relative in "${INSTALL_FILES[@]}"; do
+  [[ "$relative" == telegram_bridge/web/* && ! -f "$SOURCE_DIR/$relative" ]] && continue
   install_file "$relative"
 done
 
@@ -938,9 +944,14 @@ if [[ "$COMMAND" == "--configure-cli" ]]; then
   exit $?
 fi
 
-if [[ "$COMMAND" == "--browser-setup" ]]; then
+if [[ "$COMMAND" == "--browser-setup" || "$COMMAND" == "--web" ]]; then
   TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" \
     exec "$PYTHON" "$APP_DIR/setup_web.py"
+fi
+
+if [[ "$COMMAND" == "--cli" ]]; then
+  TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" "$PYTHON" "$APP_DIR/setup_cli.py"
+  exit $?
 fi
 
 if [[ "$COMMAND" == "get-id" ]]; then
@@ -966,6 +977,16 @@ if [[ -z "$COMMAND" || "$COMMAND" == "--setup" || "$COMMAND" == "setup" ]]; then
     fail "Interactive setup requires a terminal. Rerun install.sh in a terminal, or use --yes."
     exit 2
   fi
+  printf 'Setup: Browser (recommended) / Terminal [B/t]: '
+  IFS= read -r setup_choice || { fail "Setup choice was not received."; exit 130; }
+  case "${setup_choice,,}" in
+    ""|b|browser|web)
+      TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" \
+        exec "$PYTHON" "$APP_DIR/setup_web.py"
+      ;;
+    t|terminal|cli) ;;
+    *) fail "Choose Browser or Terminal."; exit 2 ;;
+  esac
   TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" "$PYTHON" "$APP_DIR/setup_cli.py" || {
     fail "CLI integration was cancelled or could not be configured; listener was not enabled."
     exit 2
