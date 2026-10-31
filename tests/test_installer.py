@@ -27,16 +27,18 @@ class InstallerTests(unittest.TestCase):
     def test_installer_accepts_curl_bootstrap_flag_without_extra_args(self):
         text = (ROOT / "install.sh").read_text()
         self.assertIn('"--curl-bootstrap"', text)
-        self.assertIn("github.com/Aetherdz/telecode.git", text)
-        self.assertIn('! -d "$bootstrap_dir/repo/.git"', text)
+        self.assertIn("codeload.github.com", text)
+        self.assertIn('PINNED_SHA256=', text)
+        self.assertNotIn("git clone", text)
+        self.assertNotIn("git fetch", text)
 
-    def test_curl_bootstrap_shows_logo_before_download_and_after_completion(self):
+    def test_curl_bootstrap_verifies_before_extracting_and_runs_setup(self):
         text = (ROOT / "install.sh").read_text()
-        bootstrap = text.split('if [[ "${1:-}" == "--curl-bootstrap" ]]; then', 1)[1].split("\nfi\n", 1)[0]
-        self.assertEqual(bootstrap.count("  logo"), 2)
-        self.assertLess(bootstrap.index("  logo"), bootstrap.index("Downloading TeleCode source"))
-        self.assertLess(bootstrap.index("[100%] Download complete."), bootstrap.rindex("  logo"))
-        self.assertIn("Starting TeleCode setup...", bootstrap)
+        self.assertLess(text.index("Downloading ${REPO_OWNER}"), text.index("SHA-256 mismatch"))
+        self.assertLess(text.index('sha256_file "$archive"'), text.index('tar -xzf "$archive"'))
+        self.assertLess(text.index('tar -xzf "$archive"'), text.index('bash "$source/install.sh"'))
+        self.assertIn("Starting TeleCode setup...", text)
+        self.assertIn("</dev/tty", text)
     def test_bootstrap_is_self_contained_and_help_is_local(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = pathlib.Path(tmp)
@@ -54,6 +56,8 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(run.returncode, 0, run.stderr)
             app = home / "data/telegram-bridge"
             self.assertTrue((app / "adapters/__init__.py").is_file())
+            self.assertTrue((app / "adapters/codex.py").is_file())
+            self.assertTrue((app / "adapters/cursor.py").is_file())
             self.assertTrue((app / "telegram_bridge/__init__.py").is_file())
             self.assertTrue((app / "telegram_bridge/cli.py").is_file())
             self.assertTrue((app / "config/opencode.example.json").is_file())

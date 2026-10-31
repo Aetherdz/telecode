@@ -6,6 +6,19 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class SiteTests(unittest.TestCase):
+    def test_integration_matrix_matches_documented_client_support(self):
+        html = (ROOT / "index.html").read_text()
+        js = (ROOT / "assets/site.js").read_text()
+        for client in ("opencode", "claudeCode", "codex", "cursor", "gemini", "cline", "roo", "amazonQ", "continue", "aider"):
+            self.assertIn(f'data-i18n="{client}"', html)
+        self.assertIn('data-i18n="amazonQ">Amazon Q Developer', html)
+        self.assertIn('data-i18n="codex">Codex CLI', html)
+        self.assertIn("cline: 'Cline'", js)
+        self.assertIn("roo: 'Roo Code'", js)
+        self.assertIn("aider: 'Aider'", js)
+        self.assertIn("security6: 'Targeted routing depends on the selected supported local agent", js)
+        self.assertIn("security6: 'Le routage ciblé dépend du client local pris en charge sélectionné", js)
+
     def test_language_menu_has_requested_languages_and_persisted_options(self):
         html = (ROOT / "index.html").read_text()
         js = (ROOT / "assets/site.js").read_text()
@@ -78,22 +91,26 @@ class SiteTests(unittest.TestCase):
         self.assertIn(".copy-button { display: inline-flex; min-width: 116px; min-height: 48px", css)
         self.assertIn(".copy-button:focus-visible", css)
 
-    def test_bootstrap_progress_finishes_at_100_before_install(self):
+    def test_bootstrap_progress_is_real_and_verified_before_install(self):
         script = (ROOT / "install.sh").read_text()
-        self.assertIn("'[100%] Download complete.'", script)
-        self.assertIn('git clone --quiet --depth 1', script)
-        self.assertIn("printf '\\r[%3d%%] [%-10s]'", script)
-        self.assertLess(script.index("'[100%] Download complete.'"), script.index('exec bash "$bootstrap_dir/repo/install.sh"'))
+        self.assertIn("render_progress", script)
+        self.assertIn("PINNED_SIZE", script)
+        self.assertIn("sha256_file", script)
+        self.assertNotIn("git clone", script)
+        self.assertNotIn("show_download_progress", script)
+        self.assertLess(script.index("PINNED_SHA256"), script.index("bootstrap_main() {"))
+        self.assertLess(script.index('sha256_file "$archive"'), script.index('tar -xzf "$archive"'))
 
     def test_bootstrap_logo_is_defined_before_early_mode(self):
         script = (ROOT / "install.sh").read_text()
-        self.assertLess(script.index("logo() {"), script.index('if [[ "${1:-}" == "--curl-bootstrap" ]]'))
+        self.assertLess(script.index("logo() {"), script.index('if [[ "$BOOTSTRAP_MODE" == "1" ]]'))
 
     def test_download_progress_bar_is_fixed_length_not_page_long(self):
         script = (ROOT / "install.sh").read_text()
-        self.assertIn("local filled=$((progress / 10))", script)
-        self.assertIn("[%-10s]", script)
-        self.assertIn("show_download_progress 100", script)
+        self.assertIn("local width=24", script)
+        self.assertIn("[%3d%%]", script)
+        self.assertIn("printf '\\r%s[%3d%%]", script)
+        self.assertIn("format_bytes", script)
 
 
 if __name__ == "__main__":
