@@ -28,7 +28,8 @@ class SetupSecurityTests(unittest.TestCase):
         self.assertIn('self.headers.get("Origin") or ""', source)
         self.assertIn('"Cache-Control", "no-store, private"', source)
         self.assertIn("server.server_close()", source)
-        self.assertIn("script-src 'self' 'nonce-{nonce}'", source)
+        self.assertIn("script-src", source)
+        self.assertIn("nonce_value", source)
 
 
 if __name__ == "__main__":

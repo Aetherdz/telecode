@@ -74,6 +74,13 @@ class DetectionTests(unittest.TestCase):
         self.assertTrue(all(row["detected"] for row in rows[:-1]))
         self.assertFalse(rows[-1]["verified"])
 
+    def test_card_capability_badges_match_readme(self):
+        rows = {item["key"]: item for item in detection.cards()}
+        self.assertEqual(rows["opencode"]["capability"], "inbound")
+        self.assertEqual(rows["claude"]["capability"], "inbound")
+        for key in ("codex", "cursor", "gemini", "cline", "roo", "q"):
+            self.assertEqual(rows[key]["capability"], "outbound")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -90,6 +90,9 @@ remains manual where the format has not been verified.
 
 ![Browser wizard three-step layout preview (wireframe, not runtime-captured)](docs/screenshots/telecode-setup-steps.svg)
 
+The setup image is a wireframe preview, not captured runtime output. Runtime
+screenshots of the wizard are not included yet.
+
 There is no published npm/Bun package or `npx`/`bunx` installer yet. TeleCode is a Python application; the guided installer installs it locally and registers its MCP server with the client you choose. Do not use `npx aetherdz/telecode` or `bunx aetherdz/telecode` as if those package names were published.
 
 After setup, restart your coding-agent CLI so it loads the MCP server. Check the bridge with:

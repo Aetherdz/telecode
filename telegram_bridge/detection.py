@@ -52,7 +52,7 @@ def cards():
     for key, name, capability, paths in CARDS:
         host = hosts.get(key)
         found_cli, config, _supported = setup_cli.discover(host) if host else (False, None, False)
-        result.append({"key": key, "name": name, "capability": capability,
+        result.append({"key": key, "name": name, "mark": ("◈", "⌘", "✳", "⬡", "◉", "⟡", "△", "▦", "✦")[len(result)], "capability": capability,
                        "detected": bool(found_cli or config), "config_path": str(config or ""),
                        "session_paths": [str(HOME / part) for part in paths],
                        "verified": key == "opencode", "needs_manual": key != "opencode",
@@ -62,8 +62,8 @@ def cards():
 
 def clients(setup_module=None):
     """Legacy client registry shape retained for the existing web endpoint."""
-    return [{"name": item["name"], "key": item["key"], "detected": item["detected"],
-             "supported": item["capability"] in ("inbound", "outbound"),
+    return [{"name": item["name"], "key": item["key"], "capability": item["capability"], "detected": item["detected"],
+             "supported": item["capability"] in ("inbound", "outbound", "inbound-outbound"),
              "config": item["config_path"]} for item in cards() if item["key"] != "manual"]
 
 
@@ -122,18 +122,27 @@ def detect(agent_key, path=None, home=None):
                 "verified": False, "error": "Choose a supported session folder manually."}
     if path:
         target = _safe(path, root)
-        if agent_key != "opencode":
+        if agent_key == "opencode" and target == root / ".local/share/opencode/storage/session":
+            pass
+        elif agent_key != "opencode":
             return {"ok": False, "path": str(target), "count": 0, "sessions": [], "needs_path": True,
                     "verified": False, "error": "This agent's session format is not verified; manual configuration is required."}
-        if not validate(agent_key, target, root):
+        try:
+            if not target.is_dir() or not any(p.is_file() and p.suffix == ".json" and not p.is_symlink() for p in target.iterdir()):
+                return {"ok": False, "path": str(target), "count": 0, "sessions": [], "needs_path": True,
+                        "verified": True, "error": "Folder does not match the verified OpenCode session structure."}
+        except OSError:
             return {"ok": False, "path": str(target), "count": 0, "sessions": [], "needs_path": True,
-                    "verified": agent_key == "opencode", "error": "Folder does not match a known session structure."}
+                    "verified": True, "error": "Session folder is unavailable."}
     else:
         target = None
         if agent_key == "opencode":
             candidate = root / ".local/share/opencode/storage/session"
-            if validate(agent_key, candidate, root):
-                target = candidate
+            try:
+                if candidate.is_dir() and any(p.is_file() and p.suffix == ".json" and not p.is_symlink() for p in candidate.iterdir()):
+                    target = candidate
+            except OSError:
+                target = None
         if target is None:
             return {"ok": False, "path": "", "count": 0, "sessions": [], "needs_path": True,
                     "verified": agent_key == "opencode", "error": "Session storage was not verified. Select a folder to inspect."}
@@ -173,5 +182,8 @@ def validate(agent_key, path, home=None):
     if not target.is_dir():
         return False
     if agent_key == "opencode":
-        return any(p.is_file() and p.suffix == ".json" and not p.is_symlink() for p in target.iterdir())
+        try:
+            return any(p.is_file() and p.suffix == ".json" and not p.is_symlink() for p in target.iterdir())
+        except OSError:
+            return False
     return False

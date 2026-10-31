@@ -156,7 +156,7 @@ def cmd_menu():
     if answer in ("1", "setup"):
         import subprocess
         installer = pathlib.Path(__file__).resolve().parent.parent / "install.sh"
-        return subprocess.call(["bash", str(installer), "--web"])
+        return subprocess.call(["bash", str(installer)])
     if answer in ("2", "status"):
         return cmd_status()
     if answer in ("3", "listen"):
@@ -201,18 +201,6 @@ def main():
             return subprocess.call(["bash", installer, "--cli"])
         if len(sys.argv) > 2:
             print("usage: telecode setup [--web|--cli]", file=sys.stderr)
-            return 2
-        if sys.stdin.isatty() and sys.stdout.isatty():
-            try:
-                choice = input("Setup: Browser (recommended) / Terminal [B/t]: ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                print()
-                return 130
-            if choice in ("", "b", "browser", "web"):
-                return subprocess.call(["bash", installer, "--web"])
-            if choice in ("t", "terminal", "cli"):
-                return subprocess.call(["bash", installer, "--cli"])
-            print("Choose Browser or Terminal.", file=sys.stderr)
             return 2
         return subprocess.call(["bash", installer])
     if len(sys.argv) > 1 and sys.argv[1] in ("--enable", "--configure-cli"):

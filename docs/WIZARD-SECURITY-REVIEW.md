@@ -1,4 +1,4 @@
-# Setup wizard security review (detection scope)
+# Setup wizard security review
 
 ## Verified
 
@@ -16,6 +16,15 @@
 - `setup_cli.discover` uses executable lookup and readable config-file existence;
   it does not validate config contents. Therefore the wizard must not describe
   these presence signals as a validated installation or functional integration.
+- Backend checks in `setup_web.py` bind to IPv4 loopback, require an exact Host
+  and same-origin Origin/Referer on POST, exchange a one-time launch URL secret
+  for an HttpOnly SameSite=Strict cookie, require a per-launch CSRF header,
+  suppress request logs, and set no-store plus a restrictive CSP. These controls
+  are code-reviewed; automated HTTP-level rejection tests are still incomplete.
+- Config destination is selected from `setup_cli.HOSTS`, credential config is
+  under the XDG TeleCode config directory, and credentials are atomically written
+  with mode 0600. Network integration and filesystem race behavior have not been
+  validated end-to-end.
 
 ## Hypotheses / unverified
 
@@ -24,6 +33,9 @@
 - The local filesystem can change between path checks and reads (TOCTOU). Current
   containment checks and bounded reads reduce exposure but do not provide a
   race-free descriptor-relative traversal guarantee.
+- The setup wizard's Telegram network validation, ID polling, and test-message
+  flow have not been exercised against Telegram; they must be tested with mocks
+  before release and manually by the owner in their own bot session.
 - Credential-like text in metadata is masked heuristically; no generic pattern
   can guarantee detection of every secret format. Metadata remains untrusted.
 

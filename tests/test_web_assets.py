@@ -15,6 +15,10 @@ class WizardAssetsTests(unittest.TestCase):
         self.assertIn("{{CSRF}}", html)
         self.assertIn('"X-CSRF-Token"', js)
         self.assertNotIn("https://", html + js)
+        self.assertEqual(html.count('data-step="'), 4)
+        self.assertEqual(html.count('data-page="'), 4)
+        self.assertIn("prefers-color-scheme:dark", (web / "app.css").read_text())
+        self.assertIn("focus-visible", (web / "app.css").read_text())
 
 
 if __name__ == "__main__":

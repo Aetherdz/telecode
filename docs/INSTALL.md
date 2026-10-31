@@ -106,6 +106,8 @@ preserved.
 See the [terminal installer preview](screenshots/telecode-cli.svg) and the
 [browser wizard step wireframe](screenshots/telecode-setup-steps.svg). The
 wireframe is explicitly a design preview, not a screenshot of runtime behavior.
+Runtime browser-step screenshots are not included yet; do not treat the wireframe
+as captured output.
 Installer options include `--verbose`, `--quiet`, `--yes`, `--dry-run`, `--update`,
 `--help`, `--version`, `--curl-bootstrap`, `--web`, and `--cli`. Dry-run prints the
 plan without writing files; a repeated install reports files already up to date.

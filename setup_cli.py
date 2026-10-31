@@ -405,7 +405,7 @@ def register_for_web(cli, config_path=None):
     writing and use backup() plus atomic_write().
     """
     host = next((item for item in HOSTS if item[1] == cli), None)
-    if host is None or not host[3] or cli in {"codex", "aider", "continue"}:
+    if host is None or not host[3]:
         raise ValueError("Choose a supported coding CLI.")
     _, detected_config, supported = discover(host)
     config = detected_config or host[2][0]
