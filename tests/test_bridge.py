@@ -16,6 +16,41 @@ sys.modules[spec.name] = tb
 spec.loader.exec_module(tb)
 
 
+class WaitArgumentTests(unittest.TestCase):
+    def test_wait_defaults_and_accepts_bounds(self):
+        from telegram_bridge.cli import _parse_wait_seconds
+        self.assertEqual(_parse_wait_seconds([]), 120)
+        self.assertEqual(_parse_wait_seconds(["1"]), 1)
+        self.assertEqual(_parse_wait_seconds(["86400"]), 86400)
+
+    def test_wait_rejects_bad_or_unbounded_values(self):
+        from telegram_bridge.cli import _parse_wait_seconds
+        for args in (["0"], ["86401"], ["-1"], ["1.5"], ["abc"], ["١٢٣"], ["1", "2"]):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                _parse_wait_seconds(args)
+
+    def test_cli_main_returns_clean_interrupt_status(self):
+        from telegram_bridge import cli
+        with patch.object(cli.sys, "argv", ["telecode", "wait"]), \
+             patch.object(cli, "cmd_wait", side_effect=KeyboardInterrupt):
+            self.assertEqual(cli.main(), 130)
+
+    def test_help_lists_supported_helper_and_init_commands(self):
+        from telegram_bridge import cli
+        self.assertIn("get-id", cli.USAGE)
+        self.assertIn("--init", cli.USAGE)
+        self.assertIn("--help", cli.USAGE)
+
+    def test_help_switch_prints_usage_without_install_side_effect(self):
+        from telegram_bridge import cli
+        with patch.object(cli.sys, "argv", ["telecode", "--help"]), \
+             patch.object(cli.subprocess, "call") as call, \
+             patch("builtins.print") as output:
+            self.assertEqual(cli.main(), 0)
+        call.assert_not_called()
+        self.assertEqual(output.call_args.args[0], cli.USAGE)
+
+
 class SessionRoutingTests(unittest.TestCase):
     def test_shim_forwards_main_entrypoint_patches(self):
         import telegram_bridge

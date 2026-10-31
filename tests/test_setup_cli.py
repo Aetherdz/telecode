@@ -12,6 +12,15 @@ spec.loader.exec_module(setup_cli)
 
 
 class CliSetupTests(unittest.TestCase):
+    def test_menu_display_width_handles_ansi_and_wide_characters(self):
+        text = "\033[31m界e\u0301\033[0m"
+        self.assertEqual(setup_cli._columns(text), 3)
+        self.assertEqual(setup_cli._columns(setup_cli._pad_display(text, 5)), 5)
+
+    def test_empty_setup_option_list_fails_cleanly(self):
+        with patch.object(setup_cli, "selectable_hosts", return_value=[]):
+            self.assertEqual(setup_cli.main(), 2)
+
     def test_cli_setup_cancellation_returns_failure_to_installer(self):
         with patch.object(setup_cli, "selectable_hosts", return_value=[setup_cli.HOSTS[-1]]), \
              patch.object(setup_cli, "choose", return_value=None):

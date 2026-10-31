@@ -29,23 +29,8 @@ This file is the installed entry point; the implementation lives in the
 telegram_bridge package next to it. Module attributes are forwarded to the
 package so patching `tg_bridge.X` still governs every submodule call.
 """
-import atexit
-import json
-import os
-import pathlib
-import queue
-import re
-import secrets
-import signal
-import stat
 import subprocess
 import sys
-import threading
-import time
-import traceback
-import urllib.parse
-import urllib.request
-
 import types
 
 import telegram_bridge as _pkg
@@ -55,6 +40,12 @@ import telegram_bridge as _pkg
 # that follows mock's teardown delattr (the package no longer has the name at
 # that instant), leaving submodule tg.X lookups broken.
 _FORWARD_NAMES = frozenset(n for n in vars(_pkg) if not n.startswith("__"))
+# Names owned by this shim module rather than the package root.
+_SHIM_LOCAL = frozenset({
+    "_pkg", "_FORWARD_NAMES", "_SHIM_LOCAL", "_Forwarder", "atexit", "json",
+    "os", "pathlib", "queue", "re", "secrets", "signal", "stat", "subprocess",
+    "sys", "threading", "time", "traceback", "types", "urllib",
+})
 
 
 class _Forwarder(types.ModuleType):
@@ -69,13 +60,15 @@ class _Forwarder(types.ModuleType):
             raise AttributeError(name) from None
 
     def __setattr__(self, name, value):
-        if name.startswith("__") or name not in _FORWARD_NAMES:
+        # Forward every public bridge symbol, including lazily loaded ones. The
+        # package exports are not all in vars() at import time any more.
+        if name.startswith("__") or name in _SHIM_LOCAL:
             super().__setattr__(name, value)
         else:
             setattr(_pkg, name, value)
 
     def __delattr__(self, name):
-        if name.startswith("__") or name not in _FORWARD_NAMES or name in vars(self):
+        if name.startswith("__") or name in _SHIM_LOCAL:
             super().__delattr__(name)
         else:
             delattr(_pkg, name)
