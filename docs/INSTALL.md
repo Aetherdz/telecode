@@ -19,6 +19,14 @@ you provide the token and explicitly start ID detection or the listener.
 chmod 600 telegram.env
 ```
 
+On POSIX systems TeleCode writes credential files with mode `0600`. The
+installer also applies a current-user-only ACL to its generated Windows
+credential file. In contrast, the Python atomic config writers do not set
+Windows ACLs: those files rely on the user profile directory's default
+permissions, which are **not equivalent to POSIX `0600`**. Review your Windows
+account/profile ACLs if stronger isolation is required; explicit ACL management
+by these writers is a possible follow-up.
+
 Keep the runtime directory outside public repositories. Set `TG_SEND_ROOTS`
 to the one or more folders from which the agent is allowed to send files,
 separated by `:` on Linux/macOS.

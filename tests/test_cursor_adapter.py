@@ -14,7 +14,7 @@ SID = "c6b62c6f-7ead-4fd6-9922-e952131177ff"
 class CursorAdapterTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = pathlib.Path(self.temp.name)
+        self.root = pathlib.Path(self.temp.name).resolve()
         self.workspace = self.root / "project"
         self.workspace.mkdir()
         self.adapter = CursorAdapter(workspace=self.workspace)
@@ -36,7 +36,7 @@ class CursorAdapterTests(unittest.TestCase):
         self.assertEqual(len(sessions), 1)
         self.assertEqual(sessions[0].id, SID)
         self.assertEqual(sessions[0].title, "Smoke chat")
-        self.assertEqual(sessions[0].directory, str(self.workspace))
+        self.assertEqual(sessions[0].directory, str(self.workspace.resolve()))
 
     def test_session_listing_includes_other_workspaces_and_skips_corrupt_metadata(self):
         config = self.root / "cursor-config"
@@ -51,7 +51,7 @@ class CursorAdapterTests(unittest.TestCase):
         adapter = CursorAdapter(workspace=self.workspace, config_dir=config)
         sessions = adapter.list_sessions()
         self.assertEqual([session.id for session in sessions], [SID])
-        self.assertEqual(sessions[0].directory, str(other_workspace))
+        self.assertEqual(sessions[0].directory, str(other_workspace.resolve()))
 
     def test_session_title_falls_back_to_bounded_first_user_prompt(self):
         config = self.root / "cursor-config"
@@ -106,7 +106,7 @@ class CursorAdapterTests(unittest.TestCase):
         with patch.object(self.adapter, "list_sessions", return_value=[listed]), \
              patch("adapters.cursor.subprocess.run", return_value=result) as run:
             self.assertEqual(self.adapter.send_message(SID, "hello"), "answer")
-        self.assertEqual(run.call_args.kwargs["cwd"], str(self.workspace))
+        self.assertEqual(run.call_args.kwargs["cwd"], str(self.workspace.resolve()))
         self.assertEqual(run.call_args.kwargs["timeout"], 600)
 
     def test_send_message_uses_session_workspace_from_metadata(self):
@@ -117,7 +117,7 @@ class CursorAdapterTests(unittest.TestCase):
                 AgentSession(SID, "Other", str(other_workspace), "cursor")]), \
              patch("adapters.cursor.subprocess.run", return_value=result) as run:
             self.assertEqual(self.adapter.send_message(SID, "hello"), "answer")
-        self.assertEqual(run.call_args.kwargs["cwd"], str(other_workspace))
+        self.assertEqual(run.call_args.kwargs["cwd"], str(other_workspace.resolve()))
 
     def test_send_message_rejects_unknown_uuid_instead_of_falling_back_to_workspace(self):
         with patch.object(self.adapter, "list_sessions", return_value=[]), \
@@ -132,8 +132,9 @@ class CursorAdapterTests(unittest.TestCase):
             session = self.adapter.create_session("  A   new chat  ")
         self.assertEqual(session.id, SID)
         self.assertEqual(session.title, "A new chat")
+        self.assertEqual(session.directory, str(self.workspace.resolve()))
         self.assertEqual(run.call_args.args[0], ["agent", "create-chat"])
-        self.assertEqual(run.call_args.kwargs["cwd"], str(self.workspace))
+        self.assertEqual(run.call_args.kwargs["cwd"], str(self.workspace.resolve()))
 
     def test_create_session_rejects_invalid_cli_output(self):
         result = type("Result", (), {"returncode": 0, "stdout": "not-an-id\n", "stderr": ""})()
