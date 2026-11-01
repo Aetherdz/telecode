@@ -26,11 +26,6 @@
 ## See it in action
 
 The responsive interface keeps the main navigation focused on the product while contact links live in a dedicated section.
-
-| Mobile preview | Desktop preview |
-| --- | --- |
-| ![TeleCode mobile preview](docs/screenshots/telecode-mobile.png) | ![TeleCode desktop preview](docs/screenshots/telecode-desktop.png) |
-
 ## Feature overview
 
 - **Telegram control:** send prompts and attachments from the authorized owner chat.
