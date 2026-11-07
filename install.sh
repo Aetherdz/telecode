@@ -434,9 +434,16 @@ while [[ $# -gt 0 ]]; do
     --version) printf 'TeleCode installer %s\n' "$VERSION"; exit 0 ;;
     "--curl-bootstrap") BOOTSTRAP_FLAG=1 ;;
     --help|-h) usage; exit 0 ;;
-    --bootstrap|--update|--uninstall|--enable|--start|--status|--configure-cli|--browser-setup|--setup|setup|listen|status|help)
+    --bootstrap|--update|--uninstall|--enable|--start|--status|--configure-cli|--browser-setup|--setup|setup|listen|status|help|menu)
       [[ -z "$COMMAND" ]] || { fail "Only one command may be given."; exit 2; }
       COMMAND="$1"
+      ;;
+    read|wait|send)
+      [[ -z "$COMMAND" ]] || { fail "Only one command may be given."; exit 2; }
+      COMMAND="$1"
+      shift
+      EXTRA_ARGS=("$@")
+      break
       ;;
     get-id)
       [[ -z "$COMMAND" ]] || { fail "Only one command may be given."; exit 2; }
@@ -767,6 +774,46 @@ account ID, message @Getmyid_bot, or choose automatic detection and send /start
 to your own bot. Never send your bot token to an ID lookup bot.
 EOF
   exit 0
+fi
+
+# `telecode` with no arguments opens the local command menu. The installed
+# wrapper re-enters this script through the command name so its menu matches
+# the current source installation instead of a stale copied Python module.
+if [[ "$COMMAND" == "menu" ]]; then
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    printf 'TeleCode menu requires an interactive terminal. Run `telecode help` for commands.\n' >&2
+    exit 2
+  fi
+  printf '\n%s\n' 'TeleCode — Telegram bridge for coding agents' '' \
+    '  1. Setup wizard       Configure an agent and Telegram credentials' \
+    '  2. Show status        Bot, listener, session and unread messages' \
+    '  3. Start listener     Run in this terminal' \
+    '  4. Read messages      Show unread Telegram messages' \
+    '  5. Wait for message   Wait up to 120 seconds' \
+    '  6. Send a message     telecode send TEXT' \
+    '  7. Find chat ID       Use your own bot' \
+    '  8. Help / commands    Command reference' \
+    '  9. Exit' ''
+  while true; do
+    printf 'Choose 1-9 or command (q exits): '
+    IFS= read -r MENU_CHOICE || exit 130
+    case "${MENU_CHOICE,,}" in
+      1|setup) exec bash "$0" --setup ;;
+      2|status) exec bash "$0" status ;;
+      3|listen) exec bash "$0" listen ;;
+      4|read) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" read ;;
+      5|wait) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" wait ;;
+      6|send) printf 'Usage: telecode send TEXT\n';;
+      7|get-id) exec bash "$0" get-id ;;
+      8|help) exec bash "$0" help ;;
+      9|q|quit|exit) exit 0 ;;
+      *) printf 'Choose a listed number or command name.\n' >&2 ;;
+    esac
+  done
+fi
+
+if [[ "$COMMAND" == "read" || "$COMMAND" == "wait" || "$COMMAND" == "send" ]]; then
+  exec "$PYTHON" "$APP_DIR/telegram-bridge.py" "$COMMAND" "${EXTRA_ARGS[@]}"
 fi
 
 have_systemd_user() {

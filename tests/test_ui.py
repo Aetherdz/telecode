@@ -31,6 +31,35 @@ class UIHelpersTests(unittest.TestCase):
         self.assertEqual(mask_chat_id("123456789"), "••••6789")
         self.assertEqual(mask_chat_id("12"), "••••")
 
+    def test_extended_colors_and_badges(self):
+        with mock.patch("telegram_bridge.ui.supports_color", return_value=True):
+            self.assertIn("\033[36m", ui.cyan("test"))
+            self.assertIn("\033[35m", ui.magenta("test"))
+            self.assertIn("\033[34m", ui.blue("test"))
+            self.assertIn("\033[90m", ui.gray("test"))
+            self.assertIn("ACTIVE", ui.badge("ACTIVE", "green"))
+
+    def test_box_and_key_value_card(self):
+        with mock.patch("telegram_bridge.ui.supports_unicode", return_value=True):
+            lines = ui.box("Status", ["row 1", "row 2"])
+            self.assertIn("╭", lines[0])
+            self.assertIn("Status", lines[0])
+            self.assertIn("╰", lines[-1])
+
+        with mock.patch("telegram_bridge.ui.supports_unicode", return_value=False):
+            lines = ui.box("Status", ["row 1", "row 2"])
+            self.assertIn("+", lines[0])
+            self.assertIn("+", lines[-1])
+
+        card = ui.key_value_card("Card", [("bot", "@testbot"), ("unread", "0")])
+        self.assertTrue(any("bot" in l and "@testbot" in l for l in card))
+
+    def test_format_message(self):
+        record = {"iso": "2026-11-07 12:00:00", "update_id": 42, "text": "hello", "file": "/tmp/test.txt"}
+        lines = ui.format_message(record)
+        self.assertTrue(any("hello" in l for l in lines))
+        self.assertTrue(any("/tmp/test.txt" in l for l in lines))
+
 
 if __name__ == "__main__":
     unittest.main()

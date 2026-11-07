@@ -73,6 +73,10 @@ _LAZY_GROUPS = {
     "listener": (
         "start_opencode_listener", "_remove_pid_file", "cmd_listen",
     ),
+    "cli": (
+        "cmd_read", "cmd_wait", "cmd_send", "cmd_sendfile",
+        "cmd_status", "cmd_menu", "cmd_install", "main", "USAGE",
+    ),
 }
 _LAZY = {name: module for module, names in _LAZY_GROUPS.items() for name in names}
 
@@ -89,17 +93,3 @@ def __getattr__(name):
 
 def __dir__():
     return sorted(set(globals()) | set(_LAZY))
-
-
-# --- cli.py (kept eager: it is tiny and needed for --help) ---
-from . import cli as _cli  # noqa: E402
-from .cli import (  # noqa: E402,F401
-    cmd_read,
-    cmd_wait,
-    cmd_send,
-    cmd_sendfile,
-    cmd_status,
-    cmd_install,
-    main,
-    USAGE,
-)

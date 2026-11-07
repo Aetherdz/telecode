@@ -15,9 +15,19 @@ def ts():
 
 
 def log(msg, **kwargs):
-    """Diagnostics go to stderr (stdout stays clean for command output / MCP)."""
+    """Diagnostics go to telecode.log by default, and to stderr only if verbose."""
     kwargs.pop("flush", None)
-    print(msg, file=sys.stderr, flush=True, **kwargs)
+    line = str(msg)
+    try:
+        log_file = getattr(tg, "LOG", None)
+        if log_file:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+    except Exception:
+        pass
+    if os.environ.get("TELECODE_VERBOSE") in ("1", "true", "True") or os.environ.get("TELECODE_LOG_STDERR") in ("1", "true", "True"):
+        print(line, file=sys.stderr, flush=True, **kwargs)
 
 
 def load_env():
