@@ -37,6 +37,35 @@ class MenuTests(unittest.TestCase):
             self.assertEqual(cli.cmd_menu(), 0)
             mock_st.assert_called_once()
 
+    def test_setup_menu_option_calls_cmd_setup(self):
+        with patch("builtins.input", return_value="1"), patch.object(cli, "cmd_setup", return_value=0) as mock_su, patch("builtins.print"):
+            self.assertEqual(cli.cmd_menu(), 0)
+            mock_su.assert_called_once()
+
+    def test_cmd_setup_web_flag_routes_to_web_setup(self):
+        with patch.object(cli, "run_web_setup", return_value=0) as mock_web:
+            self.assertEqual(cli.cmd_setup(["--web"]), 0)
+            mock_web.assert_called_once()
+
+    def test_cmd_setup_cli_flag_routes_to_cli_setup(self):
+        with patch.object(cli, "run_cli_setup", return_value=0) as mock_cli:
+            self.assertEqual(cli.cmd_setup(["--cli"]), 0)
+            mock_cli.assert_called_once()
+
+    def test_cmd_setup_interactive_browser_selection(self):
+        with patch("builtins.input", return_value="1"), patch.object(cli, "run_web_setup", return_value=0) as mock_web, patch("builtins.print"):
+            self.assertEqual(cli.cmd_setup([]), 0)
+            mock_web.assert_called_once()
+
+    def test_cmd_setup_interactive_terminal_selection(self):
+        with patch("builtins.input", return_value="2"), patch.object(cli, "run_cli_setup", return_value=0) as mock_cli, patch("builtins.print"):
+            self.assertEqual(cli.cmd_setup([]), 0)
+            mock_cli.assert_called_once()
+
+    def test_cmd_setup_interactive_cancel(self):
+        with patch("builtins.input", return_value="3"), patch("builtins.print"):
+            self.assertEqual(cli.cmd_setup([]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

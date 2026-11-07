@@ -199,6 +199,145 @@ def cmd_status():
     return 0
 
 
+def _save_env_var(key: str, value: str) -> None:
+    env_path = tg.ENV
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    if env_path.exists():
+        try:
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+    filtered = [line for line in lines if not line.startswith(f"{key}=")]
+    filtered.append(f"{key}={value}")
+    content = "\n".join(filtered) + "\n"
+    tmp = env_path.with_name(f".{env_path.name}.tmp.{os.getpid()}")
+    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(content)
+        f.flush()
+        try:
+            os.fsync(f.fileno())
+        except OSError:
+            pass
+    tmp.replace(env_path)
+    try:
+        os.chmod(str(env_path), 0o600)
+    except OSError:
+        pass
+
+
+def run_web_setup() -> int:
+    app_dir = pathlib.Path(__file__).resolve().parent.parent
+    web_script = app_dir / "setup_web.py"
+    if not web_script.is_file():
+        print(ui.error_line("Browser setup script not found; reinstall TeleCode"), file=sys.stderr)
+        return 2
+    env = os.environ.copy()
+    env["TELEGRAM_BRIDGE_APP_DIR"] = str(app_dir)
+    env["TELEGRAM_BRIDGE_HOME"] = str(tg.ENV.parent)
+    print(ui.ok_line("Starting browser setup wizard..."))
+    return subprocess.call([sys.executable, str(web_script)], env=env)
+
+
+def run_cli_setup() -> int:
+    import re
+    app_dir = pathlib.Path(__file__).resolve().parent.parent
+    cli_script = app_dir / "setup_cli.py"
+    if not cli_script.is_file():
+        print(ui.error_line("Terminal setup script not found; reinstall TeleCode"), file=sys.stderr)
+        return 2
+    env = os.environ.copy()
+    env["TELEGRAM_BRIDGE_APP_DIR"] = str(app_dir)
+    rc = subprocess.call([sys.executable, str(cli_script)], env=env)
+    if rc != 0:
+        return rc
+
+    try:
+        cfg = tg.load_env()
+        has_token = bool(cfg.get("TG_BOT_TOKEN") and ":" in cfg["TG_BOT_TOKEN"])
+        has_chat = bool(cfg.get("TG_CHAT_ID") and cfg["TG_CHAT_ID"].lstrip("-").isdigit())
+    except Exception:
+        has_token = False
+        has_chat = False
+
+    if not has_token or not has_chat:
+        print()
+        print(ui.bold("Configure Telegram Credentials"))
+        print(ui.dim(f"Saved securely (mode 0600) to {tg.ENV}"))
+        print()
+
+    if not has_token:
+        for attempt in range(1, 4):
+            try:
+                import getpass
+                tok = getpass.getpass("Telegram bot token (from @BotFather): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 130
+            if re.match(r"^\d{5,}:[A-Za-z0-9_-]{20,}$", tok):
+                _save_env_var("TG_BOT_TOKEN", tok)
+                print(ui.ok_line(f"Bot token saved: {ui.mask_token(tok)}"))
+                has_token = True
+                break
+            print(ui.warn_line(f"Invalid token format (expected 12345:ABC...). Attempt {attempt} of 3."))
+        if not has_token:
+            print(ui.error_line("Bot token was not saved."), file=sys.stderr)
+            return 2
+
+    if not has_chat:
+        for attempt in range(1, 4):
+            try:
+                cid = input("Numeric owner chat ID (or 'a' for auto-detection): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 130
+            if cid.lower() == "a":
+                helper = app_dir / "get_telegram_id.py"
+                env_cid = os.environ.copy()
+                env_cid["TELEGRAM_BRIDGE_HOME"] = str(tg.ENV.parent)
+                subprocess.call([sys.executable, str(helper), "--configure"], env=env_cid)
+                has_chat = True
+                break
+            if re.match(r"^-?\d+$", cid):
+                _save_env_var("TG_CHAT_ID", cid)
+                print(ui.ok_line(f"Chat ID saved: {cid}"))
+                has_chat = True
+                break
+            print(ui.warn_line(f"Enter a numeric chat ID or 'a'. Attempt {attempt} of 3."))
+        if not has_chat:
+            print(ui.error_line("Chat ID was not saved."), file=sys.stderr)
+            return 2
+
+    print()
+    print(ui.ok_line("Setup complete: coding agent configured and credentials saved."))
+    print(ui.dim("Run ") + ui.accent("telecode status") + ui.dim(" to verify your connection."))
+    return 0
+
+
+def cmd_setup(args=None) -> int:
+    args = args or []
+    if any(a in ("--web", "--browser") for a in args):
+        return run_web_setup()
+    if "--cli" in args:
+        return run_cli_setup()
+    if args:
+        print("usage: telecode setup [--web|--cli]", file=sys.stderr)
+        return 2
+
+    setup_options = [
+        ("Browser wizard (recommended)", "configure credentials and agent via browser", "web"),
+        ("Terminal wizard", "configure in this terminal", "cli"),
+        ("Back to main menu", "", "back"),
+    ]
+    choice = ui.select_menu("TeleCode Setup Wizard", setup_options)
+    if choice == "web":
+        return run_web_setup()
+    if choice == "cli":
+        return run_cli_setup()
+    return 0
+
+
 def cmd_menu():
     """Show the organized command menu used by `telecode` on a terminal."""
     options = [
@@ -212,53 +351,30 @@ def cmd_menu():
         ("Help / commands", "show command reference", "help"),
         ("Exit", "", "exit"),
     ]
-    width = max(ui.visible_width(label) for label, _, _ in options)
-    menu_rows = []
-    for index, (label, hint, _) in enumerate(options, 1):
-        suffix = f"  {ui.dim(hint)}" if hint else ""
-        menu_rows.append(f"  {ui.accent(str(index) + '.')} {ui.bold(ui.pad(label, width))}{suffix}")
-
-    print()
-    for line in ui.box("TeleCode — Telegram bridge for coding agents", menu_rows):
-        print(line)
-    print()
-    print(ui.dim("1-8 select · 9 or q exit · Ctrl-C cancel"))
-    while True:
-        try:
-            answer = input("TeleCode › ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return 130
-        if answer in ("q", "quit", "exit", "9"):
-            return 0
-        selected = next((command for index, (_, _, command) in enumerate(options, 1)
-                         if answer in (str(index), command)), None)
-        if selected is None:
-            print(ui.error_line("Choose 1-9 or enter a command name."), file=sys.stderr)
-            continue
-        if selected == "exit":
-            return 0
-        if selected == "setup":
-            installer = pathlib.Path(__file__).resolve().parent.parent / "install.sh"
-            return subprocess.call(["bash", str(installer), "--setup"])
-        if selected == "status":
-            return cmd_status()
-        if selected == "listen":
-            return run_listener()
-        if selected == "read":
-            return cmd_read()
-        if selected == "wait":
-            print(f"Usage: telecode wait [SECONDS]  {ui.dim('(wait up to SECONDS, default 120s)')}")
-            return 0
-        if selected == "send":
-            print(f"Usage: telecode send TEXT  {ui.dim('(send text to configured Telegram chat)')}")
-            return 0
-        if selected == "get-id":
-            helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
-            return subprocess.call([sys.executable, str(helper)])
-        if selected == "help":
-            print(USAGE)
-            return 0
+    selected = ui.select_menu("TeleCode — Telegram bridge for coding agents", options)
+    if selected in (None, "exit"):
+        return 0
+    if selected == "setup":
+        return cmd_setup()
+    if selected == "status":
+        return cmd_status()
+    if selected == "listen":
+        return run_listener()
+    if selected == "read":
+        return cmd_read()
+    if selected == "wait":
+        print(f"Usage: telecode wait [SECONDS]  {ui.dim('(wait up to SECONDS, default 120s)')}")
+        return 0
+    if selected == "send":
+        print(f"Usage: telecode send TEXT  {ui.dim('(send text to configured Telegram chat)')}")
+        return 0
+    if selected == "get-id":
+        helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
+        return subprocess.call([sys.executable, str(helper)])
+    if selected == "help":
+        print(USAGE)
+        return 0
+    return 0
 
 
 def cmd_menu_once():
@@ -289,22 +405,14 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--init":
         return subprocess.call(["bash", str(pathlib.Path(__file__).resolve().parent.parent / "install.sh")])
     if len(sys.argv) > 1 and sys.argv[1] == "setup":
-        installer = str(pathlib.Path(__file__).resolve().parent.parent / "install.sh")
-        if len(sys.argv) > 2 and sys.argv[2] in ("--web", "--browser"):
-            return subprocess.call(["bash", installer, "--web"])
-        if len(sys.argv) > 2 and sys.argv[2] == "--cli":
-            return subprocess.call(["bash", installer, "--cli"])
-        if len(sys.argv) > 2:
-            print("usage: telecode setup [--web|--cli]", file=sys.stderr)
-            return 2
-        return subprocess.call(["bash", installer])
+        return cmd_setup(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] in ("--enable", "--configure-cli"):
         args = ["bash", str(pathlib.Path(__file__).resolve().parent.parent / "install.sh"), sys.argv[1]]
         return subprocess.call(args)
     cmds = {
         "listen": run_listener, "read": cmd_read, "wait": cmd_wait,
         "send": cmd_send, "sendfile": cmd_sendfile, "status": cmd_status,
-        "menu": cmd_menu,
+        "menu": cmd_menu, "setup": cmd_setup,
     }
     if len(sys.argv) < 2:
         if sys.stdin.isatty() and sys.stdout.isatty():
