@@ -13,6 +13,7 @@ USAGE = f"""{ui.accent('TeleCode')} — {ui.dim('Telegram bridge for coding agen
 {ui.bold('Usage:')} telecode <command> [arguments]
 
 {ui.bold('Commands:')}
+  {ui.accent('menu')}                      Open the interactive command menu
   {ui.accent('setup')} [--web|--cli]       Open guided setup wizard (browser or terminal)
   {ui.accent('status')}                    Show bot, listener, session & unread inbox state
   {ui.accent('listen')}                    Start listener daemon in foreground

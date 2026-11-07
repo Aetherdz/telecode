@@ -559,6 +559,28 @@ run_step() {
   return "$rc"
 }
 
+if [[ "$COMMAND" == "--help" || "$COMMAND" == "help" ]]; then
+  cat <<'EOF'
+TeleCode guided setup and commands:
+  telecode              open the Setup/Exit menu
+  telecode setup        configure a CLI and collect Telegram credentials
+  telecode get-id       detect your private chat ID through your own bot
+  telecode status       show listener status
+  telecode listen       run the listener in this terminal
+  telecode help         show this help
+  ./install.sh --uninstall  remove OS startup service; keep app and config
+
+Automatic startup uses systemd on Linux, a LaunchAgent on macOS, or a per-user
+Scheduled Task on Windows. When the OS service manager is unavailable (for
+example, a headless runner), setup prints the foreground command instead.
+
+Create a bot with @BotFather and keep its token private. For your numeric
+account ID, message @Getmyid_bot, or choose automatic detection and send /start
+to your own bot. Never send your bot token to an ID lookup bot.
+EOF
+  exit 0
+fi
+
 # ---------------------------------------------------------------- install ---
 logo
 (( QUIET )) || printf 'TeleCode installer %s\n\n' "$VERSION"
@@ -598,6 +620,7 @@ INSTALL_FILES=(
   "adapters/codex.py"
   "adapters/cursor.py"
   "telegram_bridge/__init__.py"
+  "telegram_bridge/__main__.py"
   "telegram_bridge/state.py"
   "telegram_bridge/ui.py"
   "telegram_bridge/util.py"
@@ -670,7 +693,7 @@ if [[ "$#" -eq 1 && ( "$1" == "--help" || "$1" == "help" ) ]]; then exec bash "$
 if [[ "$#" -eq 1 && "$1" == "setup" ]]; then exec bash "$APP_DIR/install.sh"; fi
 if [[ "$#" -eq 1 && "$1" == "update" ]]; then printf 'Update from a TeleCode source checkout with: ./install.sh --update\n' >&2; exit 2; fi
 if [[ "$#" -eq 1 && "$1" == "--configure-cli" ]]; then exec bash "$APP_DIR/install.sh" --configure-cli; fi
-if [[ "$#" -eq 1 && ( "$1" == "--enable" || "$1" == "--start" || "$1" == "--status" || "$1" == "listen" || "$1" == "status" ) ]]; then exec bash "$APP_DIR/install.sh" "$1"; fi
+if [[ "$#" -eq 1 && ( "$1" == "--enable" || "$1" == "--start" || "$1" == "--status" ) ]]; then exec bash "$APP_DIR/install.sh" "$1"; fi
 if [[ "$#" -ge 1 && "$1" == "get-id" ]]; then shift; exec python3 "$APP_DIR/get_telegram_id.py" "$@"; fi
 exec python3 "$APP_DIR/telegram-bridge.py" "$@"
 EOF
@@ -751,28 +774,6 @@ if [[ "$COMMAND" == "--uninstall" ]]; then
       echo "Service removed if present. App at $APP_DIR and private config at $CONFIG_DIR are preserved."
       ;;
   esac
-  exit 0
-fi
-
-if [[ "$COMMAND" == "--help" || "$COMMAND" == "help" ]]; then
-  cat <<'EOF'
-TeleCode guided setup and commands:
-  telecode              open the Setup/Exit menu
-  telecode setup        configure a CLI and collect Telegram credentials
-  telecode get-id       detect your private chat ID through your own bot
-  telecode status       show listener status
-  telecode listen       run the listener in this terminal
-  telecode help         show this help
-  ./install.sh --uninstall  remove OS startup service; keep app and config
-
-Automatic startup uses systemd on Linux, a LaunchAgent on macOS, or a per-user
-Scheduled Task on Windows. When the OS service manager is unavailable (for
-example, a headless runner), setup prints the foreground command instead.
-
-Create a bot with @BotFather and keep its token private. For your numeric
-account ID, message @Getmyid_bot, or choose automatic detection and send /start
-to your own bot. Never send your bot token to an ID lookup bot.
-EOF
   exit 0
 fi
 
