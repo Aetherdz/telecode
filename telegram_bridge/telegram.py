@@ -21,6 +21,7 @@ _BUTTON_STYLES = {
     "Next": "primary",
     "Back": "primary",
     "Back to providers": "primary",
+    "Switch CLI": "primary",
 }
 
 
@@ -71,7 +72,7 @@ def _download_file(token, file_id, name, destination=None):
 def _keyboard(cfg):
     rows = [[{"text": "Current session"}, {"text": "New session"}],
             [{"text": "Models"}, {"text": "Sessions"}],
-            [{"text": "Help"}]]
+            [{"text": "Switch CLI"}, {"text": "Help"}]]
     return {"keyboard": tg._style_keyboard(rows),
             "resize_keyboard": True, "one_time_keyboard": False}
 
@@ -85,6 +86,8 @@ def _configure_commands(cfg):
             {"command": "models", "description": "Choose a model"},
             {"command": "model", "description": "Choose a model"},
             {"command": "current", "description": "Show the active session"},
+            {"command": "cli", "description": "Switch active coding-agent CLI"},
+            {"command": "agent", "description": "Switch active coding-agent CLI"},
             {"command": "files", "description": "List received files"},
             {"command": "start", "description": "Show TeleCode controls"},
             {"command": "help", "description": "Show available commands"},

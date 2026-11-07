@@ -18,10 +18,13 @@ description: Use the Telegram bridge to deliver user-facing answers and requeste
 ## Sessions
 
 - Use Telegram's persistent **Sessions** keyboard or `/session` to choose the
-  target. `/current` reports the selected session ID.
-- Use **New session** to create a named OpenCode session. The bot
-  asks for a name; after creation, that session becomes the active target for new
-  inbound messages and attachments.
+  target.
+- Use **Switch CLI** or `/cli` / `/agent` (or `/cli <name>`) to switch between
+  supported coding agents (`opencode`, `claude-code`, `codex`, `cursor`, `hermes`).
+  Switching clears the old target and auto-selects the newest session of the new agent.
+- `/current` reports the active agent, session title, and selected session ID.
+- Use **New session** to create a named session. The bot asks for a name; after
+  creation, that session becomes the active target for new inbound messages and attachments.
 - During the name prompt, send `Cancel` or `/menu` to stop. Other control commands
   exit the prompt without being mistaken for session names.
 - Session switches affect future inbound messages. Queued messages retain the

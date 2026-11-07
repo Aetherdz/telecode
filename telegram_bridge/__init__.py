@@ -42,6 +42,7 @@ _LAZY_GROUPS = {
     "util": (
         "ts", "log", "load_env", "api", "_updated", "_html_escape",
         "_plain_fallback", "_cursor", "_unread", "_advance",
+        "save_env_var", "_save_env_var",
     ),
     "telegram": (
         "_style_keyboard", "_download_file", "_keyboard", "_configure_commands",
@@ -54,6 +55,7 @@ _LAZY_GROUPS = {
         "list_sessions", "_active_session_id", "_active_session_record",
         "_active_session_matches_agent", "_set_active_session",
         "discover_session", "_session_by_id", "resolve_session", "_try_prompt",
+        "switch_active_agent", "AGENT_LABELS", "normalize_agent", "agent_label",
     ),
     "pickers": (
         "_send_picker_notice", "_invalidate_model_message_ref",
@@ -65,17 +67,19 @@ _LAZY_GROUPS = {
         "_ordered_providers", "_current_model", "_models_menu",
         "_remember_reply_picker_message", "_edit_reply_picker",
         "_set_models_message_ref", "_switch_session_model", "handle_callback",
-        "handle_control_message",
+        "handle_control_message", "_discover_agents", "_send_agent_picker",
     ),
     "routing": (
         "inject_record", "_inject_worker",
     ),
     "listener": (
         "start_opencode_listener", "_remove_pid_file", "cmd_listen",
+        "_check_env_reload",
     ),
     "cli": (
         "cmd_read", "cmd_wait", "cmd_send", "cmd_sendfile",
         "cmd_status", "cmd_menu", "cmd_install", "main", "USAGE",
+        "cmd_agent",
     ),
 }
 _LAZY = {name: module for module, names in _LAZY_GROUPS.items() for name in names}

@@ -83,23 +83,16 @@ command. Use `./install.sh --web` or `telecode setup --web` to open it directly;
 `--browser-setup` remains an alias. Use `./install.sh --cli` or
 `telecode setup --cli` for the unchanged terminal flow.
 
-Interactive terminal setup creates the private config, shows an aligned menu where arrow
-keys and Enter (or a number) select a detected coding-agent CLI, asks before
-registering MCP, securely prompts for the bot token, then requests a numeric chat
-ID or offers automatic detection. It validates credentials before enabling the
-platform service. If the service manager is unavailable, setup finishes without
-enabling a service and prints `telecode listen`. Canceling CLI
-registration stops onboarding before credentials or service setup; run
-`telecode setup` again to retry. For config-only changes use
-`telecode --configure-cli`.
+The interactive terminal setup (`telecode setup --cli` or `telecode setup`) guides you through four sequential steps:
 
-To configure a coding-agent CLI, run `telecode setup` and choose a detected
-client with the arrow keys, then press Enter. It detects installed OpenCode, Claude Code, Codex,
-Gemini CLI, Cursor, Aider, Cline, Continue, Roo Code, and Amazon Q, then shows choices
-available on this machine plus manual MCP. It makes a timestamped backup and
-asks before changing config. Unsupported formats are left untouched with a
-manual setup hint. Session switching is available only for a CLI with a
-implemented supported session adapter; MCP tool support alone doesn't imply it.
+1. **Step 1 of 4: Coding-Agent CLI Configuration:** Detects installed coding agents (OpenCode, Claude Code, Hermes Agent, Codex CLI, Cursor, etc.), displays an arrow-driven selector, creates timestamped backups of existing config files, and registers the local stdio MCP server.
+2. **Step 2 of 4: Telegram Bot Token Configuration:** Prompts securely for your bot token from [@BotFather](https://t.me/BotFather) with hidden password-style input and format validation. Existing tokens can be kept or replaced.
+3. **Step 3 of 4: Owner Chat ID Configuration:** Prompts for your numeric Telegram chat ID, or type `a` for automatic detection via `get_telegram_id.py --configure` (which captures your ID when you message `/start` to your bot).
+4. **Step 4 of 4: System Service Startup:** Offers to enable the background service immediately using `install.sh --enable` (systemd user unit, LaunchAgent, or Scheduled Task).
+
+Upon completion, a clean summary card confirms the configured agent, credentials, service status, and verification commands (`telecode status` and `telecode send`). If the service manager is unavailable, setup finishes without enabling a service and prints `telecode listen`. Canceling CLI registration stops onboarding before credentials or service setup; run `telecode setup` again to retry. For config-only changes use `telecode --configure-cli`.
+
+To configure a coding-agent CLI directly, run `telecode setup` and choose a detected client with the arrow keys, then press Enter. It detects installed OpenCode, Claude Code, Hermes Agent, Codex, Gemini CLI, Cursor, Aider, Cline, Continue, Roo Code, and Amazon Q, then shows choices available on this machine plus manual MCP. It makes a timestamped backup and asks before changing config. Unsupported formats are left untouched with a manual setup hint. Session switching is available for CLIs with an implemented session adapter (OpenCode, Claude Code, Hermes Agent, Codex, and Cursor); MCP tool support alone doesn't imply it.
 
 `install_autostart.sh` is retained as a compatibility alias for
 `install.sh --enable`; it no longer has a separate file-copy implementation.
@@ -141,6 +134,6 @@ project's lock guard; duplicate `getUpdates` pollers conflict at Telegram.
 
 MCP-compatible clients can register `tg_mcp.py` using their local stdio-MCP
 configuration. Session enumeration and prompt delivery are adapter-specific;
-the OpenCode adapter is the current implementation. Claude Code support should
-be configured through its MCP server settings, while any CLI without MCP needs
-a dedicated adapter or hook. See `docs/ROADMAP.md` before assuming support.
+OpenCode, Claude Code, and Hermes Agent adapters are available out of the box, with
+experimental support for Codex CLI and Cursor. Any CLI without MCP needs
+a dedicated adapter or hook. See `docs/CLI.md` for client details.

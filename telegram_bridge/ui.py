@@ -231,3 +231,37 @@ def format_message(record: dict, stream=None) -> list[str]:
     if file_path:
         lines.append(f"    {dim('Attachment:', stream)} {cyan(file_path, stream)}")
     return lines
+
+
+def menu_box(title: str, options: list[tuple[str, str, any]], stream=None) -> list[str]:
+    """Render a list of (label, hint, value) neatly inside a bordered box."""
+    width = max((visible_width(label) for label, _, _ in options), default=0)
+    rows = []
+    for index, (label, hint, _) in enumerate(options, 1):
+        suffix = f"  {dim(hint, stream=stream)}" if hint else ""
+        rows.append(f"  {accent(str(index) + '.', stream=stream)} {bold(pad(label, width), stream=stream)}{suffix}")
+    return box(title, rows, stream=stream)
+
+
+def select_menu(title: str, options: list[tuple[str, str, any]], default_index: int = 0,
+                hint_footer: str | None = None, stream=None, stdin=None) -> any:
+    """Prompt the user with a clean numbered menu in a bordered box."""
+    out = _stream(stream)
+    print(file=out)
+    for line in menu_box(title, options, stream=stream):
+        print(line, file=out)
+    print(file=out)
+    footer = hint_footer or f"1-{len(options)} select · q exit"
+    print(dim(footer, stream=stream), file=out)
+    while True:
+        try:
+            ans = input("TeleCode › ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(file=out)
+            return next((val for _, _, val in options if val in ("exit", "cancel", "back")), None)
+        if ans in ("q", "quit", "exit"):
+            return next((val for _, _, val in options if val in ("exit", "cancel", "back")), None)
+        for idx, (label, _, val) in enumerate(options, 1):
+            if ans in (str(idx), label.lower(), str(val).lower()):
+                return val
+        print(error_line(f"Choose 1-{len(options)} or enter a command name.", stream=stream), file=sys.stderr)

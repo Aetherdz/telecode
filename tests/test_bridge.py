@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import pathlib
 import subprocess
@@ -251,13 +252,15 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(by_text["Sessions"]["style"], "primary")
         self.assertEqual(by_text["New session"]["style"], "success")
         self.assertEqual(by_text["Current session"]["style"], "success")
+        self.assertEqual(by_text["Switch CLI"]["style"], "primary")
         self.assertEqual(by_text["Help"]["style"], "danger")
         self.assertEqual(tb._keyboard(cfg)["keyboard"], [
             [{"text": "Current session", "style": "success"},
              {"text": "New session", "style": "success"}],
             [{"text": "Models", "style": "primary"},
              {"text": "Sessions", "style": "primary"}],
-            [{"text": "Help", "style": "danger"}],
+            [{"text": "Switch CLI", "style": "primary"},
+             {"text": "Help", "style": "danger"}],
         ])
 
         rows = [[{"text": "Next"}, {"text": "Cancel"}, {"text": "build-server"}]]
@@ -655,7 +658,7 @@ class SessionRoutingTests(unittest.TestCase):
         markup = tb._keyboard({})["keyboard"]
         buttons = {item["text"]: item for row in markup for item in row}
         self.assertEqual(buttons["New session"]["style"], "success")
-        self.assertEqual(list(buttons), ["Current session", "New session", "Models", "Sessions", "Help"])
+        self.assertEqual(list(buttons), ["Current session", "New session", "Models", "Sessions", "Switch CLI", "Help"])
 
     def test_session_picker_button_caption_with_photo_is_consumed_as_control(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -1337,7 +1340,7 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
-        self.assertEqual(buttons, ["Current session", "New session", "Models", "Sessions", "Help"])
+        self.assertEqual(buttons, ["Current session", "New session", "Models", "Sessions", "Switch CLI", "Help"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1503,6 +1506,178 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg)
         body = api.call_args.args[2]["text"]
         self.assertEqual(body, "<b>Choose a session</b>\nTap a button to select the destination for your Telegram messages.")
+
+    def test_switch_cli_control_message_triggers_agent_picker(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "_send_agent_picker") as mock_picker:
+            handled = tb.handle_control_message(cfg, {}, "Switch CLI")
+            self.assertTrue(handled)
+            mock_picker.assert_called_once_with(cfg)
+
+        with patch.object(tb, "_send_agent_picker") as mock_picker:
+            handled = tb.handle_control_message(cfg, {}, "/cli")
+            self.assertTrue(handled)
+            mock_picker.assert_called_once_with(cfg)
+
+        with patch.object(tb, "_send_agent_picker") as mock_picker:
+            handled = tb.handle_control_message(cfg, {}, "/agent")
+            self.assertTrue(handled)
+            mock_picker.assert_called_once_with(cfg)
+
+    def test_switch_cli_callback_updates_agent_and_answers(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        cb = {
+            "id": "cb123",
+            "data": "cli:hermes",
+            "message": {
+                "chat": {"id": 1},
+                "message_id": 42,
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(tb, "ACTIVE_SESSION", pathlib.Path(temp) / "active.json"), \
+             patch.object(tb, "api") as mock_api, \
+             patch.object(tb, "_save_env_var") as mock_save, \
+             patch.object(tb, "list_sessions", return_value=[]):
+            handled = tb.handle_callback(cfg, cb)
+            self.assertTrue(handled)
+            self.assertEqual(cfg.get("TELECODE_AGENT"), "hermes")
+            mock_save.assert_any_call("TELECODE_AGENT", "hermes")
+            # Verify answerCallbackQuery was called
+            answered = any(call.args[1] == "answerCallbackQuery" and "Hermes Agent" in call.args[2].get("text", "")
+                           for call in mock_api.call_args_list)
+            self.assertTrue(answered)
+            # Verify editMessageText was called
+            edited = any(call.args[1] == "editMessageText" and "Hermes Agent" in call.args[2].get("text", "")
+                         for call in mock_api.call_args_list)
+            self.assertTrue(edited)
+
+    def test_agent_adapter_loads_hermes_adapter(self):
+        from adapters.hermes import HermesAdapter
+        adapter = tb._agent_adapter({"TELECODE_AGENT": "hermes"})
+        self.assertIsInstance(adapter, HermesAdapter)
+        self.assertEqual(adapter.name, "hermes")
+
+    def test_switch_active_agent_clears_old_session_and_selects_new(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            cfg = {"TELECODE_AGENT": "opencode", "TG_AGENT": "opencode"}
+            hermes_session = {"id": "hermes-123456", "title": "Hermes Chat", "directory": temp, "agent": "hermes"}
+            with patch.object(tb, "ACTIVE_SESSION", active), \
+                 patch.object(tb, "_save_env_var") as mock_save, \
+                 patch.object(tb, "list_sessions", return_value=[hermes_session]):
+                # Set initial OpenCode active session
+                tb._set_active_session({"id": "ses_opencode", "title": "Old Session", "directory": temp, "agent": "opencode"})
+                self.assertTrue(active.is_file())
+
+                # Switch to Hermes
+                selected = tb.switch_active_agent(cfg, "hermes")
+                self.assertEqual(cfg["TELECODE_AGENT"], "hermes")
+                self.assertEqual(cfg["TG_AGENT"], "hermes")
+                mock_save.assert_any_call("TELECODE_AGENT", "hermes")
+                self.assertIsNotNone(selected)
+                self.assertEqual(selected["id"], "hermes-123456")
+
+                # Verify active session on disk was updated to Hermes session
+                stored = json.loads(active.read_text(encoding="utf-8"))
+                self.assertEqual(stored["id"], "hermes-123456")
+                self.assertEqual(stored["agent"], "hermes")
+
+    def test_hermes_session_routing_and_discovery(self):
+        cfg = {"TELECODE_AGENT": "hermes"}
+        hermes_sessions = [
+            {"id": "hermes-abc", "title": "Chat 1", "directory": "/home", "time": {"updated": 100}, "agent": "hermes"},
+            {"id": "hermes-xyz", "title": "Chat 2", "directory": "/home", "time": {"updated": 50}, "agent": "hermes"},
+        ]
+        class FakeHermesAdapter:
+            name = "hermes"
+            def list_sessions(self):
+                from adapters.base import AgentSession
+                return [AgentSession("hermes-abc", "Chat 1", "/home", "hermes", updated=100),
+                        AgentSession("hermes-xyz", "Chat 2", "/home", "hermes", updated=50)]
+            def validate_session(self, sid):
+                return AgentSession("hermes-abc", "Chat 1", "/home", "hermes", updated=100) if sid == "hermes-abc" else None
+
+        with patch.object(tb, "_agent_adapter", return_value=FakeHermesAdapter()), \
+             patch.object(tb, "_active_session_id", return_value=""):
+            sessions = tb.list_sessions(cfg)
+            self.assertEqual(len(sessions), 2)
+            self.assertEqual(sessions[0]["id"], "hermes-abc")
+
+            # Validate by ID
+            found = tb._session_by_id(cfg, "hermes-abc")
+            self.assertIsNotNone(found)
+            self.assertEqual(found["id"], "hermes-abc")
+
+            # Resolve session auto-discovers newest
+            sid, how = tb.resolve_session(cfg)
+            self.assertEqual(sid, "hermes-abc")
+            self.assertEqual(how, "discovered")
+
+    def test_switch_cli_direct_command(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "opencode"}
+        with patch.object(tb, "switch_active_agent") as mock_switch, \
+             patch.object(tb, "send_text") as mock_send, \
+             patch.object(tb, "_send_keyboard"):
+            mock_switch.return_value = {"id": "hermes-999", "title": "New Hermes Chat"}
+            handled = tb.handle_control_message(cfg, {}, "/cli hermes")
+            self.assertTrue(handled)
+            mock_switch.assert_called_once_with(cfg, "hermes")
+            self.assertIn("Hermes Agent", mock_send.call_args.args[1])
+            self.assertIn("hermes-999", mock_send.call_args.args[1])
+
+    def test_current_session_shows_active_agent_and_session(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "hermes"}
+        with patch.object(tb, "resolve_session", return_value=("hermes-abc", "active")), \
+             patch.object(tb, "_session_by_id", return_value={"id": "hermes-abc", "title": "Hermes Task", "agent": "hermes"}), \
+             patch.object(tb, "send_text") as mock_send:
+            handled = tb.handle_control_message(cfg, {}, "Current session")
+            self.assertTrue(handled)
+            self.assertIn("Hermes Agent", mock_send.call_args.args[1])
+            self.assertIn("Hermes Task", mock_send.call_args.args[1])
+            self.assertIn("hermes-abc", mock_send.call_args.args[1])
+
+    def test_switch_cli_callback_rejects_unsupported_or_injected_agent(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "opencode"}
+        for data in ("cli:gemini", "cli:x\nTG_CHAT_ID=1", "agent:../../etc"):
+            with self.subTest(data=data), \
+                 patch.object(tb, "api"), \
+                 patch.object(tb, "_save_env_var") as mock_save:
+                self.assertTrue(tb.handle_callback(cfg, {"id": "c", "data": data, "message": {}}))
+                mock_save.assert_not_called()
+                self.assertEqual(cfg["TELECODE_AGENT"], "opencode")
+
+    def test_switch_to_same_agent_keeps_selected_session(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            cfg = {"TELECODE_AGENT": "hermes"}
+            chosen = {"id": "hermes-old", "title": "Chosen", "directory": temp, "agent": "hermes"}
+            with patch.object(tb, "ACTIVE_SESSION", active), \
+                 patch.object(tb, "_save_env_var") as mock_save, \
+                 patch.object(tb, "_session_by_id", return_value=chosen):
+                tb._set_active_session(chosen)
+                self.assertEqual(tb.switch_active_agent(cfg, "hermes")["id"], "hermes-old")
+                mock_save.assert_not_called()
+                self.assertTrue(active.exists())
+
+    def test_cli_command_rejects_unknown_agent(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "opencode"}
+        with patch.object(tb, "switch_active_agent") as mock_switch, \
+             patch.object(tb, "send_text") as mock_send, \
+             patch.object(tb, "_send_agent_picker") as picker:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/cli gemini"))
+        mock_switch.assert_not_called()
+        picker.assert_called_once()
+        self.assertIn("Unknown agent", mock_send.call_args.args[1])
+
+    def test_models_menu_explains_unsupported_agents(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "hermes"}
+        with patch.object(tb, "send_text") as mock_send, \
+             patch.object(tb, "_send_keyboard"), \
+             patch.object(tb, "_models_from_api") as models:
+            tb._models_menu(cfg)
+        models.assert_not_called()
+        self.assertIn("Hermes Agent", mock_send.call_args.args[1])
 
 
 if __name__ == "__main__":

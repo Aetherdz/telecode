@@ -29,6 +29,7 @@ XDG_CONFIG = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
 XDG_DATA = pathlib.Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
 RUNTIME_CONFIG = XDG_CONFIG / "telegram-bridge"
 APP_DIR = XDG_DATA / "telegram-bridge"
+_HERMES_DIR = pathlib.Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_CONFIG_DIR") or HOME / ".hermes")
 
 HOSTS = [
     ("OpenCode", "opencode", [XDG_CONFIG / "opencode/opencode.json"], True),
@@ -36,6 +37,7 @@ HOSTS = [
     ("Codex CLI", "codex", [HOME / ".codex/config.toml"], True),
     ("Cursor", "cursor", [HOME / ".cursor/mcp.json"], True),
     ("Gemini CLI", "gemini", [HOME / ".gemini/settings.json"], True),
+    ("Hermes Agent", "hermes", [_HERMES_DIR / "config.yaml", _HERMES_DIR / "config.json"], True),
     ("Aider", "aider", [HOME / ".aider.conf.yml"], False),
     ("Cline", "cline", [HOME / ".vscode/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"], True),
     ("Continue", "continue", [HOME / ".continue/config.json", HOME / ".continue/config.yaml"], False),
@@ -137,10 +139,17 @@ def _menu_rows(options):
 
 def _box(title, rows, width):
     inner = width - 2
-    heading = f"\u2500 {title} "
-    top = "\u250c" + heading + "\u2500" * max(0, inner - len(heading)) + "\u2510"
-    body = ["\u2502" + _pad_display(row, inner) + "\u2502" for row in rows]
-    bottom = "\u2514" + "\u2500" * inner + "\u2518"
+    uni = ui.supports_unicode()
+    tl = "╭" if uni else "+"
+    tr = "╮" if uni else "+"
+    bl = "╰" if uni else "+"
+    br = "╯" if uni else "+"
+    horiz = "─" if uni else "-"
+    vert = "│" if uni else "|"
+    heading = f"─ {title} " if uni else f"- {title} "
+    top = tl + heading + horiz * max(0, inner - len(heading)) + tr
+    body = [vert + _pad_display(row, inner) + vert for row in rows]
+    bottom = bl + horiz * inner + br
     return [_dim(top)] + body + [_dim(bottom)]
 
 
@@ -181,33 +190,43 @@ def _menu_lines(options, selected):
 
 
 def _write_lines(lines):
-    sys.stdout.write("\n".join(lines) + "\n")
+    sys.stdout.write("\r\n".join(lines) + "\r\n")
     sys.stdout.flush()
 
 
 def _redraw(lines):
     sys.stdout.write(f"\033[{len(lines)}A")
     for line in lines:
-        sys.stdout.write("\r\033[2K" + line + "\n")
+        sys.stdout.write("\r\033[2K" + line + "\r\n")
     sys.stdout.flush()
 
 
 def _choose_numbered(options):
     labels, states, label_width, state_width = _menu_rows(options)
-    print()
-    print(_accent("Select the coding-agent CLI to configure"))
-    print(_dim("-" * (label_width + state_width + 6)))
+    rows = []
     for label, (state, tone) in zip(labels, states):
-        row = "  " + _pad_display(label, label_width) + "  " + _state_text(_pad_display(state, state_width), tone)
-        print(row.rstrip())
-    print(_dim("-" * (label_width + state_width + 6)))
+        dot_idx = label.find(".")
+        if dot_idx != -1:
+            num = label[:dot_idx + 1]
+            rest = label[dot_idx + 1:].strip()
+            row = f"  {_accent(num)} {ui.bold(ui.pad(rest, label_width - len(num)))}  {_state_text(_pad_display(state, state_width), tone)}"
+        else:
+            row = f"  {_pad_display(label, label_width)}  {_state_text(_pad_display(state, state_width), tone)}"
+        rows.append(row)
+    title = "Select Coding-Agent CLI"
+    box_lines = ui.box(title, rows)
+    print()
+    for line in box_lines:
+        print(line)
+    print()
+    print(_dim(f"1-{len(options)} select · q cancel"))
     while True:
         try:
             answer = input("Enter a number (or q to cancel): ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print()
             return None
-        if answer in ("q", "quit", "skip"):
+        if answer in ("q", "quit", "skip", "cancel"):
             return None
         if answer.isdigit() and 1 <= int(answer) <= len(options):
             return options[int(answer) - 1]
@@ -230,6 +249,7 @@ def _choose_arrow(options):
     old = termios.tcgetattr(fd)
     selected = 0
     lines = _menu_lines(options, selected)
+    result = None
     try:
         tty.setraw(fd)
         sys.stdout.write("\033[?25l")
@@ -245,26 +265,30 @@ def _choose_arrow(options):
                     selected = (selected + 1) % len(options)
                 else:
                     _redraw(_menu_lines(options, None))
-                    return None
+                    break
             elif key in ("\r", "\n"):
                 _redraw(lines)
-                print(_green("Selected: ") + options[selected][0])
-                return options[selected]
+                result = options[selected]
+                break
             elif key in ("q", "Q", "\x03", "\x04"):
                 _redraw(_menu_lines(options, None))
-                return None
+                break
             elif key.isdigit() and 1 <= int(key) <= len(options):
                 selected = int(key) - 1
                 lines = _menu_lines(options, selected)
                 _redraw(lines)
-                print(_green("Selected: ") + options[selected][0])
-                return options[selected]
+                result = options[selected]
+                break
             lines = _menu_lines(options, selected)
             _redraw(lines)
     finally:
-        sys.stdout.write("\033[?25h")
+        sys.stdout.write("\033[?25h\r\n")
         sys.stdout.flush()
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+    if result is not None:
+        print(_green("Selected: ") + result[0])
+    return result
 
 
 def choose(options):
@@ -382,9 +406,53 @@ def register_json(path, host):
         if not isinstance(servers, dict) or "telegram-bridge" in servers:
             raise ValueError("invalid or existing mcpServers.telegram-bridge; refusing overwrite")
         servers["telegram-bridge"] = entry
+    elif kind == "hermes":
+        servers = data.setdefault("mcp_servers", {})
+        if not isinstance(servers, dict) or "telegram-bridge" in servers:
+            raise ValueError("invalid or existing mcp_servers.telegram-bridge; refusing overwrite")
+        servers["telegram-bridge"] = {
+            "command": MCP_COMMAND[0],
+            "args": MCP_COMMAND[1:],
+            "env": {"TELEGRAM_BRIDGE_HOME": str(RUNTIME_CONFIG)},
+        }
     elif kind == "codex":
         raise ValueError("Codex requires TOML configuration")
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def register_hermes_yaml(path):
+    """Format and insert Hermes Agent MCP config into YAML without external libraries."""
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if re.search(r"^\s*telegram-bridge\s*:", existing, re.MULTILINE):
+        raise ValueError("telegram-bridge is already configured; left unchanged")
+
+    args_block = "\n".join(f"      - {json.dumps(arg)}" for arg in MCP_COMMAND[1:])
+    entry = f"""  telegram-bridge:
+    command: {json.dumps(MCP_COMMAND[0])}
+    args:
+{args_block}
+    env:
+      TELEGRAM_BRIDGE_HOME: {json.dumps(str(RUNTIME_CONFIG))}
+"""
+
+    match = re.search(r"^mcp_servers\s*:\s*(.*)$", existing, re.MULTILINE)
+    if match:
+        rest = match.group(1).strip()
+        idx = match.end()
+        if rest == "{}":
+            before = existing[:match.start()].rstrip()
+            after = existing[idx:].lstrip("\r\n")
+            prefix = (before + "\n\n") if before else ""
+            return prefix + "mcp_servers:\n" + entry + ("\n" + after if after else "")
+        before = existing[:idx]
+        after = existing[idx:]
+        if not before.endswith("\n"):
+            before += "\n"
+        return before + entry + after
+    else:
+        prefix = "\n" if existing and not existing.endswith("\n") else ""
+        block = f"{prefix}mcp_servers:\n{entry}"
+        return (existing.rstrip() + "\n\n" + block.strip() + "\n") if existing.strip() else (block.strip() + "\n")
 
 
 def register_codex_toml(path):
@@ -426,7 +494,9 @@ def register_for_web(cli, config_path=None):
         if config_path not in host[2]:
             raise ValueError("Unsupported Claude config scope.")
         config = config_path
-    if config.suffix == ".toml":
+    if config.suffix in (".yaml", ".yml"):
+        content = register_hermes_yaml(config)
+    elif config.suffix == ".toml":
         content = register_codex_toml(config)
     elif config.suffix == ".json":
         content = register_json(config, host)
@@ -471,9 +541,11 @@ def main():
         except ValueError as e:
             print(f"Cannot configure Codex: {e}; no files changed.")
             return 2
-        print(f"Target: {config}")
-        confirm = ask("Back up and add Telegram Bridge to this config? [y/N] ")
-        if confirm is None or confirm.strip().lower() != "y":
+        print()
+        print(f"  {ui.dim('Target:')}  {ui.bold(str(config))}")
+        print()
+        confirm = ask(f"Back up and add Telegram Bridge to this config? [{ui.bold('y')}/{ui.dim('N')}]: ")
+        if confirm is None or confirm.strip().lower() not in ("y", "yes"):
             print("Cancelled; no files changed.")
             return 2
         if config.exists():
@@ -488,9 +560,11 @@ def main():
         except ValueError as e:
             print(f"Cannot configure Codex: {e}; no files changed.")
             return 2
-        print(f"Target: {config}")
-        confirm = ask("Create Codex MCP config? [y/N] ")
-        if confirm is None or confirm.strip().lower() != "y":
+        print()
+        print(f"  {ui.dim('Target:')}  {ui.bold(str(config))}")
+        print()
+        confirm = ask(f"Create Codex MCP config? [{ui.bold('y')}/{ui.dim('N')}]: ")
+        if confirm is None or confirm.strip().lower() not in ("y", "yes"):
             print("Cancelled; no files changed.")
             return 2
         config.parent.mkdir(parents=True, exist_ok=True)
@@ -499,7 +573,34 @@ def main():
         atomic_write(config, new_content)
         print(f"Configured Codex CLI MCP integration at {config}")
         return 0
-    if not supported or (not config and host[1] not in ("opencode", "claude", "gemini", "cursor", "cline", "roo", "q")) or (config and config.suffix != ".json"):
+    if host[1] == "hermes" and supported:
+        if not config:
+            config = host[2][0]
+        try:
+            if config.suffix in (".yaml", ".yml"):
+                contents = register_hermes_yaml(config)
+            else:
+                contents = register_json(config, host)
+        except ValueError as e:
+            print(f"Cannot configure Hermes Agent: {e}; no files changed.")
+            return 2
+        print()
+        print(f"  {ui.dim('Target:')}  {ui.bold(str(config))}")
+        print(f"  {ui.dim('Server:')}  {MCP_COMMAND[0]} {' '.join(MCP_COMMAND[1:])}")
+        print()
+        confirm = ask(f"Back up and add Telegram Bridge to this config? [{ui.bold('y')}/{ui.dim('N')}]: ")
+        if confirm is None or confirm.strip().lower() not in ("y", "yes"):
+            print("Cancelled; no files changed.")
+            return 2
+        config.parent.mkdir(parents=True, exist_ok=True)
+        if config.exists():
+            saved = backup(config)
+            print(f"Backup: {saved}")
+        atomic_write(config, contents)
+        print(f"Configured Hermes Agent MCP integration at {config}")
+        print("Restart the CLI to load the Telegram Bridge MCP server.")
+        return 0
+    if not supported or (not config and host[1] not in ("opencode", "claude", "gemini", "cursor", "cline", "roo", "q", "hermes")) or (config and config.suffix not in (".json", ".yaml", ".yml")):
         print(f"Automatic config edit is not supported for {host[0]} on this installation.")
         example = MCP_EXAMPLES.get(host[1])
         if example:
@@ -514,10 +615,12 @@ def main():
     except (ValueError, json.JSONDecodeError) as e:
         print(f"Cannot configure {host[0]}: {e}; no files changed.")
         return 2
-    print(f"Target: {config}")
-    print(f"MCP server command: {MCP_COMMAND[0]} {' '.join(MCP_COMMAND[1:])}")
-    confirm = ask("Back up and add Telegram Bridge to this config? [y/N] ")
-    if confirm is None or confirm.strip().lower() != "y":
+    print()
+    print(f"  {ui.dim('Target:')}  {ui.bold(str(config))}")
+    print(f"  {ui.dim('Server:')}  {MCP_COMMAND[0]} {' '.join(MCP_COMMAND[1:])}")
+    print()
+    confirm = ask(f"Back up and add Telegram Bridge to this config? [{ui.bold('y')}/{ui.dim('N')}]: ")
+    if confirm is None or confirm.strip().lower() not in ("y", "yes"):
         print("Cancelled; no files changed.")
         return 2
     config.parent.mkdir(parents=True, exist_ok=True)

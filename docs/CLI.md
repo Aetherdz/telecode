@@ -21,6 +21,7 @@ outbound Telegram tools only.
 | --- | --- | --- | --- | --- | --- |
 | OpenCode | `~/.config/opencode/opencode.json` | JSON | Yes | Yes | Verified session discovery and prompt delivery. |
 | Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | Yes | Headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`). |
+| Hermes Agent | `~/.hermes/config.yaml` or `~/.hermes/config.json` | YAML/JSON | Yes | Yes | Adapter for Nous Research Hermes CLI (`TELECODE_AGENT=hermes`). |
 | Codex CLI | `~/.codex/config.toml` | TOML | Yes | Experimental | Inbound via `TELECODE_AGENT=codex`; requires 0.166.0+. |
 | Cursor | `~/.cursor/mcp.json` | JSON | Yes | Experimental | Uses Cursor Agent CLI and best-effort local chat metadata. |
 | Gemini CLI | `~/.gemini/settings.json` | JSON | Yes | No | No session API used. |
@@ -44,6 +45,17 @@ while `telecode setup --cli` keeps the terminal wizard. `./install.sh --web` and
 `telecode setup` offers Browser (recommended) or Terminal. The launcher menu
 offers Setup, Status, Listen, and Exit. Terminal colors are used only on a TTY;
 set `NO_COLOR` to disable them.
+
+### 4-step terminal setup wizard
+
+When you run `telecode setup --cli` (or select Terminal from the setup menu), the wizard guides you through four sequential steps:
+
+1. **Step 1 of 4: Coding-Agent CLI Configuration:** Invokes `setup_cli.py` to detect installed coding agents (OpenCode, Claude Code, Hermes Agent, Codex CLI, Cursor, etc.). It displays an arrow-driven selector, creates timestamped backups of existing configurations, and registers the local stdio MCP server.
+2. **Step 2 of 4: Telegram Bot Token Configuration:** Prompts securely for your bot token from [@BotFather](https://t.me/BotFather) with hidden password-style input and format validation. If a valid token is already configured, you can confirm keeping it.
+3. **Step 3 of 4: Owner Chat ID Configuration:** Prompts for your numeric Telegram chat ID to restrict access exclusively to you. You can enter the ID manually, keep an existing ID, or enter `a` to run auto-detection via `get_telegram_id.py --configure` (which captures the chat ID when you send `/start` to your bot).
+4. **Step 4 of 4: System Service Startup:** Offers to enable the background listener service on system boot or login via `install.sh --enable` (systemd user unit, LaunchAgent, or Scheduled Task).
+
+Upon completion, a clean summary card displays the configured agent, masked token, masked chat ID, background service status, and suggested verification commands (`telecode status` and `telecode send`).
 
 The browser wizard detects session metadata only for formats confirmed by the
 implementation; other agent session locations remain manual. It never reads
@@ -127,9 +139,19 @@ Inbound routing is adapter-based. Set `TELECODE_AGENT` in `telegram.env`:
 | --- | --- |
 | `opencode` (default) | Route prompts through the OpenCode HTTP API. |
 | `claude-code` | Resume a Claude Code session headlessly with `claude --resume <id> --print`. |
+| `hermes` | Resume or create Hermes Agent sessions headlessly via `hermes chat --resume <id> --message <prompt>`. |
 | `codex` | Resume a Codex CLI session (experimental; see below). |
 | `cursor` | Resume a known Cursor Agent session ID headlessly (experimental; see below). |
 | unset / `auto` | Prefer Cursor Agent when `agent` is on `PATH`; otherwise OpenCode. |
+
+### In-Telegram CLI switching
+
+You can switch the active coding agent directly from Telegram without restarting the bridge or modifying configuration files:
+
+- Tap **Switch CLI** on the persistent keyboard or send `/cli` or `/agent` to open an inline picker listing detected agents.
+- Send `/cli <name>` or `/agent <name>` (for example `/cli hermes`, `/cli opencode`, `/cli claude-code`, `/cli codex`, `/cli cursor`) to switch immediately. Aliases such as `claude` and `open-code` are recognized.
+- Switching agents updates `TELECODE_AGENT` and `TG_AGENT` in `telegram.env`, clears `active-session.json`, resets picker states, and automatically discovers and selects the newest available session for the chosen agent.
+- Tap **Current session** or send `/current` to view the currently active agent alongside the active session title and ID.
 
 Claude Code sessions are listed from the local transcript store
 (`~/.claude/projects/*/*.jsonl`); their IDs are UUIDs and are validated before
@@ -168,6 +190,34 @@ also be selected as the inbound Telegram target with
 `TELECODE_AGENT=claude-code`. The adapter enumerates local transcript sessions
 and resumes a selected session headlessly; treat Telegram-originated instructions
 as untrusted input and review Claude Code's permissions before enabling routing.
+
+## Hermes Agent
+
+Config paths:
+
+- `~/.hermes/config.yaml`
+- `~/.hermes/config.json`
+
+The installer registers the MCP server in `~/.hermes/config.yaml` under `mcp_servers`:
+
+```yaml
+mcp_servers:
+  telegram-bridge:
+    command: "/usr/bin/python3"
+    args:
+      - "/home/USER/.local/share/telegram-bridge/tg_mcp.py"
+```
+
+If `~/.hermes/config.json` is used, the configuration is stored under `mcpServers` with the runtime environment map.
+
+### Hermes Agent inbound routing
+
+Set `TELECODE_AGENT=hermes` in `telegram.env` or switch to Hermes dynamically from Telegram using `/cli hermes`. The adapter connects to Nous Research's Hermes CLI (`hermes`):
+
+- **Session discovery:** Lists up to 100 sessions from `~/.hermes/sessions/*.json*` (or `$HERMES_CONFIG_DIR/sessions`), sorted by modification time. Both `.json` metadata files (reading `title`, `name`, and `updated_at`) and `.jsonl` session files (extracting the title or summary from the initial record) are supported.
+- **Session creation:** Creates a new session file under `~/.hermes/sessions/hermes-<timestamp>-<uuid>.json` containing the session ID, title, workspace, and timestamps.
+- **Prompt delivery:** Dispatches messages headlessly via `hermes chat --resume <session_id> --message <text>` with a default 600-second timeout, delivering the CLI's standard output directly back to Telegram.
+- **Environment overrides:** `HERMES_CONFIG_DIR` overrides the configuration and sessions directory (default `~/.hermes`). `HERMES_WORKSPACE` overrides the project directory (default `$HOME`).
 
 ## Codex CLI
 
@@ -369,6 +419,34 @@ printf '%s\n' \
 Expect an `initialize` result and a tool list containing the seven tools. Startup
 also attempts to start the listener unless `TG_AUTOSTART` is `0`, `false`, `off`, or
 `no`. Logs go to stderr; stdout carries protocol frames only.
+
+## Sending messages and files with telecode send
+
+The `telecode send` command provides unified text and file dispatch to your Telegram chat:
+
+- **Automatic file detection:** If the first argument resolves to an existing regular file (not a symlink), TeleCode uploads it as a document. Any remaining arguments become the caption:
+  ```sh
+  telecode send ./build/telecode.tar.gz "Release tarball"
+  ```
+- **Explicit file flags:** Use `--file` or `-f` to explicitly specify a file upload and caption:
+  ```sh
+  telecode send --file ./diagram.png "Architecture diagram"
+  ```
+- **Plain text dispatch:** If the first argument is not a file, all arguments are joined as the message text:
+  ```sh
+  telecode send "Build completed in 14s"
+  ```
+- **Stdin piping:** When executed non-interactively without arguments, text piped into stdin is sent:
+  ```sh
+  git status | telecode send
+  ```
+- **Interactive prompt:** When invoked without arguments on an interactive terminal, `telecode send` prompts for input:
+  ```text
+  Message text or file path (or Ctrl-C to cancel):
+  ```
+  If you provide a valid file path, it prompts for an optional caption before uploading.
+- **Interactive menu:** Option 6 ("Send a message") in `telecode menu` launches this interactive send prompt.
+- **Dedicated sendfile command:** `telecode sendfile PATH [CAPTION]` remains available as an explicit file-only command.
 
 ## Installer behavior and limits
 

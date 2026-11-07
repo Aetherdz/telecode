@@ -1,6 +1,8 @@
 # Model switching
 
-`/models` changes the model of the active OpenCode session. Model providers and models
+`/models` changes the model of the active OpenCode session. For other agents (such
+as Claude Code, Codex CLI, Cursor, or Hermes Agent), models are managed directly
+in the respective agent, and Telegram model switching is not available. Model providers and models
 appear in Telegram's bottom reply keyboard, matching the session picker style. Menu
 text uses HTML parse mode; dynamic values escape ampersands and angle brackets. The bridge
 does not keep a model setting of its own: it asks the local OpenCode server to update

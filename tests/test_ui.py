@@ -60,6 +60,24 @@ class UIHelpersTests(unittest.TestCase):
         self.assertTrue(any("hello" in l for l in lines))
         self.assertTrue(any("/tmp/test.txt" in l for l in lines))
 
+    def test_select_menu_fallback_numbered(self):
+        options = [("First", "hint 1", "opt1"), ("Second", "hint 2", "opt2")]
+        with mock.patch("builtins.input", return_value="2"):
+            choice = ui.select_menu("Test Menu", options)
+        self.assertEqual(choice, "opt2")
+
+    def test_select_menu_fallback_exit_returns_none(self):
+        options = [("First", "hint 1", "opt1"), ("Second", "hint 2", "opt2")]
+        with mock.patch("builtins.input", return_value="q"):
+            choice = ui.select_menu("Test Menu", options)
+        self.assertIsNone(choice)
+
+    def test_menu_box(self):
+        options = [("First", "hint 1", "opt1"), ("Second", "hint 2", "opt2")]
+        lines = ui.menu_box("Test Menu", options)
+        self.assertTrue(any("First" in l and "hint 1" in l for l in lines))
+        self.assertTrue(any("Second" in l and "hint 2" in l for l in lines))
+
 
 if __name__ == "__main__":
     unittest.main()

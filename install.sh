@@ -559,6 +559,36 @@ run_step() {
   return "$rc"
 }
 
+if [[ "$COMMAND" == "--help" || "$COMMAND" == "help" ]]; then
+  cat <<'EOF'
+TeleCode guided setup and commands:
+  telecode              open the Setup/Exit menu
+  telecode setup        configure a CLI and collect Telegram credentials
+  telecode get-id       detect your private chat ID through your own bot
+  telecode status       show listener status
+  telecode listen       run the listener in this terminal
+  telecode help         show this help
+  ./install.sh --uninstall  remove OS startup service; keep app and config
+
+Automatic startup uses systemd on Linux, a LaunchAgent on macOS, or a per-user
+Scheduled Task on Windows. When the OS service manager is unavailable (for
+example, a headless runner), setup prints the foreground command instead.
+
+Create a bot with @BotFather and keep its token private. For your numeric
+account ID, message @Getmyid_bot, or choose automatic detection and send /start
+to your own bot. Never send your bot token to an ID lookup bot.
+EOF
+  exit 0
+fi
+
+if [[ "$COMMAND" == "--setup" || "$COMMAND" == "setup" ]]; then
+  if [[ -f "$APP_DIR/telegram-bridge.py" ]]; then
+    exec "$PYTHON" "$APP_DIR/telegram-bridge.py" setup "$@"
+  elif [[ -f "$SOURCE_DIR/telegram-bridge.py" ]]; then
+    exec "$PYTHON" "$SOURCE_DIR/telegram-bridge.py" setup "$@"
+  fi
+fi
+
 # ---------------------------------------------------------------- install ---
 logo
 (( QUIET )) || printf 'TeleCode installer %s\n\n' "$VERSION"
@@ -597,7 +627,9 @@ INSTALL_FILES=(
   "adapters/claude_code.py"
   "adapters/codex.py"
   "adapters/cursor.py"
+  "adapters/hermes.py"
   "telegram_bridge/__init__.py"
+  "telegram_bridge/__main__.py"
   "telegram_bridge/state.py"
   "telegram_bridge/ui.py"
   "telegram_bridge/util.py"
@@ -667,10 +699,10 @@ if [[ ! -d "$APP_DIR" ]]; then
   exit 2
 fi
 if [[ "$#" -eq 1 && ( "$1" == "--help" || "$1" == "help" ) ]]; then exec bash "$APP_DIR/install.sh" help; fi
-if [[ "$#" -eq 1 && "$1" == "setup" ]]; then exec bash "$APP_DIR/install.sh"; fi
+if [[ "$#" -ge 1 && "$1" == "setup" ]]; then exec python3 "$APP_DIR/telegram-bridge.py" "$@"; fi
 if [[ "$#" -eq 1 && "$1" == "update" ]]; then printf 'Update from a TeleCode source checkout with: ./install.sh --update\n' >&2; exit 2; fi
 if [[ "$#" -eq 1 && "$1" == "--configure-cli" ]]; then exec bash "$APP_DIR/install.sh" --configure-cli; fi
-if [[ "$#" -eq 1 && ( "$1" == "--enable" || "$1" == "--start" || "$1" == "--status" || "$1" == "listen" || "$1" == "status" ) ]]; then exec bash "$APP_DIR/install.sh" "$1"; fi
+if [[ "$#" -eq 1 && ( "$1" == "--enable" || "$1" == "--start" || "$1" == "--status" ) ]]; then exec bash "$APP_DIR/install.sh" "$1"; fi
 if [[ "$#" -ge 1 && "$1" == "get-id" ]]; then shift; exec python3 "$APP_DIR/get_telegram_id.py" "$@"; fi
 exec python3 "$APP_DIR/telegram-bridge.py" "$@"
 EOF
@@ -754,28 +786,6 @@ if [[ "$COMMAND" == "--uninstall" ]]; then
   exit 0
 fi
 
-if [[ "$COMMAND" == "--help" || "$COMMAND" == "help" ]]; then
-  cat <<'EOF'
-TeleCode guided setup and commands:
-  telecode              open the Setup/Exit menu
-  telecode setup        configure a CLI and collect Telegram credentials
-  telecode get-id       detect your private chat ID through your own bot
-  telecode status       show listener status
-  telecode listen       run the listener in this terminal
-  telecode help         show this help
-  ./install.sh --uninstall  remove OS startup service; keep app and config
-
-Automatic startup uses systemd on Linux, a LaunchAgent on macOS, or a per-user
-Scheduled Task on Windows. When the OS service manager is unavailable (for
-example, a headless runner), setup prints the foreground command instead.
-
-Create a bot with @BotFather and keep its token private. For your numeric
-account ID, message @Getmyid_bot, or choose automatic detection and send /start
-to your own bot. Never send your bot token to an ID lookup bot.
-EOF
-  exit 0
-fi
-
 # `telecode` with no arguments opens the local command menu. The installed
 # wrapper re-enters this script through the command name so its menu matches
 # the current source installation instead of a stale copied Python module.
@@ -790,7 +800,7 @@ if [[ "$COMMAND" == "menu" ]]; then
     '  3. Start listener     Run in this terminal' \
     '  4. Read messages      Show unread Telegram messages' \
     '  5. Wait for message   Wait up to 120 seconds' \
-    '  6. Send a message     telecode send TEXT' \
+    '  6. Send a message     telecode send [TEXT | PATH]' \
     '  7. Find chat ID       Use your own bot' \
     '  8. Help / commands    Command reference' \
     '  9. Exit' ''
@@ -804,7 +814,7 @@ if [[ "$COMMAND" == "menu" ]]; then
       3|listen) exec bash "$0" listen ;;
       4|read) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" read ;;
       5|wait) printf 'Usage: telecode wait [SECONDS]\n';;
-      6|send) printf 'Usage: telecode send TEXT\n';;
+      6|send) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" send ;;
       7|get-id) exec bash "$0" get-id ;;
       8|help) exec bash "$0" help ;;
       9|q|quit|exit) exit 0 ;;
@@ -1026,47 +1036,8 @@ if [[ -z "$COMMAND" || "$COMMAND" == "--setup" || "$COMMAND" == "setup" ]]; then
     fail "Interactive setup requires a terminal. Rerun install.sh in a terminal, or use --yes."
     exit 2
   fi
-  printf 'Setup: Browser (recommended) / Terminal [B/t]: '
-  IFS= read -r setup_choice || { fail "Setup choice was not received."; exit 130; }
-  case "${setup_choice,,}" in
-    ""|b|browser|web)
-      TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" \
-        exec "$PYTHON" "$APP_DIR/setup_web.py"
-      ;;
-    t|terminal|cli) ;;
-    *) fail "Choose Browser or Terminal."; exit 2 ;;
-  esac
-  TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" "$PYTHON" "$APP_DIR/setup_cli.py" || {
-    fail "CLI integration was cancelled or could not be configured; listener was not enabled."
-    exit 2
-  }
-  if ! grep -Eq '^TG_BOT_TOKEN=[0-9]{5,}:[A-Za-z0-9_-]{20,}$' "$CONFIG_DIR/telegram.env"; then
-    title "Telegram bot token"
-    prompt_token || exit 2
-    set_env_var TG_BOT_TOKEN "$TOKEN_VALUE" || { fail "Could not save the bot token."; exit 1; }
-  fi
-  if ! grep -Eq '^TG_CHAT_ID=-?[0-9]+$' "$CONFIG_DIR/telegram.env"; then
-    title "Owner chat ID"
-    note "To find your ID, message @Getmyid_bot and enter it below; or choose auto-detection."
-    prompt_chat_id || exit 2
-    if [[ -n "${CHAT_VALUE:-}" ]]; then
-      set_env_var TG_CHAT_ID "$CHAT_VALUE" || { fail "Could not save the chat ID."; exit 1; }
-    fi
-  fi
-  if ! grep -Eq '^TG_CHAT_ID=-?[0-9]+$' "$CONFIG_DIR/telegram.env"; then
-    fail "Owner chat ID was not saved; listener will not be enabled."
-    exit 2
-  fi
-  if have_systemd_user; then
-    enable_user_service || exit $?
-    ok "Setup complete: MCP configured and TeleCode enabled at login."
-    note "Next: restart your coding-agent CLI, then run: telecode status"
-  else
-    ok "Setup complete: MCP configured and credentials saved."
-    warn "systemd user services are not available here, so automatic startup was skipped."
-    note "Next: telecode listen   (keep it running), then telecode status"
-  fi
-  exit 0
+  TELEGRAM_BRIDGE_APP_DIR="$APP_DIR" TELEGRAM_BRIDGE_HOME="$CONFIG_DIR" \
+    exec "$PYTHON" "$APP_DIR/telegram-bridge.py" setup
 fi
 
 fail "Unknown command: $COMMAND"

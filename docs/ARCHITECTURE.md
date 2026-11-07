@@ -17,7 +17,9 @@ control plane; it does not interpret prompts.
 | Cross-platform service helper | `service_manager.py` | Installs/removes a Windows logon task or macOS LaunchAgent; Linux uses systemd. |
 | Session adapter | `adapters/opencode.py` | Session listing and prompt delivery through the OpenCode CLI. |
 | Claude Code adapter | `adapters/claude_code.py` | Session discovery from transcripts and headless `claude --resume` delivery. |
+| Hermes Agent adapter | `adapters/hermes.py` | Session discovery and headless prompt delivery via Nous Research Hermes CLI. |
 | Codex CLI adapter | `adapters/codex.py` | Experimental session listing and resume-based inbound routing. |
+| Cursor adapter | `adapters/cursor.py` | Experimental session discovery and headless execution with Cursor Agent CLI. |
 
 The bridge implementation lives in the `telegram_bridge/` package, split into eight
 modules: `state` (paths, shared picker state, `configure()`), `util` (logging, env
@@ -98,7 +100,8 @@ code directory is `${XDG_DATA_HOME:-$HOME/.local/share}/telegram-bridge`.
 {
   "id": "ses...",
   "title": "Session title",
-  "directory": "/home/user"
+  "directory": "/home/user",
+  "agent": "opencode"
 }
 ```
 
@@ -124,12 +127,9 @@ failed. A failed download is logged and the message is still routed.
 
 `resolve_session` returns a tuple of session ID and method:
 
-1. `telegram-selected`: `active-session.json` contains a valid ID that still appears
-   in the current list. A stale selection is deleted so it cannot route into another
-   project.
-2. `pinned`: `OPENCODE_SESSION_MODE=pin` and a valid `OPENCODE_SESSION_ID`.
-3. `discovered`: the most recently updated root, non-archived session in the home
-   directory.
+1. `telegram-selected`: `active-session.json` contains a valid ID matching the currently configured agent. A stale selection or agent mismatch is invalidated.
+2. `pinned`: `OPENCODE_SESSION_MODE=pin` and a valid `OPENCODE_SESSION_ID` (OpenCode).
+3. `discovered`: the most recently updated root, non-archived session for the active agent.
 4. `none`: no target; injection fails.
 
 Session listing calls
