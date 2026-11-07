@@ -627,6 +627,7 @@ INSTALL_FILES=(
   "adapters/claude_code.py"
   "adapters/codex.py"
   "adapters/cursor.py"
+  "adapters/hermes.py"
   "telegram_bridge/__init__.py"
   "telegram_bridge/__main__.py"
   "telegram_bridge/state.py"
@@ -799,7 +800,7 @@ if [[ "$COMMAND" == "menu" ]]; then
     '  3. Start listener     Run in this terminal' \
     '  4. Read messages      Show unread Telegram messages' \
     '  5. Wait for message   Wait up to 120 seconds' \
-    '  6. Send a message     telecode send TEXT' \
+    '  6. Send a message     telecode send [TEXT | PATH]' \
     '  7. Find chat ID       Use your own bot' \
     '  8. Help / commands    Command reference' \
     '  9. Exit' ''
@@ -813,7 +814,7 @@ if [[ "$COMMAND" == "menu" ]]; then
       3|listen) exec bash "$0" listen ;;
       4|read) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" read ;;
       5|wait) printf 'Usage: telecode wait [SECONDS]\n';;
-      6|send) printf 'Usage: telecode send TEXT\n';;
+      6|send) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" send ;;
       7|get-id) exec bash "$0" get-id ;;
       8|help) exec bash "$0" help ;;
       9|q|quit|exit) exit 0 ;;

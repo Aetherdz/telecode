@@ -42,6 +42,7 @@ _LAZY_GROUPS = {
     "util": (
         "ts", "log", "load_env", "api", "_updated", "_html_escape",
         "_plain_fallback", "_cursor", "_unread", "_advance",
+        "save_env_var", "_save_env_var",
     ),
     "telegram": (
         "_style_keyboard", "_download_file", "_keyboard", "_configure_commands",
@@ -65,7 +66,7 @@ _LAZY_GROUPS = {
         "_ordered_providers", "_current_model", "_models_menu",
         "_remember_reply_picker_message", "_edit_reply_picker",
         "_set_models_message_ref", "_switch_session_model", "handle_callback",
-        "handle_control_message",
+        "handle_control_message", "_discover_agents", "_send_agent_picker",
     ),
     "routing": (
         "inject_record", "_inject_worker",

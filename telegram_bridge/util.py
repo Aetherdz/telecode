@@ -30,6 +30,40 @@ def log(msg, **kwargs):
         print(line, file=sys.stderr, flush=True, **kwargs)
 
 
+def save_env_var(key: str, value: str) -> None:
+    env_path = tg.ENV
+    try:
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = []
+        if env_path.exists():
+            try:
+                lines = env_path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                lines = []
+        filtered = [line for line in lines if not line.startswith(f"{key}=")]
+        filtered.append(f"{key}={value}")
+        content = "\n".join(filtered) + "\n"
+        tmp = env_path.with_name(f".{env_path.name}.tmp.{os.getpid()}")
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        tmp.replace(env_path)
+        try:
+            os.chmod(str(env_path), 0o600)
+        except OSError:
+            pass
+    except Exception as e:
+        tg.log(f"[{tg.ts()}] save_env_var {key} failed: {e!r}", flush=True)
+
+
+_save_env_var = save_env_var
+
+
 def load_env():
     cfg = {}
     if not tg.ENV.is_file():

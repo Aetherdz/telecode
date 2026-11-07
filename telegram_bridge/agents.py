@@ -10,7 +10,7 @@ import telegram_bridge as tg
 
 
 def _agent_name(cfg):
-    configured = (cfg.get("TELECODE_AGENT") or "").strip().lower()
+    configured = (cfg.get("TELECODE_AGENT") or cfg.get("TG_AGENT") or "").strip().lower()
     if configured:
         return configured
     # Keep explicit configuration authoritative, but make Cursor work out of
@@ -58,6 +58,9 @@ def _agent_adapter(cfg):
             workspace=cfg.get("CURSOR_WORKSPACE"),
             model=model,
         )
+    if name == "hermes":
+        from adapters.hermes import HermesAdapter
+        return HermesAdapter(binary=(cfg.get("HERMES_BIN") or "hermes").strip())
     from adapters.opencode import OpenCodeAdapter
     return OpenCodeAdapter(binary=tg._opencode_bin(cfg))
 
@@ -285,12 +288,13 @@ def _try_prompt(cfg, sid, body_text, delivery):
     except Exception as e:
         from adapters.codex import CodexAdapterError
         from adapters.cursor import CursorAdapterError
-        if isinstance(e, (CodexAdapterError, CursorAdapterError)):
+        from adapters.hermes import HermesAdapterError
+        if isinstance(e, (CodexAdapterError, CursorAdapterError, HermesAdapterError)):
             tg.send_text(cfg, str(e))
             return True
         tg.log(f"[{tg.ts()}] prompt sid={sid} {delivery}: error {e!r}", flush=True)
         return False
-    if adapter.name in ("codex", "claude-code", "cursor") and isinstance(reply, str) and reply:
+    if adapter.name in ("codex", "claude-code", "cursor", "hermes") and isinstance(reply, str) and reply:
         tg.send_text(cfg, reply[:6000])
         return True
     return bool(reply)

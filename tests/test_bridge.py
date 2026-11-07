@@ -251,13 +251,15 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertEqual(by_text["Sessions"]["style"], "primary")
         self.assertEqual(by_text["New session"]["style"], "success")
         self.assertEqual(by_text["Current session"]["style"], "success")
+        self.assertEqual(by_text["Switch CLI"]["style"], "primary")
         self.assertEqual(by_text["Help"]["style"], "danger")
         self.assertEqual(tb._keyboard(cfg)["keyboard"], [
             [{"text": "Current session", "style": "success"},
              {"text": "New session", "style": "success"}],
             [{"text": "Models", "style": "primary"},
              {"text": "Sessions", "style": "primary"}],
-            [{"text": "Help", "style": "danger"}],
+            [{"text": "Switch CLI", "style": "primary"},
+             {"text": "Help", "style": "danger"}],
         ])
 
         rows = [[{"text": "Next"}, {"text": "Cancel"}, {"text": "build-server"}]]
@@ -655,7 +657,7 @@ class SessionRoutingTests(unittest.TestCase):
         markup = tb._keyboard({})["keyboard"]
         buttons = {item["text"]: item for row in markup for item in row}
         self.assertEqual(buttons["New session"]["style"], "success")
-        self.assertEqual(list(buttons), ["Current session", "New session", "Models", "Sessions", "Help"])
+        self.assertEqual(list(buttons), ["Current session", "New session", "Models", "Sessions", "Switch CLI", "Help"])
 
     def test_session_picker_button_caption_with_photo_is_consumed_as_control(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "17"}
@@ -1337,7 +1339,7 @@ class SessionRoutingTests(unittest.TestCase):
 
     def test_keyboard_labels_are_english(self):
         buttons = [button["text"] for row in tb._keyboard({})["keyboard"] for button in row]
-        self.assertEqual(buttons, ["Current session", "New session", "Models", "Sessions", "Help"])
+        self.assertEqual(buttons, ["Current session", "New session", "Models", "Sessions", "Switch CLI", "Help"])
 
     def test_model_provider_keyboard_renders_page_with_same_reply_keyboard(self):
         cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
@@ -1503,6 +1505,56 @@ class SessionRoutingTests(unittest.TestCase):
             tb._send_session_picker(cfg)
         body = api.call_args.args[2]["text"]
         self.assertEqual(body, "<b>Choose a session</b>\nTap a button to select the destination for your Telegram messages.")
+
+    def test_switch_cli_control_message_triggers_agent_picker(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        with patch.object(tb, "_send_agent_picker") as mock_picker:
+            handled = tb.handle_control_message(cfg, {}, "Switch CLI")
+            self.assertTrue(handled)
+            mock_picker.assert_called_once_with(cfg)
+
+        with patch.object(tb, "_send_agent_picker") as mock_picker:
+            handled = tb.handle_control_message(cfg, {}, "/cli")
+            self.assertTrue(handled)
+            mock_picker.assert_called_once_with(cfg)
+
+        with patch.object(tb, "_send_agent_picker") as mock_picker:
+            handled = tb.handle_control_message(cfg, {}, "/agent")
+            self.assertTrue(handled)
+            mock_picker.assert_called_once_with(cfg)
+
+    def test_switch_cli_callback_updates_agent_and_answers(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1"}
+        cb = {
+            "id": "cb123",
+            "data": "cli:hermes",
+            "message": {
+                "chat": {"id": 1},
+                "message_id": 42,
+            },
+        }
+        with patch.object(tb, "api") as mock_api, \
+             patch.object(tb, "_save_env_var") as mock_save, \
+             patch.object(tb, "discover_session") as mock_discover:
+            handled = tb.handle_callback(cfg, cb)
+            self.assertTrue(handled)
+            self.assertEqual(cfg.get("TELECODE_AGENT"), "hermes")
+            mock_save.assert_any_call("TELECODE_AGENT", "hermes")
+            mock_discover.assert_called_once()
+            # Verify answerCallbackQuery was called
+            answered = any(call.args[1] == "answerCallbackQuery" and "Hermes Agent" in call.args[2].get("text", "")
+                           for call in mock_api.call_args_list)
+            self.assertTrue(answered)
+            # Verify editMessageText was called
+            edited = any(call.args[1] == "editMessageText" and "Hermes Agent" in call.args[2].get("text", "")
+                         for call in mock_api.call_args_list)
+            self.assertTrue(edited)
+
+    def test_agent_adapter_loads_hermes_adapter(self):
+        from adapters.hermes import HermesAdapter
+        adapter = tb._agent_adapter({"TELECODE_AGENT": "hermes"})
+        self.assertIsInstance(adapter, HermesAdapter)
+        self.assertEqual(adapter.name, "hermes")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ USAGE = f"""{ui.accent('TeleCode')} — {ui.dim('Telegram bridge for coding agen
   {ui.accent('listen')}                    Start listener daemon in foreground
   {ui.accent('read')}                      Print unread Telegram messages and advance cursor
   {ui.accent('wait')} [SECONDS]            Wait for incoming message (default: 120s)
-  {ui.accent('send')} TEXT                 Send a message to configured Telegram owner chat
+  {ui.accent('send')} [TEXT | PATH]        Send a message or file to Telegram owner chat
   {ui.accent('sendfile')} PATH [CAPTION]   Send a document/file to owner chat
   {ui.accent('get-id')}                    Detect or verify your numeric Telegram chat ID
 
@@ -106,40 +106,90 @@ def cmd_wait():
     return 3
 
 
-def cmd_send():
+def cmd_send(args=None):
     try:
         cfg = tg.load_env()
     except (FileNotFoundError, PermissionError, ValueError) as exc:
         print(ui.error_line(f"Configuration error: {exc}"), file=sys.stderr)
         return 1
-    text = " ".join(sys.argv[2:]).strip() if len(sys.argv) > 2 else ""
+
+    if args is None:
+        args = sys.argv[2:]
+
+    # Support --file PATH [CAPTION] or -f PATH [CAPTION]
+    if args and args[0] in ("--file", "-f"):
+        if len(args) < 2:
+            print("usage: telecode send --file PATH [CAPTION]", file=sys.stderr)
+            return 2
+        path = pathlib.Path(os.path.expanduser(args[1]))
+        caption = " ".join(args[2:]).strip() if len(args) > 2 else ""
+        if not path.is_file() or path.is_symlink():
+            print(ui.error_line(f"no such file: {path}"), file=sys.stderr)
+            return 2
+        mid = tg.send_file(cfg, path, caption)
+        print(ui.ok_line(f"sent file ok (message_id={mid})"))
+        return 0
+
+    # If first argument is an existing file, treat as file upload
+    if args:
+        candidate = pathlib.Path(os.path.expanduser(args[0]))
+        if candidate.is_file() and not candidate.is_symlink():
+            caption = " ".join(args[1:]).strip() if len(args) > 1 else ""
+            mid = tg.send_file(cfg, candidate, caption)
+            print(ui.ok_line(f"sent file ok (message_id={mid})"))
+            return 0
+        text = " ".join(args).strip()
+    else:
+        text = ""
+
+    # Non-interactive stdin pipe
     if not text and not sys.stdin.isatty():
         text = sys.stdin.read().strip()
+
+    # Interactive prompt
     if not text and sys.stdin.isatty():
         try:
-            text = input("Message to send (or Ctrl-C to cancel): ").strip()
+            user_input = input("Message text or file path (or Ctrl-C to cancel): ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return 130
+        if not user_input:
+            print("usage: telecode send [TEXT | PATH]   (or pipe text via stdin)", file=sys.stderr)
+            return 2
+        candidate = pathlib.Path(os.path.expanduser(user_input))
+        if candidate.is_file() and not candidate.is_symlink():
+            try:
+                caption = input("Caption (optional, Enter to skip): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 130
+            mid = tg.send_file(cfg, candidate, caption)
+            print(ui.ok_line(f"sent file ok (message_id={mid})"))
+            return 0
+        text = user_input
+
     if not text:
-        print("usage: telecode send TEXT   (or pipe text via stdin)", file=sys.stderr)
+        print("usage: telecode send [TEXT | PATH]   (or pipe text via stdin)", file=sys.stderr)
         return 2
+
     mid = tg.send_text(cfg, text)
     print(ui.ok_line(f"sent ok (message_id={mid})"))
     return 0
 
 
-def cmd_sendfile():
+def cmd_sendfile(args=None):
     try:
         cfg = tg.load_env()
     except (FileNotFoundError, PermissionError, ValueError) as exc:
         print(ui.error_line(f"Configuration error: {exc}"), file=sys.stderr)
         return 1
-    if len(sys.argv) < 3:
+    if args is None:
+        args = sys.argv[2:]
+    if len(args) < 1:
         print("usage: telecode sendfile PATH [CAPTION]", file=sys.stderr)
         return 2
-    path = pathlib.Path(os.path.expanduser(sys.argv[2]))
-    caption = " ".join(sys.argv[3:]) if len(sys.argv) > 3 else ""
+    path = pathlib.Path(os.path.expanduser(args[0]))
+    caption = " ".join(args[1:]).strip() if len(args) > 1 else ""
     if not path.is_file() or path.is_symlink():
         print(ui.error_line(f"no such file: {path}"), file=sys.stderr)
         return 2
@@ -200,31 +250,7 @@ def cmd_status():
 
 
 def _save_env_var(key: str, value: str) -> None:
-    env_path = tg.ENV
-    env_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = []
-    if env_path.exists():
-        try:
-            lines = env_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            lines = []
-    filtered = [line for line in lines if not line.startswith(f"{key}=")]
-    filtered.append(f"{key}={value}")
-    content = "\n".join(filtered) + "\n"
-    tmp = env_path.with_name(f".{env_path.name}.tmp.{os.getpid()}")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(content)
-        f.flush()
-        try:
-            os.fsync(f.fileno())
-        except OSError:
-            pass
-    tmp.replace(env_path)
-    try:
-        os.chmod(str(env_path), 0o600)
-    except OSError:
-        pass
+    tg.save_env_var(key, value)
 
 
 def run_web_setup() -> int:
@@ -236,6 +262,17 @@ def run_web_setup() -> int:
     env = os.environ.copy()
     env["TELEGRAM_BRIDGE_APP_DIR"] = str(app_dir)
     env["TELEGRAM_BRIDGE_HOME"] = str(tg.ENV.parent)
+
+    web_card = [
+        ("Wizard mode", "Browser-based credentials & agent wizard"),
+        ("Access", "Loopback only (127.0.0.1)"),
+        ("Session timeout", "15 minutes"),
+        ("SSH forwarding", "ssh -L <port>:127.0.0.1:<port> <remote-host>"),
+    ]
+    print()
+    for line in ui.key_value_card("TeleCode Browser Setup Wizard", web_card):
+        print(line)
+    print()
     print(ui.ok_line("Starting browser setup wizard..."))
     return subprocess.call([sys.executable, str(web_script)], env=env)
 
@@ -247,6 +284,17 @@ def run_cli_setup() -> int:
     if not cli_script.is_file():
         print(ui.error_line("Terminal setup script not found; reinstall TeleCode"), file=sys.stderr)
         return 2
+
+    print()
+    print(ui.bold(ui.accent("TeleCode Terminal Setup Wizard")))
+    print(ui.dim("Configure your coding agent, Telegram credentials, and background service."))
+    print()
+
+    # Step 1: Agent CLI configuration
+    print(ui.bold("Step 1 of 4: Coding-Agent CLI Configuration"))
+    print(ui.dim("Configure MCP integration so your agent can communicate with TeleCode."))
+    print()
+
     env = os.environ.copy()
     env["TELEGRAM_BRIDGE_APP_DIR"] = str(app_dir)
     rc = subprocess.call([sys.executable, str(cli_script)], env=env)
@@ -255,17 +303,28 @@ def run_cli_setup() -> int:
 
     try:
         cfg = tg.load_env()
-        has_token = bool(cfg.get("TG_BOT_TOKEN") and ":" in cfg["TG_BOT_TOKEN"])
-        has_chat = bool(cfg.get("TG_CHAT_ID") and cfg["TG_CHAT_ID"].lstrip("-").isdigit())
     except Exception:
-        has_token = False
-        has_chat = False
+        cfg = {}
 
-    if not has_token or not has_chat:
-        print()
-        print(ui.bold("Configure Telegram Credentials"))
-        print(ui.dim(f"Saved securely (mode 0600) to {tg.ENV}"))
-        print()
+    has_token = bool(cfg.get("TG_BOT_TOKEN") and ":" in cfg["TG_BOT_TOKEN"])
+    has_chat = bool(cfg.get("TG_CHAT_ID") and cfg["TG_CHAT_ID"].lstrip("-").isdigit())
+
+    # Step 2: Telegram Bot Token configuration
+    print()
+    print(ui.bold("Step 2 of 4: Telegram Bot Token Configuration"))
+    print(ui.dim("Obtain a bot token from @BotFather on Telegram (e.g. 123456789:ABCdef...)."))
+    print()
+
+    if has_token:
+        curr_masked = ui.mask_token(cfg["TG_BOT_TOKEN"])
+        print(ui.ok_line(f"Bot token already configured: {curr_masked}"))
+        try:
+            change = input(f"Keep this token? [{ui.bold('Y')}/{ui.dim('n')}]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 130
+        if change in ("n", "no"):
+            has_token = False
 
     if not has_token:
         for attempt in range(1, 4):
@@ -277,6 +336,7 @@ def run_cli_setup() -> int:
                 return 130
             if re.match(r"^\d{5,}:[A-Za-z0-9_-]{20,}$", tok):
                 _save_env_var("TG_BOT_TOKEN", tok)
+                cfg["TG_BOT_TOKEN"] = tok
                 print(ui.ok_line(f"Bot token saved: {ui.mask_token(tok)}"))
                 has_token = True
                 break
@@ -284,6 +344,23 @@ def run_cli_setup() -> int:
         if not has_token:
             print(ui.error_line("Bot token was not saved."), file=sys.stderr)
             return 2
+
+    # Step 3: Owner Chat ID configuration
+    print()
+    print(ui.bold("Step 3 of 4: Owner Chat ID Configuration"))
+    print(ui.dim("Your numeric Telegram chat ID ensures only you can access the bot."))
+    print()
+
+    if has_chat:
+        curr_chat = ui.mask_value(cfg["TG_CHAT_ID"])
+        print(ui.ok_line(f"Owner chat ID already configured: {curr_chat}"))
+        try:
+            change = input(f"Keep this chat ID? [{ui.bold('Y')}/{ui.dim('n')}]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 130
+        if change in ("n", "no"):
+            has_chat = False
 
     if not has_chat:
         for attempt in range(1, 4):
@@ -297,10 +374,18 @@ def run_cli_setup() -> int:
                 env_cid = os.environ.copy()
                 env_cid["TELEGRAM_BRIDGE_HOME"] = str(tg.ENV.parent)
                 subprocess.call([sys.executable, str(helper), "--configure"], env=env_cid)
+                try:
+                    cfg = tg.load_env()
+                    if cfg.get("TG_CHAT_ID"):
+                        has_chat = True
+                        break
+                except Exception:
+                    pass
                 has_chat = True
                 break
             if re.match(r"^-?\d+$", cid):
                 _save_env_var("TG_CHAT_ID", cid)
+                cfg["TG_CHAT_ID"] = cid
                 print(ui.ok_line(f"Chat ID saved: {cid}"))
                 has_chat = True
                 break
@@ -309,9 +394,54 @@ def run_cli_setup() -> int:
             print(ui.error_line("Chat ID was not saved."), file=sys.stderr)
             return 2
 
+    # Step 4: System service startup
     print()
-    print(ui.ok_line("Setup complete: coding agent configured and credentials saved."))
-    print(ui.dim("Run ") + ui.accent("telecode status") + ui.dim(" to verify your connection."))
+    print(ui.bold("Step 4 of 4: System Service Startup"))
+    print(ui.dim("Enable background listener service to run automatically on system boot / login."))
+    print()
+
+    service_state = "Not enabled (run 'telecode listen' to start manually)"
+    try:
+        start_svc = input(f"Enable background service now? [{ui.bold('y')}/{ui.dim('N')}]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return 130
+
+    if start_svc in ("y", "yes"):
+        install_script = app_dir / "install.sh"
+        if install_script.is_file():
+            svc_rc = subprocess.call(["bash", str(install_script), "--enable"])
+            if svc_rc == 0:
+                service_state = ui.green("Enabled and running")
+            else:
+                service_state = ui.yellow("Service setup incomplete (check systemd/supervisor)")
+        else:
+            service_state = ui.dim("installer not found")
+
+    # Present clean summary card upon completion
+    try:
+        final_cfg = tg.load_env()
+    except Exception:
+        final_cfg = cfg
+
+    configured_agent = tg._agent_name(final_cfg) if hasattr(tg, "_agent_name") else final_cfg.get("TELECODE_AGENT", "opencode")
+    tok_val = final_cfg.get("TG_BOT_TOKEN", "")
+    chat_val = final_cfg.get("TG_CHAT_ID", "")
+
+    summary_items = [
+        ("Configured agent", ui.accent(configured_agent)),
+        ("Bot token", ui.mask_token(tok_val) if tok_val else "(none)"),
+        ("Owner chat ID", ui.mask_value(chat_val) if chat_val else "(none)"),
+        ("Background service", service_state),
+        ("Verify status", "telecode status"),
+        ("Test message", 'telecode send "Hello from TeleCode"'),
+    ]
+
+    print()
+    for line in ui.key_value_card("TeleCode Setup Summary", summary_items):
+        print(line)
+    print()
+    print(ui.ok_line("Setup complete! Your coding agent and Telegram bridge are ready."))
     return 0
 
 
@@ -407,8 +537,7 @@ def cmd_menu():
             print(f"Usage: telecode wait [SECONDS]  {ui.dim('(wait up to SECONDS, default 120s)')}")
             return 0
         if selected == "send":
-            print(f"Usage: telecode send TEXT  {ui.dim('(send text to configured Telegram chat)')}")
-            return 0
+            return cmd_send()
         if selected == "get-id":
             helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
             return subprocess.call([sys.executable, str(helper)])

@@ -18,7 +18,7 @@ import webbrowser
 from pathlib import Path
 
 import setup_cli
-from telegram_bridge import detection
+from telegram_bridge import detection, ui
 
 HOST = "127.0.0.1"
 SESSION_SECONDS = 15 * 60
@@ -423,8 +423,17 @@ def run_setup_web(*, browser_open=None, serve=True, max_runtime=SESSION_SECONDS,
     if not serve:
         server.server_close()
         return 0
-    print(f"Temporary browser setup at http://{HOST}:{server.server_port}/ (expires in 15 minutes).")
-    print("If no browser opens, forward the local port with: ssh -L " + str(server.server_port) + ":127.0.0.1:" + str(server.server_port) + " <host>")
+    info_items = [
+        ("Setup URL", ui.accent(f"http://{HOST}:{server.server_port}/")),
+        ("Port", str(server.server_port)),
+        ("Timeout", "15 minutes"),
+        ("SSH Forwarding", f"ssh -L {server.server_port}:127.0.0.1:{server.server_port} <host>"),
+        ("Status", "Waiting for browser connection... (Ctrl-C to cancel)"),
+    ]
+    print()
+    for line in ui.key_value_card("TeleCode Browser Setup Ready", info_items):
+        print(line)
+    print()
     try:
         (browser_open or webbrowser.open)(url)
         while not finished.is_set() and time.monotonic() - last_activity[0] < max_runtime:
