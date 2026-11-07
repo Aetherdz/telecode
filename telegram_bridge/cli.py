@@ -55,9 +55,19 @@ def cmd_read():
         if sys.stdout.isatty():
             print(ui.dim("No unread messages."))
         return 0
-    for r in recs:
-        for line in ui.format_message(r):
+    if sys.stdout.isatty() or ui.supports_color():
+        card_rows = []
+        for r in recs:
+            for l in ui.format_message(r):
+                card_rows.append(l)
+        print()
+        for line in ui.box(f"TeleCode Inbox ({len(recs)} unread)", card_rows):
             print(line)
+        print()
+    else:
+        for r in recs:
+            for line in ui.format_message(r):
+                print(line)
     tg._advance(recs)
     return 0
 
@@ -70,13 +80,25 @@ def cmd_wait():
         print(f"telecode wait: {exc}", file=sys.stderr)
         print(USAGE, file=sys.stderr)
         return 2
+    if sys.stdout.isatty():
+        print(ui.dim(f"Waiting for incoming messages (timeout: {seconds}s, Ctrl-C to cancel)..."))
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         recs = tg._unread()
         if recs:
-            for r in recs:
-                for line in ui.format_message(r):
+            if sys.stdout.isatty() or ui.supports_color():
+                card_rows = []
+                for r in recs:
+                    for l in ui.format_message(r):
+                        card_rows.append(l)
+                print()
+                for line in ui.box(f"TeleCode Inbox ({len(recs)} received)", card_rows):
                     print(line)
+                print()
+            else:
+                for r in recs:
+                    for line in ui.format_message(r):
+                        print(line)
             tg._advance(recs)
             return 0
         time.sleep(min(2, max(0, deadline - time.monotonic())))
@@ -90,7 +112,15 @@ def cmd_send():
     except (FileNotFoundError, PermissionError, ValueError) as exc:
         print(ui.error_line(f"Configuration error: {exc}"), file=sys.stderr)
         return 1
-    text = " ".join(sys.argv[2:]).strip() if len(sys.argv) > 2 else sys.stdin.read().strip()
+    text = " ".join(sys.argv[2:]).strip() if len(sys.argv) > 2 else ""
+    if not text and not sys.stdin.isatty():
+        text = sys.stdin.read().strip()
+    if not text and sys.stdin.isatty():
+        try:
+            text = input("Message to send (or Ctrl-C to cancel): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 130
     if not text:
         print("usage: telecode send TEXT   (or pipe text via stdin)", file=sys.stderr)
         return 2
@@ -144,20 +174,20 @@ def cmd_status():
             alive_text = ui.yellow(f"stale pid {pid}")
     sid, how = tg.resolve_session(cfg)
     rows = [
-        ("bot", f"@{bot.get('username')} (id {bot.get('id')})"),
-        ("owner chat", ui.mask_value(cfg.get("TG_CHAT_ID", ""))),
-        ("listener", f"{alive_dot} {alive_text}"),
-        ("session", f"{sid or '(none)'} [{how}]"),
-        ("delivery", f"{cfg.get('TG_DELIVERY') or 'steer'} "
+        ("Bot", f"@{bot.get('username')} (id {bot.get('id')})"),
+        ("Owner chat", ui.mask_value(cfg.get("TG_CHAT_ID", ""))),
+        ("Listener", f"{alive_dot} {alive_text}"),
+        ("Session", f"{sid or '(none)'} [{how}]"),
+        ("Delivery", f"{cfg.get('TG_DELIVERY') or 'steer'} "
                      f"(mode {cfg.get('OPENCODE_SESSION_MODE') or 'auto'})"),
-        ("unread", str(len(tg._unread()))),
+        ("Unread", str(len(tg._unread()))),
     ]
     if tg.STATE.exists():
-        rows.append(("last delivered", tg.STATE.read_text().strip()))
+        rows.append(("Last target", tg.STATE.read_text().strip()))
     if hasattr(tg, "LOG") and tg.LOG.exists():
-        rows.append(("log file", str(tg.LOG)))
+        rows.append(("Log file", str(tg.LOG)))
 
-    if ui.supports_color():
+    if sys.stdout.isatty() or ui.supports_color():
         print()
         for line in ui.key_value_card("TeleCode Status", rows):
             print(line)
@@ -186,7 +216,7 @@ def cmd_menu():
     menu_rows = []
     for index, (label, hint, _) in enumerate(options, 1):
         suffix = f"  {ui.dim(hint)}" if hint else ""
-        menu_rows.append(f"  {ui.accent(str(index) + '.')} {ui.pad(label, width)}{suffix}")
+        menu_rows.append(f"  {ui.accent(str(index) + '.')} {ui.bold(ui.pad(label, width))}{suffix}")
 
     print()
     for line in ui.box("TeleCode — Telegram bridge for coding agents", menu_rows):
