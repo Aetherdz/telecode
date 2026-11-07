@@ -29,6 +29,7 @@ XDG_CONFIG = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
 XDG_DATA = pathlib.Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
 RUNTIME_CONFIG = XDG_CONFIG / "telegram-bridge"
 APP_DIR = XDG_DATA / "telegram-bridge"
+_HERMES_DIR = pathlib.Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_CONFIG_DIR") or HOME / ".hermes")
 
 HOSTS = [
     ("OpenCode", "opencode", [XDG_CONFIG / "opencode/opencode.json"], True),
@@ -36,7 +37,7 @@ HOSTS = [
     ("Codex CLI", "codex", [HOME / ".codex/config.toml"], True),
     ("Cursor", "cursor", [HOME / ".cursor/mcp.json"], True),
     ("Gemini CLI", "gemini", [HOME / ".gemini/settings.json"], True),
-    ("Hermes Agent", "hermes", [HOME / ".hermes/config.yaml", HOME / ".hermes/config.json"], True),
+    ("Hermes Agent", "hermes", [_HERMES_DIR / "config.yaml", _HERMES_DIR / "config.json"], True),
     ("Aider", "aider", [HOME / ".aider.conf.yml"], False),
     ("Cline", "cline", [HOME / ".vscode/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"], True),
     ("Continue", "continue", [HOME / ".continue/config.json", HOME / ".continue/config.yaml"], False),
@@ -409,7 +410,11 @@ def register_json(path, host):
         servers = data.setdefault("mcp_servers", {})
         if not isinstance(servers, dict) or "telegram-bridge" in servers:
             raise ValueError("invalid or existing mcp_servers.telegram-bridge; refusing overwrite")
-        servers["telegram-bridge"] = {"command": MCP_COMMAND[0], "args": MCP_COMMAND[1:]}
+        servers["telegram-bridge"] = {
+            "command": MCP_COMMAND[0],
+            "args": MCP_COMMAND[1:],
+            "env": {"TELEGRAM_BRIDGE_HOME": str(RUNTIME_CONFIG)},
+        }
     elif kind == "codex":
         raise ValueError("Codex requires TOML configuration")
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
@@ -426,6 +431,8 @@ def register_hermes_yaml(path):
     command: {json.dumps(MCP_COMMAND[0])}
     args:
 {args_block}
+    env:
+      TELEGRAM_BRIDGE_HOME: {json.dumps(str(RUNTIME_CONFIG))}
 """
 
     match = re.search(r"^mcp_servers\s*:\s*(.*)$", existing, re.MULTILINE)
