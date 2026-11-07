@@ -71,10 +71,22 @@ def main():
         except (TimeoutError, socket.timeout):
             print("Telegram did not respond in time; retrying. Check your network and bot token.", file=sys.stderr)
             continue
+        except OSError as exc:
+            raise SystemExit(f"Could not contact Telegram: {exc}") from exc
         with response:
-            payload = json.loads(response.read().decode("utf-8"))
-        for update in payload.get("result", []):
-            offset = int(update.get("update_id", 0)) + 1
+            try:
+                payload = json.loads(response.read().decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise SystemExit("Telegram returned an invalid response. Check your connection and proxy.") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("result"), list):
+            raise SystemExit("Telegram returned an unexpected response.")
+        for update in payload["result"]:
+            if not isinstance(update, dict):
+                continue
+            try:
+                offset = int(update.get("update_id", 0)) + 1
+            except (TypeError, ValueError, OverflowError):
+                continue
             message = update.get("message") or {}
             chat = message.get("chat") or {}
             sender = message.get("from") or {}
@@ -91,10 +103,13 @@ def main():
                 "parse_mode": "HTML",
                 "reply_markup": keyboard,
             }).encode())
-            with urllib.request.urlopen(response, timeout=20):
-                pass
+            try:
+                with urllib.request.urlopen(response, timeout=20):
+                    pass
+            except OSError as exc:
+                raise SystemExit(f"Could not send the chat-ID confirmation to Telegram: {exc}") from exc
             print(f"Your private chat ID: {chat_id}")
-            if "--configure" in sys.argv:
+            if args.configure:
                 values["TG_CHAT_ID"] = chat_id
                 lines = [line for line in env_path.read_text(encoding="utf-8").splitlines()
                          if not line.startswith("TG_CHAT_ID=")]
@@ -109,18 +124,31 @@ def _write_private(path, lines):
     import tempfile
     fd, name = tempfile.mkstemp(prefix=".telegram.env.", dir=path.parent)
     try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        stream = os.fdopen(fd, "w", encoding="utf-8")
+        fd = None  # fdopen now owns and closes the descriptor on all paths.
+        with stream:
             stream.write("\n".join(lines) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(name, path)
-    finally:
+    except BaseException:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
         try:
             os.unlink(name)
         except FileNotFoundError:
             pass
-        time.sleep(0.2)
+        raise
+    finally:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

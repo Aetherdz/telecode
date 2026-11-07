@@ -20,6 +20,7 @@ def configure(home=None):
     tg.STATE = base / "wake-session.txt"
     tg.ACTIVE_SESSION = base / "active-session.json"
     tg.MODELS_CACHE = base / "models-cache.json"
+    tg.LOG = base / "telecode.log"
 
 
 configure()
