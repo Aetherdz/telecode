@@ -84,6 +84,30 @@ class HermesAdapter:
     def validate_session(self, session_id: str) -> AgentSession | None:
         return next((s for s in self.list_sessions() if s.id == session_id), None)
 
+    def create_session(self, title: str) -> AgentSession:
+        """Create a new Hermes session file and return its AgentSession representation."""
+        import uuid
+        title = " ".join(str(title or "").split())
+        if not title:
+            title = "Untitled"
+        sid = f"hermes-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+        root = self.config_dir / "sessions"
+        now = time.time()
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            session_file = root / f"{sid}.json"
+            data = {
+                "id": sid,
+                "title": title,
+                "created_at": now,
+                "updated_at": now,
+                "workspace": str(self.workspace),
+            }
+            session_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except OSError as e:
+            raise HermesAdapterError(f"Could not create Hermes session: {e!r}") from e
+        return AgentSession(sid, title, str(self.workspace), self.name, updated=now)
+
     def send_message(self, session_id: str, text: str, delivery: str = "queue") -> str | None:
         if not _SESSION_ID_RE.match(str(session_id or "")):
             return None

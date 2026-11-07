@@ -55,6 +55,7 @@ _LAZY_GROUPS = {
         "list_sessions", "_active_session_id", "_active_session_record",
         "_active_session_matches_agent", "_set_active_session",
         "discover_session", "_session_by_id", "resolve_session", "_try_prompt",
+        "switch_active_agent",
     ),
     "pickers": (
         "_send_picker_notice", "_invalidate_model_message_ref",

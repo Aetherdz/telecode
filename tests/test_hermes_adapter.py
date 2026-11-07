@@ -68,6 +68,18 @@ class HermesAdapterTests(unittest.TestCase):
         invalid = self.adapter.validate_session("nonexistent-session")
         self.assertIsNone(invalid)
 
+    def test_create_session_creates_file_and_returns_agent_session(self):
+        session = self.adapter.create_session("Feature Implementation")
+        self.assertIsNotNone(session)
+        self.assertTrue(session.id.startswith("hermes-"))
+        self.assertEqual(session.title, "Feature Implementation")
+        self.assertEqual(session.agent, "hermes")
+
+        # Verify it can be listed and validated
+        valid = self.adapter.validate_session(session.id)
+        self.assertIsNotNone(valid)
+        self.assertEqual(valid.title, "Feature Implementation")
+
     def test_send_message_success(self):
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="Hermes response", stderr="")

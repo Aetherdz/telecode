@@ -93,10 +93,13 @@ def create_session(cfg, title):
         raise ValueError("Session name is required.")
     if len(title) > tg.SESSION_NAME_MAX_LENGTH:
         raise ValueError(f"Session name must be {tg.SESSION_NAME_MAX_LENGTH} characters or fewer.")
-    if tg._agent_name(cfg) in ("cursor", "codex"):
-        session = tg._agent_adapter(cfg).create_session(title)
+    adapter = tg._agent_adapter(cfg)
+    if hasattr(adapter, "create_session"):
+        session = adapter.create_session(title)
         return {"id": session.id, "title": session.title,
                 "directory": session.directory, "agent": session.agent}
+    if tg._agent_name(cfg) in ("claude-code", "claude"):
+        raise RuntimeError("Claude Code sessions are created automatically when starting a prompt.")
     result = tg._opencode_api(
         cfg, "post", "/api/session",
         {"title": title, "directory": str(pathlib.Path.home().resolve())}, timeout=30)
@@ -128,29 +131,16 @@ def _session_items(cfg, query: str):
 
 def list_sessions(cfg):
     """Return non-archived root sessions visible in the configured agent."""
-    if tg._agent_name(cfg) == "codex":
+    name = tg._agent_name(cfg)
+    if name in ("codex", "claude-code", "claude", "cursor", "hermes"):
         try:
+            adapter = tg._agent_adapter(cfg)
+            sessions = adapter.list_sessions()
             return [{"id": s.id, "title": s.title, "directory": s.directory,
-                     "time": {"updated": s.updated}, "agent": s.agent}
-                    for s in tg._codex_adapter(cfg).list_sessions()]
+                     "time": {"updated": getattr(s, "updated", 0)}, "agent": s.agent}
+                    for s in sessions]
         except Exception as e:
-            tg.log(f"[{tg.ts()}] Codex session listing failed: {e!r}", flush=True)
-            return []
-    if tg._agent_name(cfg) in ("claude-code", "claude"):
-        try:
-            return [{"id": s.id, "title": s.title, "directory": s.directory,
-                     "time": {"updated": s.updated}, "agent": s.agent}
-                    for s in tg._agent_adapter(cfg).list_sessions()]
-        except Exception as e:
-            tg.log(f"[{tg.ts()}] Claude Code session listing failed: {e!r}", flush=True)
-            return []
-    if tg._agent_name(cfg) == "cursor":
-        try:
-            return [{"id": s.id, "title": s.title, "directory": s.directory,
-                     "time": {"updated": s.updated}, "agent": s.agent}
-                    for s in tg._agent_adapter(cfg).list_sessions()]
-        except Exception as e:
-            tg.log(f"[{tg.ts()}] Cursor session listing failed: {e!r}", flush=True)
+            tg.log(f"[{tg.ts()}] {name} session listing failed: {e!r}", flush=True)
             return []
     try:
         # The session picker is deliberately not restricted to the startup
@@ -166,6 +156,7 @@ def list_sessions(cfg):
         if (session.get("time") or {}).get("archived"):
             continue
         directory = str(session.get("directory") or "")
+        session["agent"] = "opencode"
         sessions.append(session)
     return sessions
 
@@ -201,10 +192,16 @@ def _set_active_session(session):
     """Persist the selected session atomically; no settings/env edits required."""
     tg.ACTIVE_SESSION.parent.mkdir(parents=True, exist_ok=True)
     tmp = tg.ACTIVE_SESSION.with_suffix(".tmp")
+    agent = session.get("agent")
+    if not agent:
+        try:
+            agent = tg._agent_identity(tg.load_env())
+        except Exception:
+            agent = "opencode"
     payload = json.dumps({"id": session.get("id"),
                           "title": session.get("title") or "Untitled",
                           "directory": session.get("directory") or "",
-                          "agent": session.get("agent") or ""},
+                          "agent": agent},
                          ensure_ascii=False).encode("utf-8")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
@@ -214,6 +211,10 @@ def _set_active_session(session):
 
 def discover_session(cfg):
     """Newest visible non-archived root session, regardless of its workspace."""
+    name = tg._agent_name(cfg)
+    if name in ("codex", "claude-code", "claude", "cursor", "hermes"):
+        sessions = tg.list_sessions(cfg)
+        return str(sessions[0]["id"]) if sessions else None
     try:
         items = tg._session_items(cfg, "")
     except Exception as e:
@@ -231,12 +232,17 @@ def discover_session(cfg):
 
 
 def _session_by_id(cfg, sid):
-    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor"):
-        if tg._agent_name(cfg) == "cursor":
-            session = tg._agent_adapter(cfg).validate_session(sid)
-            return ({"id": session.id, "title": session.title,
-                     "directory": session.directory, "agent": session.agent}
-                    if session else None)
+    name = tg._agent_name(cfg)
+    if name in ("codex", "claude-code", "claude", "cursor", "hermes"):
+        try:
+            adapter = tg._agent_adapter(cfg)
+            if hasattr(adapter, "validate_session"):
+                session = adapter.validate_session(sid)
+                if session:
+                    return {"id": session.id, "title": session.title,
+                            "directory": session.directory, "agent": session.agent}
+        except Exception as e:
+            tg.log(f"[{tg.ts()}] {name} session lookup failed: {e!r}", flush=True)
         return next((s for s in tg.list_sessions(cfg) if str(s.get("id")) == str(sid)), None)
     if not re.fullmatch(r"ses[0-9A-Za-z_-]{6,80}", str(sid or "")):
         return None
@@ -245,7 +251,7 @@ def _session_by_id(cfg, sid):
 
 def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
-    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor"):
+    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor", "hermes"):
         selected = tg._active_session_id()
         if selected and _active_session_matches_agent(cfg) and tg._session_by_id(cfg, selected):
             return selected, "telegram-selected"
@@ -298,3 +304,33 @@ def _try_prompt(cfg, sid, body_text, delivery):
         tg.send_text(cfg, reply[:6000])
         return True
     return bool(reply)
+
+
+def switch_active_agent(cfg, target_agent: str):
+    """Switch active agent, clear old session state, and select newest session for new agent."""
+    target_agent = target_agent.strip().lower()
+    if target_agent == "claude":
+        target_agent = "claude-code"
+
+    tg._save_env_var("TELECODE_AGENT", target_agent)
+    tg._save_env_var("TG_AGENT", target_agent)
+    cfg["TELECODE_AGENT"] = target_agent
+    cfg["TG_AGENT"] = target_agent
+
+    try:
+        tg.ACTIVE_SESSION.unlink(missing_ok=True)
+    except OSError:
+        pass
+    tg._restore_primary_controls()
+    tg._invalidate_model_message_ref()
+    tg.SESSION_SNAPSHOT = []
+    tg.SESSION_BUTTONS.clear()
+    tg.ACTIVE_PICKER = None
+
+    sessions = tg.list_sessions(cfg)
+    active_session = None
+    if sessions:
+        active_session = sessions[0]
+        tg._set_active_session(active_session)
+
+    return active_session
