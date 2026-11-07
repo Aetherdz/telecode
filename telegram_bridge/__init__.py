@@ -55,7 +55,7 @@ _LAZY_GROUPS = {
         "list_sessions", "_active_session_id", "_active_session_record",
         "_active_session_matches_agent", "_set_active_session",
         "discover_session", "_session_by_id", "resolve_session", "_try_prompt",
-        "switch_active_agent",
+        "switch_active_agent", "AGENT_LABELS", "normalize_agent", "agent_label",
     ),
     "pickers": (
         "_send_picker_notice", "_invalidate_model_message_ref",
@@ -74,10 +74,12 @@ _LAZY_GROUPS = {
     ),
     "listener": (
         "start_opencode_listener", "_remove_pid_file", "cmd_listen",
+        "_check_env_reload",
     ),
     "cli": (
         "cmd_read", "cmd_wait", "cmd_send", "cmd_sendfile",
         "cmd_status", "cmd_menu", "cmd_install", "main", "USAGE",
+        "cmd_agent",
     ),
 }
 _LAZY = {name: module for module, names in _LAZY_GROUPS.items() for name in names}

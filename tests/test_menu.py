@@ -37,6 +37,11 @@ class MenuTests(unittest.TestCase):
             self.assertEqual(cli.cmd_menu(), 0)
             mock_st.assert_called_once()
 
+    def test_agent_menu_option_calls_cmd_agent(self):
+        with patch("builtins.input", return_value="9"), patch.object(cli, "cmd_agent", return_value=0) as mock_ag, patch("builtins.print"):
+            self.assertEqual(cli.cmd_menu(), 0)
+            mock_ag.assert_called_once()
+
     def test_setup_menu_option_calls_cmd_setup(self):
         with patch("builtins.input", return_value="1"), patch.object(cli, "cmd_setup", return_value=0) as mock_su, patch("builtins.print"):
             self.assertEqual(cli.cmd_menu(), 0)

@@ -21,6 +21,28 @@ def _remove_pid_file():
         pass
 
 
+def _check_env_reload(cfg: dict, last_mtime: float) -> float:
+    """Reload tg.ENV if mtime changed, updating cfg dict in place. Returns new mtime."""
+    try:
+        if not tg.ENV.exists():
+            return last_mtime
+        cur_mtime = tg.ENV.stat().st_mtime
+        if cur_mtime <= last_mtime:
+            return last_mtime
+        new_cfg = tg.load_env()
+        if not new_cfg.get("TG_BOT_TOKEN") or not new_cfg.get("TG_CHAT_ID"):
+            return last_mtime
+        old_agent = tg._agent_identity(cfg)
+        cfg.update(new_cfg)
+        new_agent = tg._agent_identity(cfg)
+        if old_agent != new_agent:
+            tg.log(f"[{tg.ts()}] listener hot reload: agent changed {old_agent} -> {new_agent}", flush=True)
+        return cur_mtime
+    except Exception as e:
+        tg.log(f"[{tg.ts()}] env reload failed: {e!r}", flush=True)
+        return last_mtime
+
+
 def start_opencode_listener(cfg):
     """Start the Telegram listener from an OpenCode MCP process if needed."""
     if (cfg.get("TG_AUTOSTART") or "1").strip().lower() in ("0", "false", "off", "no"):
@@ -80,7 +102,9 @@ def cmd_listen():
     tg.log(f"[{tg.ts()}] listener up (pid {os.getpid()}), owner={owner}, offset={offset}", flush=True)
     tg._send_keyboard(cfg, configure=True)
     threading.Thread(target=tg._inject_worker, args=(cfg,), daemon=True).start()
+    last_env_mtime = tg.ENV.stat().st_mtime if tg.ENV.exists() else 0.0
     while True:
+        last_env_mtime = _check_env_reload(cfg, last_env_mtime)
         try:
             res = tg.api(
                 token,

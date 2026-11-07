@@ -1534,14 +1534,15 @@ class SessionRoutingTests(unittest.TestCase):
                 "message_id": 42,
             },
         }
-        with patch.object(tb, "api") as mock_api, \
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(tb, "ACTIVE_SESSION", pathlib.Path(temp) / "active.json"), \
+             patch.object(tb, "api") as mock_api, \
              patch.object(tb, "_save_env_var") as mock_save, \
-             patch.object(tb, "discover_session") as mock_discover:
+             patch.object(tb, "list_sessions", return_value=[]):
             handled = tb.handle_callback(cfg, cb)
             self.assertTrue(handled)
             self.assertEqual(cfg.get("TELECODE_AGENT"), "hermes")
             mock_save.assert_any_call("TELECODE_AGENT", "hermes")
-            mock_discover.assert_called_once()
             # Verify answerCallbackQuery was called
             answered = any(call.args[1] == "answerCallbackQuery" and "Hermes Agent" in call.args[2].get("text", "")
                            for call in mock_api.call_args_list)
@@ -1635,6 +1636,48 @@ class SessionRoutingTests(unittest.TestCase):
             self.assertIn("Hermes Agent", mock_send.call_args.args[1])
             self.assertIn("Hermes Task", mock_send.call_args.args[1])
             self.assertIn("hermes-abc", mock_send.call_args.args[1])
+
+    def test_switch_cli_callback_rejects_unsupported_or_injected_agent(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "opencode"}
+        for data in ("cli:gemini", "cli:x\nTG_CHAT_ID=1", "agent:../../etc"):
+            with self.subTest(data=data), \
+                 patch.object(tb, "api"), \
+                 patch.object(tb, "_save_env_var") as mock_save:
+                self.assertTrue(tb.handle_callback(cfg, {"id": "c", "data": data, "message": {}}))
+                mock_save.assert_not_called()
+                self.assertEqual(cfg["TELECODE_AGENT"], "opencode")
+
+    def test_switch_to_same_agent_keeps_selected_session(self):
+        with tempfile.TemporaryDirectory() as temp:
+            active = pathlib.Path(temp) / "active-session.json"
+            cfg = {"TELECODE_AGENT": "hermes"}
+            chosen = {"id": "hermes-old", "title": "Chosen", "directory": temp, "agent": "hermes"}
+            with patch.object(tb, "ACTIVE_SESSION", active), \
+                 patch.object(tb, "_save_env_var") as mock_save, \
+                 patch.object(tb, "_session_by_id", return_value=chosen):
+                tb._set_active_session(chosen)
+                self.assertEqual(tb.switch_active_agent(cfg, "hermes")["id"], "hermes-old")
+                mock_save.assert_not_called()
+                self.assertTrue(active.exists())
+
+    def test_cli_command_rejects_unknown_agent(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "opencode"}
+        with patch.object(tb, "switch_active_agent") as mock_switch, \
+             patch.object(tb, "send_text") as mock_send, \
+             patch.object(tb, "_send_agent_picker") as picker:
+            self.assertTrue(tb.handle_control_message(cfg, {}, "/cli gemini"))
+        mock_switch.assert_not_called()
+        picker.assert_called_once()
+        self.assertIn("Unknown agent", mock_send.call_args.args[1])
+
+    def test_models_menu_explains_unsupported_agents(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "hermes"}
+        with patch.object(tb, "send_text") as mock_send, \
+             patch.object(tb, "_send_keyboard"), \
+             patch.object(tb, "_models_from_api") as models:
+            tb._models_menu(cfg)
+        models.assert_not_called()
+        self.assertIn("Hermes Agent", mock_send.call_args.args[1])
 
 
 if __name__ == "__main__":

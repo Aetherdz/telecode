@@ -9,6 +9,30 @@ import subprocess
 import telegram_bridge as tg
 
 
+# Agents that have a working inbound adapter. Only these may be selected from
+# Telegram; anything else (including crafted callback data) is rejected.
+AGENT_LABELS = {
+    "opencode": "OpenCode",
+    "claude-code": "Claude Code",
+    "codex": "Codex CLI",
+    "cursor": "Cursor",
+    "hermes": "Hermes Agent",
+}
+_AGENT_ALIASES = {"claude": "claude-code", "claude_code": "claude-code", "open-code": "opencode"}
+
+
+def normalize_agent(name):
+    """Canonical supported agent id, or None when unsupported/invalid."""
+    value = str(name or "").strip().lower()
+    value = _AGENT_ALIASES.get(value, value)
+    return value if value in AGENT_LABELS else None
+
+
+def agent_label(name):
+    canonical = normalize_agent(name)
+    return AGENT_LABELS[canonical] if canonical else str(name or "unknown")
+
+
 def _agent_name(cfg):
     configured = (cfg.get("TELECODE_AGENT") or cfg.get("TG_AGENT") or "").strip().lower()
     if configured:
@@ -308,9 +332,17 @@ def _try_prompt(cfg, sid, body_text, delivery):
 
 def switch_active_agent(cfg, target_agent: str):
     """Switch active agent, clear old session state, and select newest session for new agent."""
-    target_agent = target_agent.strip().lower()
-    if target_agent == "claude":
-        target_agent = "claude-code"
+    canonical = normalize_agent(target_agent)
+    if not canonical:
+        raise ValueError(f"Unsupported agent: {str(target_agent)[:40]}")
+    target_agent = canonical
+
+    if tg._agent_identity(cfg) == target_agent:
+        # Re-selecting the active agent must not discard the chosen session.
+        sid = tg._active_session_id()
+        current = tg._session_by_id(cfg, sid) if sid and _active_session_matches_agent(cfg) else None
+        if current:
+            return current
 
     tg._save_env_var("TELECODE_AGENT", target_agent)
     tg._save_env_var("TG_AGENT", target_agent)

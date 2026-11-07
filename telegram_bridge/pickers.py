@@ -59,14 +59,7 @@ def _send_session_picker(cfg, page=0, sessions=None):
         elif current_agent == "opencode":
             text = "No OpenCode sessions were found. Create one, or check that the OpenCode service is running."
         else:
-            agent_names = {
-                "claude-code": "Claude Code",
-                "claude": "Claude Code",
-                "codex": "Codex",
-                "gemini": "Gemini",
-                "hermes": "Hermes Agent",
-            }
-            agent_label = agent_names.get(current_agent, current_agent)
+            agent_label = tg.agent_label(current_agent)
             text = f"No {agent_label} sessions were found. Create one with New session, or open by ID."
         tg._send_reply_picker(cfg, text,
                               [[{"text": tg.NEW_SESSION}, {"text": "Open by ID"}],
@@ -105,16 +98,7 @@ def _begin_new_session(cfg):
     tg.SESSION_BUTTONS.clear()
     tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
     tg.MODEL_PAGE_STATE.update(provider_index=None, page=0)
-    agent_names = {
-        "opencode": "OpenCode",
-        "claude-code": "Claude Code",
-        "claude": "Claude Code",
-        "codex": "Codex",
-        "cursor": "Cursor",
-        "gemini": "Gemini",
-        "hermes": "Hermes Agent",
-    }
-    agent_label = agent_names.get(tg._agent_name(cfg), tg._agent_name(cfg))
+    agent_label = tg.agent_label(tg._agent_name(cfg))
     tg._send_reply_picker(
         cfg,
         f"<b>New {agent_label} session</b>\nSend the session name as your next message (up to {tg.SESSION_NAME_MAX_LENGTH} characters). Send Cancel to stop.",
@@ -291,6 +275,14 @@ def _current_model(cfg, sid):
 
 def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     """Show model-provider and model pages in Telegram's bottom reply keyboard."""
+    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes"):
+        tg.ACTIVE_PICKER = None
+        tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
+        label = tg.agent_label(tg._agent_name(cfg))
+        tg.send_text(cfg, f"{label} uses the model configured in its own CLI; "
+                          "model switching from Telegram is not available for this agent.")
+        tg._send_keyboard(cfg, f"Active agent: {label}.")
+        return
     if models_snapshot is not None:
         models = models_snapshot
     else:
@@ -507,7 +499,6 @@ def _discover_agents(cfg):
         ("claude-code", "Claude Code", ["claude"], [home / ".claude.json", home / ".claude/settings.json"]),
         ("codex", "Codex CLI", ["codex"], [home / ".codex/config.toml"]),
         ("cursor", "Cursor", ["agent"], [home / ".cursor"]),
-        ("gemini", "Gemini CLI", ["gemini"], [home / ".gemini/settings.json"]),
         ("hermes", "Hermes Agent", ["hermes"], [home / ".hermes/config.yaml", home / ".hermes/config.json"]),
     ]
     current = tg._agent_name(cfg)
@@ -542,6 +533,25 @@ def _send_agent_picker(cfg):
     tg._send_inline(cfg, text, rows)
 
 
+def _agent_switch_text(cfg, target_agent):
+    """Switch agents and describe the resulting target; never raises."""
+    agent_display = tg.agent_label(target_agent)
+    try:
+        active_session = tg.switch_active_agent(cfg, target_agent)
+    except Exception as e:
+        tg.log(f"[{tg.ts()}] agent switch failed: {e!r}", flush=True)
+        return f"Could not switch to <b>{tg._html_escape(agent_display)}</b>: {tg._html_escape(str(e)[:140])}"
+    if active_session:
+        session_info = (
+            f"<b>Active session:</b> {tg._html_escape(tg.session_title(active_session))}\n"
+            f"<b>Session ID:</b> <code>{tg._html_escape(str(active_session.get('id') or ''))}</code>"
+        )
+    else:
+        session_info = (f"<i>No {tg._html_escape(agent_display)} sessions found. "
+                        "Tap New session to create one.</i>")
+    return f"<b>Active agent:</b> {tg._html_escape(agent_display)}\n\n{session_info}"
+
+
 def handle_callback(cfg, cb):
     """Handle inline-keyboard callbacks (agent picker and model messages)."""
     data = str(cb.get("data") or "")
@@ -573,58 +583,39 @@ def handle_callback(cfg, cb):
                     pass
             return True
 
-        agent_names = {
-            "opencode": "OpenCode",
-            "claude-code": "Claude Code",
-            "claude": "Claude Code",
-            "codex": "Codex CLI",
-            "cursor": "Cursor",
-            "gemini": "Gemini CLI",
-            "hermes": "Hermes Agent",
-        }
-        agent_display = agent_names.get(target_agent, target_agent)
-
-        active_session = tg.switch_active_agent(cfg, target_agent)
-        try:
-            tg.discover_session(cfg)
-        except Exception:
-            pass
-
-        if active_session:
-            sid = str(active_session.get("id") or "")
-            stitle = tg.session_title(active_session)
-            session_info = (
-                f"<b>Active session:</b> {tg._html_escape(stitle)}\n"
-                f"<b>Session ID:</b> <code>{tg._html_escape(sid)}</code>"
-            )
-        else:
-            session_info = f"<i>No active sessions found for {tg._html_escape(agent_display)}. Start one with New session or send a message.</i>"
-
+        canonical = tg.normalize_agent(target_agent)
+        if not canonical:
+            if callback_id:
+                try:
+                    tg.api(cfg["TG_BOT_TOKEN"], "answerCallbackQuery",
+                           {"callback_query_id": callback_id, "text": "That agent is not supported."}, timeout=10)
+                except Exception:
+                    pass
+            tg.log(f"[{tg.ts()}] rejected agent switch to unsupported value {target_agent[:40]!r}", flush=True)
+            return True
+        agent_display = tg.agent_label(canonical)
+        # Acknowledge immediately: session discovery can be slow and Telegram
+        # expires unanswered callback queries.
         if callback_id:
             try:
                 tg.api(cfg["TG_BOT_TOKEN"], "answerCallbackQuery",
-                       {"callback_query_id": callback_id, "text": f"Switched to {agent_display}"}, timeout=10)
+                       {"callback_query_id": callback_id, "text": f"Switching to {agent_display}..."}, timeout=10)
             except Exception as e:
                 tg.log(f"[{tg.ts()}] answerCallbackQuery failed: {e!r}", flush=True)
-
+        text = _agent_switch_text(cfg, canonical)
+        edited = False
         if chat_id and message_id:
             try:
                 tg.api(cfg["TG_BOT_TOKEN"], "editMessageText", {
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "text": (
-                        f"✓ Active agent changed to: <b>{tg._html_escape(agent_display)}</b>\n\n"
-                        f"{session_info}"
-                    ),
-                    "parse_mode": "HTML",
+                    "chat_id": chat_id, "message_id": message_id,
+                    "text": text, "parse_mode": "HTML",
                 }, timeout=15)
+                edited = True
             except Exception as e:
                 tg.log(f"[{tg.ts()}] editMessageText failed: {e!r}", flush=True)
-
-        try:
-            tg._send_keyboard(cfg)
-        except Exception:
-            pass
+        if not edited:
+            tg.send_text(cfg, text, parse_mode="HTML")
+        tg._send_keyboard(cfg, f"Active agent: {agent_display}. Send a message or pick a session.")
         return True
     message_ref = tg._callback_message_ref(cb)
     parts = data.split(":")
@@ -821,55 +812,23 @@ def handle_control_message(cfg, msg, text):
             tg._send_keyboard(cfg)
         sid, _ = tg.resolve_session(cfg)
         session = tg._session_by_id(cfg, sid) if sid else None
-        agent_names = {
-            "opencode": "OpenCode",
-            "claude-code": "Claude Code",
-            "claude": "Claude Code",
-            "codex": "Codex CLI",
-            "cursor": "Cursor",
-            "gemini": "Gemini CLI",
-            "hermes": "Hermes Agent",
-        }
-        agent_display = agent_names.get(tg._agent_name(cfg), tg._agent_name(cfg))
+        agent_display = tg.agent_label(tg._agent_name(cfg))
         if session:
             tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\n<b>Active session:</b> {tg._html_escape(tg.session_title(session))}\n<b>Session ID:</b> <code>{tg._html_escape(sid)}</code>", parse_mode="HTML")
         else:
             tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\nActive session: <code>{tg._html_escape(sid or 'not set')}</code>", parse_mode="HTML")
         return True
     if cmd.startswith("/cli ") or cmd.startswith("/agent "):
-        target_agent = cmd.split(maxsplit=1)[1].strip().lower()
-        valid_agents = {"opencode", "claude-code", "claude", "codex", "cursor", "gemini", "hermes"}
-        if target_agent in valid_agents:
-            agent_names = {
-                "opencode": "OpenCode",
-                "claude-code": "Claude Code",
-                "claude": "Claude Code",
-                "codex": "Codex CLI",
-                "cursor": "Cursor",
-                "gemini": "Gemini CLI",
-                "hermes": "Hermes Agent",
-            }
-            agent_display = agent_names.get(target_agent, target_agent)
-            active_session = tg.switch_active_agent(cfg, target_agent)
-            if active_session:
-                sid = str(active_session.get("id") or "")
-                stitle = tg.session_title(active_session)
-                session_info = (
-                    f"<b>Active session:</b> {tg._html_escape(stitle)}\n"
-                    f"<b>Session ID:</b> <code>{tg._html_escape(sid)}</code>"
-                )
-            else:
-                session_info = f"<i>No active sessions found for {tg._html_escape(agent_display)}. Start one with New session or send a message.</i>"
-            tg.send_text(
-                cfg,
-                f"✓ Switched active agent to: <b>{tg._html_escape(agent_display)}</b>\n\n{session_info}",
-                parse_mode="HTML",
-            )
-            tg._send_keyboard(cfg)
-            return True
-        else:
+        canonical = tg.normalize_agent(cmd.split(maxsplit=1)[1])
+        if not canonical:
+            supported = ", ".join(tg.AGENT_LABELS)
+            tg.send_text(cfg, f"Unknown agent. Supported: {supported}.")
             tg._send_agent_picker(cfg)
             return True
+        tg._restore_primary_controls()
+        tg.send_text(cfg, _agent_switch_text(cfg, canonical), parse_mode="HTML")
+        tg._send_keyboard(cfg, f"Active agent: {tg.agent_label(canonical)}. Send a message or pick a session.")
+        return True
     if cmd in ("/cli", "/agent", "Switch CLI", "Agents", "Switch agent", "/agents"):
         if tg.ACTIVE_PICKER is not None:
             tg._invalidate_model_message_ref()
@@ -947,16 +906,7 @@ def handle_control_message(cfg, msg, text):
         if cmd in ("Current session", "/current"):
             sid, _ = tg.resolve_session(cfg)
             session = tg._session_by_id(cfg, sid) if sid else None
-            agent_names = {
-                "opencode": "OpenCode",
-                "claude-code": "Claude Code",
-                "claude": "Claude Code",
-                "codex": "Codex CLI",
-                "cursor": "Cursor",
-                "gemini": "Gemini CLI",
-                "hermes": "Hermes Agent",
-            }
-            agent_display = agent_names.get(tg._agent_name(cfg), tg._agent_name(cfg))
+            agent_display = tg.agent_label(tg._agent_name(cfg))
             if session:
                 tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\n<b>Active session:</b> {tg._html_escape(tg.session_title(session))}\n<b>Session ID:</b> <code>{tg._html_escape(sid)}</code>", parse_mode="HTML")
             else:

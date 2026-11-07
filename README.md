@@ -43,13 +43,15 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 
 ## Highlights
 
-- **Control your OpenCode sessions from Telegram:** browse sessions, see the active target, and switch sessions without editing config files.
-- **Create sessions on the go:** start a named OpenCode session from Telegram and immediately make it the active target.
-- **Choose a model on the go:** browse providers and paginated model lists; apply a choice to the active OpenCode session.
+- **Control your coding sessions from Telegram:** browse sessions, see the active target, and switch sessions without editing config files.
+- **Switch coding agents in Telegram:** tap "Switch CLI" or send `/cli` or `/agent` to choose between OpenCode, Claude Code, Codex, Cursor, and Hermes Agent. Switching clears the previous session and auto-selects the newest session of the new agent.
+- **Create sessions on the go:** start a named session from Telegram and immediately make it the active target.
+- **Choose a model on the go:** browse providers and paginated model lists; apply a choice to the active session.
 - **Send context both ways:** route text, photos, and documents into the selected session; let the agent send text or approved local files back.
-- **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound session routing currently requires OpenCode.
+- **Send text or files from the CLI:** `telecode send` auto-detects files, accepts `--file`/`-f`, supports piped stdin, and offers an interactive prompt in terminal mode or `telecode menu`.
+- **Use MCP-compatible clients:** outbound Telegram tools work through a local stdio MCP server. Inbound targeted routing supports OpenCode, Claude Code, and Hermes Agent (experimental for Codex and Cursor).
 - **Keep the boundary local and private:** only the configured owner chat is accepted; credentials live in a private runtime config.
-- **Install without a build step:** Python 3.11+ standard library runtime, guided setup, optional systemd/LaunchAgent/Task Scheduler startup, or foreground listener.
+- **Install without a build step:** Python 3.11+ standard library runtime, guided 4-step setup, optional systemd/LaunchAgent/Task Scheduler startup, or foreground listener.
 - **Readable terminal setup:** The Python CLI renders an aligned, keyboard-driven menu with plain ANSI styling and no third-party dependency; the shell installer keeps the same dependency-free approach.
 
 ## Quick start
@@ -60,7 +62,7 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 - Python 3.11 or newer and Git.
 - A Telegram bot token from [@BotFather](https://t.me/BotFather).
 - Your numeric Telegram chat ID, or the option to detect it by messaging your bot.
-- OpenCode for Telegram-to-session prompt routing. Other MCP clients can use outbound tools; see [CLI support](docs/CLI.md).
+- A supported coding agent for Telegram-to-session prompt routing (OpenCode, Claude Code, Hermes Agent, Codex, or Cursor). Other MCP clients can use outbound tools; see [CLI support](docs/CLI.md).
 
 ### Install from source
 
@@ -96,6 +98,39 @@ After setup, restart your coding-agent CLI so it loads the MCP server. Check the
 telecode status
 ```
 
+### Terminal setup wizard
+
+Running `telecode setup` (or `telecode setup --cli`) opens the guided 4-step terminal wizard:
+1. **Coding-Agent CLI Configuration:** Select an installed agent CLI (OpenCode, Claude Code, Codex, Cursor, Hermes Agent, etc.) to configure MCP integration with automatic backups.
+2. **Telegram Bot Token Configuration:** Prompt securely for your bot token from @BotFather with format validation, or keep an existing token.
+3. **Owner Chat ID Configuration:** Set your numeric chat ID, or type `a` for automatic detection via your bot.
+4. **System Service Startup:** Optionally enable the background listener service on system boot or login.
+
+A summary card confirms the configured agent, credentials, and service status upon completion.
+
+### Sending messages and files
+
+Send text or files to your Telegram chat from the command line:
+
+```sh
+# Send a text message
+telecode send "Build completed successfully"
+
+# Auto-detect an existing file path and send as a document
+telecode send ./dist/telecode.tar.gz "Release archive"
+
+# Explicit file flag
+telecode send --file ./screenshot.png "Test results screenshot"
+
+# Pipe text via stdin
+git log -3 --oneline | telecode send
+
+# Interactive prompt (message or file path)
+telecode send
+```
+
+You can also use Option 6 ("Send a message") in the interactive `telecode menu`.
+
 ## How it works
 
 ```mermaid
@@ -113,15 +148,16 @@ The listener long-polls Telegram, checks incoming messages against the configure
 | Control | What it does |
 | --- | --- |
 | `Sessions` / `/session` | Browse available sessions and select the active target. |
-| `Current session` / `/current` | Show the active session and its ID. |
-| `New session` | Enter a name, create an OpenCode session, and select it for subsequent messages. |
-| `Enter session ID` / `/entersession` | Enter and verify a full OpenCode session ID, including one missing from the picker. |
-| `Models` / `/models` | Browse providers and models, then switch the active OpenCode session. |
+| `Current session` / `/current` | Show the active agent, session title, and session ID. |
+| `New session` | Enter a name, create a session, and select it for subsequent messages. |
+| `Switch CLI` / `/cli` / `/agent` | Open inline picker to switch active coding agent, or switch directly with `/cli <name>`. |
+| `Enter session ID` / `/entersession` | Enter and verify a full session ID, including one missing from the picker. |
+| `Models` / `/models` | Browse providers and models, then switch the active session model. |
 | `Help` / `/help` | Show available controls. |
 | `/files` | List recent files received for the active session. |
 | Any other text | Route the message to the active session. |
 
-The keyboard labels are exact-match English text. The main keyboard uses Telegram's one-time hint; Telegram controls when keyboards are hidden, and `/menu` re-sends the main keyboard at any time. Closing or leaving a picker restores the main controls. Session selection is global to this bridge instance. Creating sessions requires the OpenCode API to be reachable. See [Buttons and commands](docs/BUTTONS.md) for picker behavior and edge cases.
+The keyboard labels are exact-match English text. The main keyboard uses Telegram's one-time hint with rows for `Current session` / `New session`, `Models` / `Sessions`, and `Switch CLI` / `Help`. Telegram controls when keyboards are hidden, and `/menu` re-sends the main keyboard at any time. Closing or leaving a picker restores the main controls. Session selection is global to this bridge instance. Creating sessions requires the agent API or CLI to be reachable. See [Buttons and commands](docs/BUTTONS.md) for picker behavior and edge cases.
 
 Optional agent workflow: an OpenCode session with [`skills/telegram-interaction/SKILL.md`](skills/telegram-interaction/SKILL.md) available can be explicitly opted in by sending `/telegram` in the same authorized Telegram message as the task. It keeps work in the selected local session and routes concise responses via Telegram MCP. `/telegram` is not a bridge control command or button; without explicit opt-in in that task message, normal routing applies. See the [skill contract](skills/telegram-interaction/SKILL.md).
 
@@ -145,6 +181,7 @@ For safety, `tg_sendfile` rejects paths outside the configured allowlist and blo
 | --- | :---: | :---: |
 | OpenCode | Yes | Yes — default adapter, sessions from any directory |
 | Claude Code | Yes | Yes — headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`) |
+| Hermes Agent | Yes | Yes — Nous Research Hermes CLI adapter (`TELECODE_AGENT=hermes`) |
 | Codex CLI | Yes | Experimental — set `TELECODE_AGENT=codex` |
 | Cursor Agent CLI | Yes | Experimental — create/resume chats with `TELECODE_AGENT=cursor` |
 | Gemini CLI, Cline, Roo Code, Amazon Q | Yes | No |
@@ -152,6 +189,7 @@ For safety, `tg_sendfile` rejects paths outside the configured allowlist and blo
 
 MCP support and session-routing support are separate capabilities. Installing the MCP server in another client does **not** make that client an inbound Telegram target. Check [CLI integrations](docs/CLI.md) for setup details.
 
+Hermes Agent inbound routing requires the Hermes CLI and `~/.hermes/config.yaml` or `~/.hermes/config.json`. The adapter lists sessions from `~/.hermes/sessions`, creates named sessions, and resumes chats headlessly via `hermes chat --resume <id> --message <text>`. See [Hermes Agent](docs/CLI.md#hermes-agent).
 Codex inbound routing requires Codex CLI 0.166.0 or newer. It is experimental; local thread discovery, model listing, and queue delivery were smoke-tested on Linux. Generating an agent reply still requires a usable Codex account/session. See [the assumptions and limits](docs/CLI.md#codex-cli).
 Cursor inbound routing requires the Cursor Agent CLI and `CURSOR_WORKSPACE` set to
 the project directory for new chats. Existing chats across projects are best-effort

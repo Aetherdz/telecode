@@ -14,9 +14,9 @@ the one-time hint. Temporary picker keyboards are shown while a picker is open. 
 keyboard has these rows:
 
 ```text
-[ Sessions ]        [ Current session ]
-[ New session ]     [ Models ]
-[ Help ] [ menu ]
+[ Current session ] [ New session ]
+[ Models ]          [ Sessions ]
+[ Switch CLI ]      [ Help ]
 ```
 
 Labels are English text only. There is no emoji in the keyboard. Each label is
@@ -28,16 +28,17 @@ text and do not use message parse mode.
 
 | Label | Routes to | Effect |
 | --- | --- | --- |
-| `Sessions` | `/session` | Sends the paginated session picker. |
-| `Current session` | `/current` | Reports the active session title and ID. |
-| `New session` | - | Prompts for a name, creates a root OpenCode session, and selects it as the active target. |
+| `Current session` | `/current` | Reports the active agent, session title, and session ID. |
+| `New session` | - | Prompts for a name, creates a root session for the active agent, and selects it as the active target. |
 | `Models` | `/models` | Sends the bottom reply-keyboard provider/model picker. |
+| `Sessions` | `/session` | Sends the paginated session picker. |
+| `Switch CLI` | `/cli`, `/agent` | Opens an inline picker to switch the active coding agent. |
 | `Help` | `/help` | Restores this keyboard and prints command help. |
 | `menu` | `/menu` | Restores this keyboard. |
 
-The help text is fixed: it lists `/session`, `/current`, and `/models`, states that
-plain text is routed to the active session, and notes that replies arrive through
-`tg_send` and `tg_sendfile`.
+The help text is fixed: it lists `/session`, `/newsession`, `/current`, `/models`,
+and `/files`, states that plain text is routed to the active session, and notes that
+replies arrive through `tg_send` and `tg_sendfile`.
 
 ## Session picker
 
@@ -92,12 +93,29 @@ per chat.
 
 `/current` or `Current session` resolves the active target in this order:
 
-1. `active-session.json`, if the ID is valid and still present.
-2. `OPENCODE_SESSION_ID` when `OPENCODE_SESSION_MODE=pin`.
-3. The most recently updated root session in the home directory.
+1. `active-session.json`, if the ID is valid and still present for the configured agent.
+2. `OPENCODE_SESSION_ID` when `OPENCODE_SESSION_MODE=pin` (OpenCode).
+3. The most recently updated root session in the home directory or workspace for that agent.
 
-The reply contains the session label and full ID. If discovery finds nothing, the
-reply says the target is unset.
+The reply displays the active agent alongside the session title and ID:
+
+```text
+Active agent: OpenCode
+Active session: Session title
+Session ID: ses12345678
+```
+
+If discovery finds nothing, the reply states that the active target is not set.
+
+## CLI and agent switching
+
+`Switch CLI` on the main keyboard, as well as `/cli` or `/agent` commands, open an inline keyboard picker to switch the active coding agent:
+
+1. The inline picker lists supported agents that have an installed CLI or configuration file (`OpenCode`, `Claude Code`, `Codex CLI`, `Cursor`, `Hermes Agent`).
+2. The currently active agent is indicated with a checkmark (`✓`).
+3. Tapping an agent button switches immediately, saves the choice to `TELECODE_AGENT` and `TG_AGENT` in `telegram.env`, clears the previous `active-session.json`, resets picker states, and auto-selects the newest session of the new agent if one exists.
+4. Direct command switching: `/cli <name>` or `/agent <name>` (for example `/cli hermes` or `/cli claude-code`) switches directly without opening the picker.
+5. `Cancel` dismisses the inline picker and removes the message.
 
 ## Model picker
 

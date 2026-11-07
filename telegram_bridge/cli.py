@@ -16,6 +16,7 @@ USAGE = f"""{ui.accent('TeleCode')} — {ui.dim('Telegram bridge for coding agen
   {ui.accent('menu')}                      Open the interactive command menu
   {ui.accent('setup')} [--web|--cli]       Open guided setup wizard (browser or terminal)
   {ui.accent('status')}                    Show bot, listener, session & unread inbox state
+  {ui.accent('agent')} [NAME]              Show or switch active coding agent (e.g. hermes)
   {ui.accent('listen')}                    Start listener daemon in foreground
   {ui.accent('read')}                      Print unread Telegram messages and advance cursor
   {ui.accent('wait')} [SECONDS]            Wait for incoming message (default: 120s)
@@ -223,7 +224,9 @@ def cmd_status():
             alive_dot = ui.status_dot(None)
             alive_text = ui.yellow(f"stale pid {pid}")
     sid, how = tg.resolve_session(cfg)
+    active_agent = tg._agent_name(cfg)
     rows = [
+        ("Agent", f"{tg.agent_label(active_agent)} ({active_agent})"),
         ("Bot", f"@{bot.get('username')} (id {bot.get('id')})"),
         ("Owner chat", ui.mask_value(cfg.get("TG_CHAT_ID", ""))),
         ("Listener", f"{alive_dot} {alive_text}"),
@@ -246,6 +249,82 @@ def cmd_status():
         width = max(ui.visible_width(label) for label, _ in rows)
         for label, value in rows:
             print(f"{ui.dim(ui.pad(label, width))}  {value}")
+    return 0
+
+
+def cmd_agent(args=None):
+    """View supported coding agents or switch the active agent."""
+    import shutil
+    if args is None:
+        args = sys.argv[2:]
+    args = list(args)
+    try:
+        cfg = tg.load_env()
+    except (FileNotFoundError, PermissionError, ValueError):
+        cfg = {}
+
+    binaries = {
+        "opencode": ["opencode", str(pathlib.Path.home() / ".opencode/bin/opencode")],
+        "claude-code": ["claude"],
+        "codex": ["codex"],
+        "cursor": ["agent"],
+        "hermes": ["hermes"],
+    }
+
+    if not args:
+        active = tg.normalize_agent(tg._agent_name(cfg)) or "opencode"
+        sid, _ = tg.resolve_session(cfg)
+        card_rows = []
+        for aid, label in tg.AGENT_LABELS.items():
+            is_active = (aid == active)
+            detected = any(shutil.which(b) for b in binaries.get(aid, [aid]))
+            status_parts = []
+            if is_active:
+                status_parts.append(ui.green("● active"))
+            if detected:
+                status_parts.append(ui.dim("installed"))
+            else:
+                status_parts.append(ui.dim("not detected"))
+            card_rows.append((label, f"{' · '.join(status_parts)} ({aid})"))
+
+        if sid:
+            card_rows.append(("Active session", f"{sid}"))
+
+        if sys.stdout.isatty() or ui.supports_color():
+            print()
+            for line in ui.key_value_card("Coding Agents", card_rows):
+                print(line)
+            print()
+            print(ui.dim("Switch agent: telecode agent <name> (e.g. telecode agent hermes)"))
+            print()
+        else:
+            width = max(ui.visible_width(label) for label, _ in card_rows)
+            for label, value in card_rows:
+                print(f"{ui.dim(ui.pad(label, width))}  {value}")
+        return 0
+
+    target = args[0].strip()
+    canonical = tg.normalize_agent(target)
+    if not canonical:
+        supported = ", ".join(tg.AGENT_LABELS)
+        print(ui.error_line(f"Unknown agent '{target}'. Supported: {supported}"), file=sys.stderr)
+        return 2
+
+    try:
+        active_session = tg.switch_active_agent(cfg, canonical)
+    except Exception as exc:
+        print(ui.error_line(f"Failed to switch agent: {exc}"), file=sys.stderr)
+        return 1
+
+    label = tg.agent_label(canonical)
+    if active_session:
+        sid = active_session.get("id") or ""
+        stitle = tg.session_title(active_session)
+        print(ui.ok_line(f"Switched active agent to {ui.bold(label)}."))
+        print(ui.dim(f"Session: {stitle} [{sid}]"))
+    else:
+        print(ui.ok_line(f"Switched active agent to {ui.bold(label)}."))
+        print(ui.dim(f"No existing sessions found for {label}. Start one in Telegram or via the agent CLI."))
     return 0
 
 
@@ -497,6 +576,7 @@ def cmd_menu():
         ("Send a message", "send text to your configured Telegram chat", "send"),
         ("Find chat ID", "detect your private chat using your own bot", "get-id"),
         ("Help / commands", "show command reference", "help"),
+        ("Switch agent", "view or switch active coding agent", "agent"),
         ("Exit", "", "exit"),
     ]
     width = max(ui.visible_width(label) for label, _, _ in options)
@@ -509,19 +589,21 @@ def cmd_menu():
     for line in ui.box("TeleCode — Telegram bridge for coding agents", menu_rows):
         print(line)
     print()
-    print(ui.dim("1-8 select · 9 or q exit · Ctrl-C cancel"))
+    print(ui.dim("1-9 select · 10 or q exit · Ctrl-C cancel"))
     while True:
         try:
             answer = input("TeleCode › ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print()
             return 130
-        if answer in ("q", "quit", "exit", "9"):
+        if answer in ("q", "quit", "exit", "10", "9") and ("9" not in answer or len(options) < 10):
+            return 0
+        if answer in ("q", "quit", "exit", "10"):
             return 0
         selected = next((command for index, (_, _, command) in enumerate(options, 1)
                          if answer in (str(index), command)), None)
         if selected is None:
-            print(ui.error_line("Choose 1-9 or enter a command name."), file=sys.stderr)
+            print(ui.error_line("Choose 1-10 or enter a command name."), file=sys.stderr)
             continue
         if selected == "exit":
             return 0
@@ -538,6 +620,8 @@ def cmd_menu():
             return 0
         if selected == "send":
             return cmd_send()
+        if selected == "agent":
+            return cmd_agent([])
         if selected == "get-id":
             helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
             return subprocess.call([sys.executable, str(helper)])
@@ -581,7 +665,7 @@ def main():
     cmds = {
         "listen": run_listener, "read": cmd_read, "wait": cmd_wait,
         "send": cmd_send, "sendfile": cmd_sendfile, "status": cmd_status,
-        "menu": cmd_menu, "setup": cmd_setup,
+        "menu": cmd_menu, "setup": cmd_setup, "agent": cmd_agent,
     }
     if len(sys.argv) < 2:
         if sys.stdin.isatty() and sys.stdout.isatty():
