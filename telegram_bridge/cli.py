@@ -325,17 +325,35 @@ def cmd_setup(args=None) -> int:
         print("usage: telecode setup [--web|--cli]", file=sys.stderr)
         return 2
 
-    setup_options = [
+    options = [
         ("Browser wizard (recommended)", "configure credentials and agent via browser", "web"),
         ("Terminal wizard", "configure in this terminal", "cli"),
         ("Back to main menu", "", "back"),
     ]
-    choice = ui.select_menu("TeleCode Setup Wizard", setup_options)
-    if choice == "web":
-        return run_web_setup()
-    if choice == "cli":
-        return run_cli_setup()
-    return 0
+    width = max(ui.visible_width(label) for label, _, _ in options)
+    setup_rows = []
+    for index, (label, hint, _) in enumerate(options, 1):
+        suffix = f"  {ui.dim(hint)}" if hint else ""
+        setup_rows.append(f"  {ui.accent(str(index) + '.')} {ui.bold(ui.pad(label, width))}{suffix}")
+
+    print()
+    for line in ui.box("TeleCode Setup Wizard", setup_rows):
+        print(line)
+    print()
+    print(ui.dim("1-2 select · 3 or q back · Ctrl-C cancel"))
+    while True:
+        try:
+            answer = input("TeleCode (setup) › ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 130
+        if answer in ("q", "quit", "back", "3"):
+            return 0
+        if answer in ("1", "b", "browser", "web"):
+            return run_web_setup()
+        if answer in ("2", "t", "terminal", "cli"):
+            return run_cli_setup()
+        print(ui.error_line("Choose 1-2 or enter 'q' to go back."), file=sys.stderr)
 
 
 def cmd_menu():
@@ -351,30 +369,52 @@ def cmd_menu():
         ("Help / commands", "show command reference", "help"),
         ("Exit", "", "exit"),
     ]
-    selected = ui.select_menu("TeleCode — Telegram bridge for coding agents", options)
-    if selected in (None, "exit"):
-        return 0
-    if selected == "setup":
-        return cmd_setup()
-    if selected == "status":
-        return cmd_status()
-    if selected == "listen":
-        return run_listener()
-    if selected == "read":
-        return cmd_read()
-    if selected == "wait":
-        print(f"Usage: telecode wait [SECONDS]  {ui.dim('(wait up to SECONDS, default 120s)')}")
-        return 0
-    if selected == "send":
-        print(f"Usage: telecode send TEXT  {ui.dim('(send text to configured Telegram chat)')}")
-        return 0
-    if selected == "get-id":
-        helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
-        return subprocess.call([sys.executable, str(helper)])
-    if selected == "help":
-        print(USAGE)
-        return 0
-    return 0
+    width = max(ui.visible_width(label) for label, _, _ in options)
+    menu_rows = []
+    for index, (label, hint, _) in enumerate(options, 1):
+        suffix = f"  {ui.dim(hint)}" if hint else ""
+        menu_rows.append(f"  {ui.accent(str(index) + '.')} {ui.bold(ui.pad(label, width))}{suffix}")
+
+    print()
+    for line in ui.box("TeleCode — Telegram bridge for coding agents", menu_rows):
+        print(line)
+    print()
+    print(ui.dim("1-8 select · 9 or q exit · Ctrl-C cancel"))
+    while True:
+        try:
+            answer = input("TeleCode › ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 130
+        if answer in ("q", "quit", "exit", "9"):
+            return 0
+        selected = next((command for index, (_, _, command) in enumerate(options, 1)
+                         if answer in (str(index), command)), None)
+        if selected is None:
+            print(ui.error_line("Choose 1-9 or enter a command name."), file=sys.stderr)
+            continue
+        if selected == "exit":
+            return 0
+        if selected == "setup":
+            return cmd_setup()
+        if selected == "status":
+            return cmd_status()
+        if selected == "listen":
+            return run_listener()
+        if selected == "read":
+            return cmd_read()
+        if selected == "wait":
+            print(f"Usage: telecode wait [SECONDS]  {ui.dim('(wait up to SECONDS, default 120s)')}")
+            return 0
+        if selected == "send":
+            print(f"Usage: telecode send TEXT  {ui.dim('(send text to configured Telegram chat)')}")
+            return 0
+        if selected == "get-id":
+            helper = pathlib.Path(__file__).resolve().parent.parent / "get_telegram_id.py"
+            return subprocess.call([sys.executable, str(helper)])
+        if selected == "help":
+            print(USAGE)
+            return 0
 
 
 def cmd_menu_once():

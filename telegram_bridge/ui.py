@@ -233,169 +233,26 @@ def format_message(record: dict, stream=None) -> list[str]:
     return lines
 
 
-def _render_menu_lines(title: str, options: list[tuple[str, str, any]], selected: int,
-                       stream=None, hint_footer: str | None = None) -> list[str]:
-    pointer = "❯" if supports_unicode(stream) else ">"
-    max_label_w = max((visible_width(label) for label, _, _ in options), default=0)
+def menu_box(title: str, options: list[tuple[str, str, any]], stream=None) -> list[str]:
+    """Render a list of (label, hint, value) neatly inside a bordered box."""
+    width = max((visible_width(label) for label, _, _ in options), default=0)
     rows = []
-    for idx, (label, hint, _) in enumerate(options):
-        padded_label = pad(label, max_label_w)
+    for index, (label, hint, _) in enumerate(options, 1):
         suffix = f"  {dim(hint, stream=stream)}" if hint else ""
-        if idx == selected:
-            prefix = accent(bold(f"{pointer} {idx + 1}.", stream=stream), stream=stream)
-            item_text = bold(padded_label, stream=stream)
-            rows.append(f"  {prefix} {item_text}{suffix}")
-        else:
-            prefix = dim(f"  {idx + 1}.", stream=stream)
-            rows.append(f"  {prefix} {padded_label}{suffix}")
-    lines = box(title, rows, stream=stream)
-    footer = hint_footer or (
-        "↑/↓ move · Enter select · 1-9 jump · q cancel"
-        if supports_unicode(stream)
-        else "^/v move · Enter select · 1-9 jump · q cancel"
-    )
-    lines.append(dim(footer, stream=stream))
-    return lines
+        rows.append(f"  {accent(str(index) + '.', stream=stream)} {bold(pad(label, width), stream=stream)}{suffix}")
+    return box(title, rows, stream=stream)
 
 
-def _redraw_lines(lines: list[str], stream=None) -> None:
+def select_menu(title: str, options: list[tuple[str, str, any]], default_index: int = 0,
+                hint_footer: str | None = None, stream=None, stdin=None) -> any:
+    """Prompt the user with a clean numbered menu in a bordered box."""
     out = _stream(stream)
-    out.write(f"\033[{len(lines)}A")
-    for line in lines:
-        out.write("\r\033[2K" + line + "\n")
-    out.flush()
-
-
-def _read_key_posix(fd: int) -> str:
-    import select
-    key = os.read(fd, 1).decode("latin1", errors="replace")
-    if key == "\x1b":
-        r, _, _ = select.select([fd], [], [], 0.05)
-        if r:
-            seq = os.read(fd, 2).decode("latin1", errors="replace")
-            if seq == "[A":
-                return "UP"
-            if seq == "[B":
-                return "DOWN"
-            if seq == "[C":
-                return "RIGHT"
-            if seq == "[D":
-                return "LEFT"
-            return "ESC"
-        return "ESC"
-    return key
-
-
-def _read_key_windows() -> str:
-    import msvcrt
-    ch = msvcrt.getch()
-    if ch in (b"\x00", b"\xe0"):
-        ext = msvcrt.getch()
-        if ext == b"H":
-            return "UP"
-        if ext == b"P":
-            return "DOWN"
-        return "ESC"
-    if ch == b"\x1b":
-        return "ESC"
-    if ch in (b"\r", b"\n"):
-        return "\n"
-    if ch == b"\x03":
-        return "\x03"
-    try:
-        return ch.decode("latin1")
-    except Exception:
-        return ""
-
-
-def _is_input_mocked() -> bool:
-    import builtins
-    inp_fn = getattr(builtins, "input", None)
-    return hasattr(inp_fn, "assert_called") or hasattr(inp_fn, "return_value") or hasattr(inp_fn, "mock_calls")
-
-
-def _interactive_menu(title: str, options: list[tuple[str, str, any]], default_index: int = 0,
-                      hint_footer: str | None = None, stream=None, stdin=None) -> any:
-    out = _stream(stream)
-    inp = sys.stdin if stdin is None else stdin
-    if _is_input_mocked() or not (getattr(out, "isatty", lambda: False)() and getattr(inp, "isatty", lambda: False)()):
-        return _fallback_menu(title, options, default_index, stream=stream)
-
-    selected = default_index % len(options)
-    lines = _render_menu_lines(title, options, selected, stream=stream, hint_footer=hint_footer)
-
-    if os.name == "nt":
-        out.write("\033[?25l")
-        out.write("\n".join(lines) + "\n")
-        out.flush()
-        try:
-            while True:
-                key = _read_key_windows()
-                if key == "UP" or key in ("k", "K"):
-                    selected = (selected - 1) % len(options)
-                elif key == "DOWN" or key in ("j", "J"):
-                    selected = (selected + 1) % len(options)
-                elif key in ("\r", "\n"):
-                    return options[selected][2]
-                elif key in ("q", "Q", "ESC", "\x03", "\x04"):
-                    return next((val for _, _, val in options if val in ("exit", "cancel", "back")), None)
-                elif key.isdigit() and 1 <= int(key) <= len(options):
-                    return options[int(key) - 1][2]
-                lines = _render_menu_lines(title, options, selected, stream=stream, hint_footer=hint_footer)
-                _redraw_lines(lines, out)
-        finally:
-            out.write("\033[?25h")
-            out.flush()
-    else:
-        import termios
-        import tty
-        fd = inp.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            out.write("\033[?25l")
-            out.write("\n".join(lines) + "\n")
-            out.flush()
-            while True:
-                key = inp.read(1)
-                if key == "\x1b":
-                    seq = inp.read(2)
-                    if seq == "[A":
-                        selected = (selected - 1) % len(options)
-                    elif seq == "[B":
-                        selected = (selected + 1) % len(options)
-                    else:
-                        return next((val for _, _, val in options if val in ("exit", "cancel", "back")), None)
-                elif key in ("k", "K"):
-                    selected = (selected - 1) % len(options)
-                elif key in ("j", "J"):
-                    selected = (selected + 1) % len(options)
-                elif key in ("\r", "\n"):
-                    return options[selected][2]
-                elif key in ("q", "Q", "\x03", "\x04"):
-                    return next((val for _, _, val in options if val in ("exit", "cancel", "back")), None)
-                elif key.isdigit() and 1 <= int(key) <= len(options):
-                    return options[int(key) - 1][2]
-                lines = _render_menu_lines(title, options, selected, stream=stream, hint_footer=hint_footer)
-                _redraw_lines(lines, out)
-        finally:
-            out.write("\033[?25h")
-            out.flush()
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-
-def _fallback_menu(title: str, options: list[tuple[str, str, any]], default_index: int = 0, stream=None) -> any:
-    out = _stream(stream)
-    max_label_w = max((visible_width(label) for label, _, _ in options), default=0)
-    rows = []
-    for idx, (label, hint, _) in enumerate(options, 1):
-        suffix = f"  {dim(hint, stream=stream)}" if hint else ""
-        rows.append(f"  {accent(str(idx) + '.', stream=stream)} {bold(pad(label, max_label_w), stream=stream)}{suffix}")
     print(file=out)
-    for line in box(title, rows, stream=stream):
+    for line in menu_box(title, options, stream=stream):
         print(line, file=out)
     print(file=out)
-    print(dim(f"1-{len(options)} select · q exit", stream=stream), file=out)
+    footer = hint_footer or f"1-{len(options)} select · q exit"
+    print(dim(footer, stream=stream), file=out)
     while True:
         try:
             ans = input("TeleCode › ").strip().lower()
@@ -408,12 +265,3 @@ def _fallback_menu(title: str, options: list[tuple[str, str, any]], default_inde
             if ans in (str(idx), label.lower(), str(val).lower()):
                 return val
         print(error_line(f"Choose 1-{len(options)} or enter a command name.", stream=stream), file=sys.stderr)
-
-
-def select_menu(title: str, options: list[tuple[str, str, any]], default_index: int = 0,
-                hint_footer: str | None = None, stream=None, stdin=None) -> any:
-    """Prompt the user with an interactive arrow selector (falls back to numbered input)."""
-    try:
-        return _interactive_menu(title, options, default_index, hint_footer, stream, stdin)
-    except Exception:
-        return _fallback_menu(title, options, default_index, stream)

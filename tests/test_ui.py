@@ -72,42 +72,11 @@ class UIHelpersTests(unittest.TestCase):
             choice = ui.select_menu("Test Menu", options)
         self.assertIsNone(choice)
 
-    @unittest.skipIf(os.name == "nt", "termios raw-mode test is POSIX-only")
-    def test_select_menu_arrow_navigation(self):
-        class MockInp:
-            def __init__(self, keys):
-                self.keys = iter(keys)
-
-            def read(self, n):
-                if n == 1:
-                    return next(self.keys)
-                return "".join([next(self.keys) for _ in range(n)])
-
-            def isatty(self):
-                return True
-
-            def fileno(self):
-                return 0
-
-        class MockOut:
-            def isatty(self):
-                return True
-
-            def write(self, s):
-                pass
-
-            def flush(self):
-                pass
-
+    def test_menu_box(self):
         options = [("First", "hint 1", "opt1"), ("Second", "hint 2", "opt2")]
-        inp = MockInp(["\x1b", "[", "B", "\n"])
-        out = MockOut()
-        with mock.patch("termios.tcgetattr", return_value=[]), \
-             mock.patch("termios.tcsetattr"), \
-             mock.patch("tty.setraw"), \
-             mock.patch("telegram_bridge.ui._is_input_mocked", return_value=False):
-            choice = ui._interactive_menu("Arrow Menu", options, stream=out, stdin=inp)
-        self.assertEqual(choice, "opt2")
+        lines = ui.menu_box("Test Menu", options)
+        self.assertTrue(any("First" in l and "hint 1" in l for l in lines))
+        self.assertTrue(any("Second" in l and "hint 2" in l for l in lines))
 
 
 if __name__ == "__main__":
