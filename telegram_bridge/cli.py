@@ -84,7 +84,11 @@ def cmd_wait():
 
 
 def cmd_send():
-    cfg = tg.load_env()
+    try:
+        cfg = tg.load_env()
+    except (FileNotFoundError, PermissionError, ValueError) as exc:
+        print(ui.error_line(f"Configuration error: {exc}"), file=sys.stderr)
+        return 1
     text = " ".join(sys.argv[2:]).strip() if len(sys.argv) > 2 else sys.stdin.read().strip()
     if not text:
         print("usage: telecode send TEXT   (or pipe text via stdin)", file=sys.stderr)
@@ -95,7 +99,11 @@ def cmd_send():
 
 
 def cmd_sendfile():
-    cfg = tg.load_env()
+    try:
+        cfg = tg.load_env()
+    except (FileNotFoundError, PermissionError, ValueError) as exc:
+        print(ui.error_line(f"Configuration error: {exc}"), file=sys.stderr)
+        return 1
     if len(sys.argv) < 3:
         print("usage: telecode sendfile PATH [CAPTION]", file=sys.stderr)
         return 2
@@ -110,7 +118,12 @@ def cmd_sendfile():
 
 
 def cmd_status():
-    cfg = tg.load_env()
+    try:
+        cfg = tg.load_env()
+    except (FileNotFoundError, PermissionError, ValueError) as exc:
+        print(ui.error_line(f"Configuration error: {exc}"), file=sys.stderr)
+        print(ui.dim("Run 'telecode setup' to configure Telegram credentials."), file=sys.stderr)
+        return 1
     try:
         me = tg.api(cfg["TG_BOT_TOKEN"], "getMe", timeout=15)
     except Exception as exc:

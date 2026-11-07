@@ -42,10 +42,11 @@ def supports_color(stream=None) -> bool:
 
 def supports_unicode(stream=None) -> bool:
     """Best-effort UTF-8 check for glyphs such as box corners and check marks."""
-    if not supports_color(stream):
-        return False
-    encoding = getattr(_stream(stream), "encoding", None) or ""
-    return "utf" in encoding.lower()
+    encoding = getattr(_stream(stream), "encoding", None) or sys.getdefaultencoding() or ""
+    if "utf" in encoding.lower():
+        return True
+    lang = os.environ.get("LC_ALL") or os.environ.get("LC_CTYPE") or os.environ.get("LANG") or ""
+    return "utf" in lang.lower()
 
 
 def paint(text, *codes, stream=None) -> str:

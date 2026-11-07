@@ -438,7 +438,7 @@ while [[ $# -gt 0 ]]; do
       [[ -z "$COMMAND" ]] || { fail "Only one command may be given."; exit 2; }
       COMMAND="$1"
       ;;
-    read|wait|send)
+    read|wait|send|sendfile)
       [[ -z "$COMMAND" ]] || { fail "Only one command may be given."; exit 2; }
       COMMAND="$1"
       shift
@@ -797,12 +797,13 @@ if [[ "$COMMAND" == "menu" ]]; then
   while true; do
     printf 'Choose 1-9 or command (q exits): '
     IFS= read -r MENU_CHOICE || exit 130
-    case "${MENU_CHOICE,,}" in
+    MENU_CHOICE_LOWER="$(printf '%s' "$MENU_CHOICE" | tr '[:upper:]' '[:lower:]')"
+    case "$MENU_CHOICE_LOWER" in
       1|setup) exec bash "$0" --setup ;;
       2|status) exec bash "$0" status ;;
       3|listen) exec bash "$0" listen ;;
       4|read) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" read ;;
-      5|wait) exec "$PYTHON" "$APP_DIR/telegram-bridge.py" wait ;;
+      5|wait) printf 'Usage: telecode wait [SECONDS]\n';;
       6|send) printf 'Usage: telecode send TEXT\n';;
       7|get-id) exec bash "$0" get-id ;;
       8|help) exec bash "$0" help ;;
@@ -812,7 +813,7 @@ if [[ "$COMMAND" == "menu" ]]; then
   done
 fi
 
-if [[ "$COMMAND" == "read" || "$COMMAND" == "wait" || "$COMMAND" == "send" ]]; then
+if [[ "$COMMAND" == "read" || "$COMMAND" == "wait" || "$COMMAND" == "send" || "$COMMAND" == "sendfile" ]]; then
   exec "$PYTHON" "$APP_DIR/telegram-bridge.py" "$COMMAND" "${EXTRA_ARGS[@]}"
 fi
 
