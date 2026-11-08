@@ -269,6 +269,12 @@ def cmd_agent(args=None):
         "codex": ["codex"],
         "cursor": ["agent"],
         "hermes": ["hermes"],
+        "antigravity": [
+            "agy",
+            "antigravity",
+            str(pathlib.Path.home() / ".local/bin/agy"),
+            str(pathlib.Path.home() / ".gemini/bin/agy"),
+        ],
     }
 
     if not args:

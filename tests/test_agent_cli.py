@@ -21,6 +21,19 @@ class AgentCliTests(unittest.TestCase):
             printed = " ".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
             self.assertIn("OpenCode", printed)
             self.assertIn("Hermes Agent", printed)
+            self.assertIn("Google Antigravity", printed)
+
+    def test_cmd_agent_switch_antigravity(self):
+        cfg = {"TELECODE_AGENT": "opencode", "TG_AGENT": "opencode"}
+        with patch.object(tb, "load_env", return_value=cfg), \
+             patch.object(tb, "switch_active_agent", return_value={"id": "conv-999", "title": "New AGY Session"}) as mock_switch, \
+             patch("builtins.print") as mock_print:
+            rc = cli.cmd_agent(["antigravity"])
+            self.assertEqual(rc, 0)
+            mock_switch.assert_called_once_with(cfg, "antigravity")
+            printed = " ".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
+            self.assertIn("Google Antigravity", printed)
+            self.assertIn("conv-999", printed)
 
     def test_cmd_agent_switch_success(self):
         cfg = {"TELECODE_AGENT": "opencode", "TG_AGENT": "opencode"}

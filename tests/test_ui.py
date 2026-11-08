@@ -54,6 +54,15 @@ class UIHelpersTests(unittest.TestCase):
         card = ui.key_value_card("Card", [("bot", "@testbot"), ("unread", "0")])
         self.assertTrue(any("bot" in l and "@testbot" in l for l in card))
 
+    def test_box_narrow_terminal_fitting(self):
+        import os
+        with mock.patch("shutil.get_terminal_size", return_value=os.terminal_size((38, 20))):
+            lines = ui.box("Very Long Title That Would Normally Overflow A Narrow Terminal",
+                           ["This is an extremely long row that would wrap onto the next line on mobile Termux screen and corrupt borders"])
+            for line in lines:
+                self.assertLessEqual(ui.visible_width(line), 38)
+            self.assertIn("…", lines[1])
+
     def test_format_message(self):
         record = {"iso": "2026-11-07 12:00:00", "update_id": 42, "text": "hello", "file": "/tmp/test.txt"}
         lines = ui.format_message(record)

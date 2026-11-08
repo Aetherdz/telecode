@@ -138,10 +138,19 @@ EOF
 # ---------------------------------------------------------------- bootstrap --
 logo() {
   (( QUIET )) && return 0
-  local main="" reset=""
+  local cols
+  cols="$(tput cols 2>/dev/null || echo 80)"
+  [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
+  local main="" reset="" bold=""
   if [[ "$UI_TTY" == "1" && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
     main=$'\033[38;2;48;179;239m'
+    bold=$'\033[1m'
     reset=$'\033[0m'
+  fi
+  if (( cols < 52 )); then
+    printf '%s\n' "${main}${bold}TeleCode${reset} installer"
+    printf '  Telegram ⇄ OpenCode & any CLI\n'
+    return 0
   fi
   printf '%s\n' "${main}▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀${reset}"
   printf '%s\n' "${main}  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄ ${reset}"
@@ -168,12 +177,24 @@ format_bytes() {
 render_progress() {
   local percent="$1" have_percent="$2" size="$3" total="$4"
   local width=24 filled bar pad color="" reset=""
+  local cols
+  cols="$(tput cols 2>/dev/null || echo 80)"
+  [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
   [[ -t 2 ]] || return 0
   if [[ -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
     color=$'\033[2m'
     reset=$'\033[0m'
   fi
   if [[ "$have_percent" == "1" && "$total" -gt 0 ]]; then
+    if (( cols < 46 )); then
+      printf '\r%s[%3d%%] %s / %s%s\033[K' \
+        "$color" "$percent" "$(format_bytes "$size")" "$(format_bytes "$total")" "$reset" >&2
+      return 0
+    elif (( cols < 62 )); then
+      width=$(( cols - 32 ))
+      (( width < 6 )) && width=6
+      (( width > 24 )) && width=24
+    fi
     filled=$((percent * width / 100))
     (( filled > width )) && filled=$width
     printf -v bar '%*s' "$filled" ''
@@ -182,8 +203,13 @@ render_progress() {
     printf '\r%s[%3d%%] [%s%s] %s / %s%s\033[K' \
       "$color" "$percent" "$bar" "$pad" "$(format_bytes "$size")" "$(format_bytes "$total")" "$reset" >&2
   else
-    printf '\r%sDownloading TeleCode source: %s%s\033[K' \
-      "$color" "$(format_bytes "$size")" "$reset" >&2
+    if (( cols < 46 )); then
+      printf '\r%sDownloading: %s%s\033[K' \
+        "$color" "$(format_bytes "$size")" "$reset" >&2
+    else
+      printf '\r%sDownloading TeleCode source: %s%s\033[K' \
+        "$color" "$(format_bytes "$size")" "$reset" >&2
+    fi
   fi
 }
 
@@ -628,6 +654,7 @@ INSTALL_FILES=(
   "adapters/codex.py"
   "adapters/cursor.py"
   "adapters/hermes.py"
+  "adapters/antigravity.py"
   "telegram_bridge/__init__.py"
   "telegram_bridge/__main__.py"
   "telegram_bridge/state.py"
@@ -866,7 +893,13 @@ enable_user_service() {
   if ! have_systemd_user; then
     warn "systemd user services are not available in this environment."
     warn "No service was enabled. Start the listener with: telecode listen"
-    warn "In containers, WSL, or systems without systemd, keep that process running under your own supervisor."
+    if [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == *com.termux* ]]; then
+      info "Termux detected: to keep the bridge running in the background:"
+      info "  1. Acquire wake-lock: termux-wake-lock"
+      info "  2. Start in background: nohup telecode listen > ~/.telecode/listener.log 2>&1 &"
+    else
+      warn "In containers, WSL, or systems without systemd, keep that process running under your own supervisor."
+    fi
     return 3
   fi
   mkdir -p "$UNIT_DIR"

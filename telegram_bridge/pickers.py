@@ -185,7 +185,7 @@ def _models_from_api(cfg):
         return models
     if tg._agent_name(cfg) == "codex":
         return tg._codex_adapter(cfg).list_models()
-    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes"):
+    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes", "antigravity"):
         return []
     data = tg._opencode_api(cfg, "get", "/api/model", timeout=45)
     items = data.get("data") if isinstance(data, dict) else data
@@ -275,7 +275,7 @@ def _current_model(cfg, sid):
 
 def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     """Show model-provider and model pages in Telegram's bottom reply keyboard."""
-    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes"):
+    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes", "antigravity"):
         tg.ACTIVE_PICKER = None
         tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
         label = tg.agent_label(tg._agent_name(cfg))
@@ -500,6 +500,7 @@ def _discover_agents(cfg):
         ("codex", "Codex CLI", ["codex"], [home / ".codex/config.toml"]),
         ("cursor", "Cursor", ["agent"], [home / ".cursor"]),
         ("hermes", "Hermes Agent", ["hermes"], [home / ".hermes/config.yaml", home / ".hermes/config.json"]),
+        ("antigravity", "Google Antigravity", ["agy", "antigravity"], [home / ".gemini/antigravity-cli", home / ".gemini/antigravity"]),
     ]
     current = tg._agent_name(cfg)
     detected = []
@@ -542,9 +543,15 @@ def _agent_switch_text(cfg, target_agent):
         tg.log(f"[{tg.ts()}] agent switch failed: {e!r}", flush=True)
         return f"Could not switch to <b>{tg._html_escape(agent_display)}</b>: {tg._html_escape(str(e)[:140])}"
     if active_session:
+        title = tg._html_escape(tg.session_title(active_session))
+        sid = tg._html_escape(str(active_session.get('id') or ''))
+        ws = str(active_session.get('directory') or '')
+        ws_info = f"\n<b>Workspace:</b> <code>{tg._html_escape(ws)}</code>" if ws else ""
         session_info = (
-            f"<b>Active session:</b> {tg._html_escape(tg.session_title(active_session))}\n"
-            f"<b>Session ID:</b> <code>{tg._html_escape(str(active_session.get('id') or ''))}</code>"
+            f"<b>Active session:</b> {title}\n"
+            f"<b>Session ID:</b> <code>{sid}</code>"
+            f"{ws_info}\n\n"
+            f"<i>✓ Active target updated. Prompts in this chat are now handled by {tg._html_escape(agent_display)}.</i>"
         )
     else:
         session_info = (f"<i>No {tg._html_escape(agent_display)} sessions found. "

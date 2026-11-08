@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
 import unicodedata
 
@@ -172,6 +173,33 @@ def pad(text: str, width: int) -> str:
     return text + " " * max(0, width - visible_width(text))
 
 
+def truncate_to_width(text: str, max_w: int) -> str:
+    """Safely truncate text to visible width max_w, appending '…' if truncated."""
+    if visible_width(text) <= max_w:
+        return text
+    if max_w <= 1:
+        return "…"[:max_w]
+    target = max(1, max_w - 1)
+    acc = []
+    curr_w = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        match = ANSI_RE.match(text, i)
+        if match:
+            acc.append(match.group(0))
+            i = match.end()
+            continue
+        ch = text[i]
+        ch_w = visible_width(ch)
+        if curr_w + ch_w > target:
+            break
+        acc.append(ch)
+        curr_w += ch_w
+        i += 1
+    return "".join(acc) + "…"
+
+
 def box(title: str | None, rows: list[str], width: int | None = None, stream=None) -> list[str]:
     """Render rows inside a styled terminal box (rounded corners with ASCII fallback)."""
     uni = supports_unicode(stream)
@@ -182,25 +210,37 @@ def box(title: str | None, rows: list[str], width: int | None = None, stream=Non
     horiz = "─" if uni else "-"
     vert = "│" if uni else "|"
 
+    try:
+        term_cols = shutil.get_terminal_size((80, 24)).columns
+    except Exception:
+        term_cols = 80
+
     max_row_len = max((visible_width(r) for r in rows), default=0)
     title_len = visible_width(title) if title else 0
-    calculated_width = max(max_row_len + 4, title_len + 6, 44)
+    min_box_w = min(44, max(term_cols, 20))
+    calculated_width = max(max_row_len + 4, title_len + 6, min_box_w)
     if width is not None:
         calculated_width = max(calculated_width, width)
-    inner = calculated_width - 2
+    if calculated_width > term_cols and term_cols >= 20:
+        calculated_width = term_cols
+    inner = max(2, calculated_width - 2)
 
     lines = []
     if title:
-        heading = f" {title} "
-        head_disp = f" {bold(accent(title, stream), stream)} "
-        pad_right = max(0, inner - 1 - len(heading))
+        max_title_w = max(1, inner - 4)
+        disp_title = truncate_to_width(title, max_title_w) if visible_width(title) > max_title_w else title
+        heading = f" {disp_title} "
+        head_disp = f" {bold(accent(disp_title, stream), stream)} "
+        pad_right = max(0, inner - 1 - visible_width(heading))
         top_line = dim(tl + horiz, stream) + head_disp + dim(horiz * pad_right + tr, stream)
     else:
         top_line = dim(tl + horiz * inner + tr, stream)
     lines.append(top_line)
 
     for row in rows:
-        row_padded = pad(row, inner - 2)
+        content_w = max(0, inner - 2)
+        fitted = truncate_to_width(row, content_w) if visible_width(row) > content_w else row
+        row_padded = pad(fitted, content_w)
         lines.append(f"{dim(vert, stream)} {row_padded} {dim(vert, stream)}")
 
     bottom_line = dim(bl + horiz * inner + br, stream)

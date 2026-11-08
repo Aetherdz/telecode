@@ -17,8 +17,14 @@ AGENT_LABELS = {
     "codex": "Codex CLI",
     "cursor": "Cursor",
     "hermes": "Hermes Agent",
+    "antigravity": "Google Antigravity",
 }
-_AGENT_ALIASES = {"claude": "claude-code", "claude_code": "claude-code", "open-code": "opencode"}
+_AGENT_ALIASES = {
+    "claude": "claude-code",
+    "claude_code": "claude-code",
+    "open-code": "opencode",
+    "agy": "antigravity",
+}
 
 
 def normalize_agent(name):
@@ -85,6 +91,12 @@ def _agent_adapter(cfg):
     if name == "hermes":
         from adapters.hermes import HermesAdapter
         return HermesAdapter(binary=(cfg.get("HERMES_BIN") or "hermes").strip())
+    if name == "antigravity":
+        from adapters.antigravity import AntigravityAdapter
+        return AntigravityAdapter(
+            binary=(cfg.get("ANTIGRAVITY_BIN") or cfg.get("AGY_BIN") or "agy").strip(),
+            workspace=cfg.get("ANTIGRAVITY_WORKSPACE"),
+        )
     from adapters.opencode import OpenCodeAdapter
     return OpenCodeAdapter(binary=tg._opencode_bin(cfg))
 
@@ -156,7 +168,7 @@ def _session_items(cfg, query: str):
 def list_sessions(cfg):
     """Return non-archived root sessions visible in the configured agent."""
     name = tg._agent_name(cfg)
-    if name in ("codex", "claude-code", "claude", "cursor", "hermes"):
+    if name in ("codex", "claude-code", "claude", "cursor", "hermes", "antigravity"):
         try:
             adapter = tg._agent_adapter(cfg)
             sessions = adapter.list_sessions()
@@ -236,7 +248,7 @@ def _set_active_session(session):
 def discover_session(cfg):
     """Newest visible non-archived root session, regardless of its workspace."""
     name = tg._agent_name(cfg)
-    if name in ("codex", "claude-code", "claude", "cursor", "hermes"):
+    if name in ("codex", "claude-code", "claude", "cursor", "hermes", "antigravity"):
         sessions = tg.list_sessions(cfg)
         return str(sessions[0]["id"]) if sessions else None
     try:
@@ -257,7 +269,7 @@ def discover_session(cfg):
 
 def _session_by_id(cfg, sid):
     name = tg._agent_name(cfg)
-    if name in ("codex", "claude-code", "claude", "cursor", "hermes"):
+    if name in ("codex", "claude-code", "claude", "cursor", "hermes", "antigravity"):
         try:
             adapter = tg._agent_adapter(cfg)
             if hasattr(adapter, "validate_session"):
@@ -275,7 +287,7 @@ def _session_by_id(cfg, sid):
 
 def resolve_session(cfg):
     """Resolve the injection target session (auto-discovery by default)."""
-    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor", "hermes"):
+    if tg._agent_name(cfg) in ("codex", "claude-code", "claude", "cursor", "hermes", "antigravity"):
         selected = tg._active_session_id()
         if selected and _active_session_matches_agent(cfg) and tg._session_by_id(cfg, selected):
             return selected, "telegram-selected"
@@ -319,12 +331,13 @@ def _try_prompt(cfg, sid, body_text, delivery):
         from adapters.codex import CodexAdapterError
         from adapters.cursor import CursorAdapterError
         from adapters.hermes import HermesAdapterError
-        if isinstance(e, (CodexAdapterError, CursorAdapterError, HermesAdapterError)):
+        from adapters.antigravity import AntigravityAdapterError
+        if isinstance(e, (CodexAdapterError, CursorAdapterError, HermesAdapterError, AntigravityAdapterError)):
             tg.send_text(cfg, str(e))
             return True
         tg.log(f"[{tg.ts()}] prompt sid={sid} {delivery}: error {e!r}", flush=True)
         return False
-    if adapter.name in ("codex", "claude-code", "cursor", "hermes") and isinstance(reply, str) and reply:
+    if adapter.name in ("codex", "claude-code", "cursor", "hermes", "antigravity") and isinstance(reply, str) and reply:
         tg.send_text(cfg, reply[:6000])
         return True
     return bool(reply)
@@ -364,5 +377,20 @@ def switch_active_agent(cfg, target_agent: str):
     if sessions:
         active_session = sessions[0]
         tg._set_active_session(active_session)
+    else:
+        try:
+            adapter = tg._agent_adapter(cfg)
+            if hasattr(adapter, "create_session"):
+                created = adapter.create_session("New Session")
+                if created:
+                    active_session = {
+                        "id": created.id,
+                        "title": created.title,
+                        "directory": created.directory,
+                        "agent": created.agent,
+                    }
+                    tg._set_active_session(active_session)
+        except Exception:
+            pass
 
     return active_session

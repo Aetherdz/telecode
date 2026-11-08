@@ -22,6 +22,7 @@ outbound Telegram tools only.
 | OpenCode | `~/.config/opencode/opencode.json` | JSON | Yes | Yes | Verified session discovery and prompt delivery. |
 | Claude Code | `~/.claude.json` or `~/.claude/settings.json` | JSON | Yes | Yes | Headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`). |
 | Hermes Agent | `~/.hermes/config.yaml` or `~/.hermes/config.json` | YAML/JSON | Yes | Yes | Adapter for Nous Research Hermes CLI (`TELECODE_AGENT=hermes`). |
+| Google Antigravity | `~/.gemini/antigravity-cli/settings.json` | JSON | Yes | Yes | Google Antigravity CLI (`agy`) adapter (`TELECODE_AGENT=antigravity`). |
 | Codex CLI | `~/.codex/config.toml` | TOML | Yes | Experimental | Inbound via `TELECODE_AGENT=codex`; requires 0.166.0+. |
 | Cursor | `~/.cursor/mcp.json` | JSON | Yes | Experimental | Uses Cursor Agent CLI and best-effort local chat metadata. |
 | Gemini CLI | `~/.gemini/settings.json` | JSON | Yes | No | No session API used. |
@@ -218,6 +219,35 @@ Set `TELECODE_AGENT=hermes` in `telegram.env` or switch to Hermes dynamically fr
 - **Session creation:** Creates a new session file under `~/.hermes/sessions/hermes-<timestamp>-<uuid>.json` containing the session ID, title, workspace, and timestamps.
 - **Prompt delivery:** Dispatches messages headlessly via `hermes chat --resume <session_id> --message <text>` with a default 600-second timeout, delivering the CLI's standard output directly back to Telegram.
 - **Environment overrides:** `HERMES_CONFIG_DIR` overrides the configuration and sessions directory (default `~/.hermes`). `HERMES_WORKSPACE` overrides the project directory (default `$HOME`).
+
+## Google Antigravity
+
+Config path: `~/.gemini/antigravity-cli/settings.json` or `~/.gemini/antigravity/settings.json`.
+
+The installer registers the local stdio MCP server under `mcpServers` in `settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "telegram-bridge": {
+      "command": "/usr/bin/python3",
+      "args": ["/home/USER/.local/share/telegram-bridge/tg_mcp.py"],
+      "env": {
+        "TELEGRAM_BRIDGE_HOME": "/home/USER/.config/telegram-bridge"
+      }
+    }
+  }
+}
+```
+
+### Antigravity inbound routing
+
+Set `TELECODE_AGENT=antigravity` in `telegram.env` or switch dynamically from Telegram using `/cli antigravity`. The adapter connects to Google Antigravity CLI (`agy`):
+
+- **Session discovery:** Reads active conversations from `~/.gemini/antigravity-cli/conversation_summaries.db` (SQLite database) or scans `~/.gemini/antigravity-cli/conversations/*.db`, extracting conversation IDs, titles, workspace directories, and ISO timestamps.
+- **Session creation:** Generates a new session and inserts an entry into `conversation_summaries.db`.
+- **Prompt delivery:** Dispatches messages non-interactively via `agy --conversation <session_id> --dangerously-skip-permissions --print <text>`, stripping ANSI formatting and delivering the response back to Telegram.
+- **Environment overrides:** `ANTIGRAVITY_BIN` overrides the CLI binary (default `agy`), and `ANTIGRAVITY_WORKSPACE` overrides the project workspace.
 
 ## Codex CLI
 

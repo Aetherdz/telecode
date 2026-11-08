@@ -59,6 +59,7 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue((app / "adapters/codex.py").is_file())
             self.assertTrue((app / "adapters/cursor.py").is_file())
             self.assertTrue((app / "adapters/hermes.py").is_file())
+            self.assertTrue((app / "adapters/antigravity.py").is_file())
             self.assertTrue((app / "telegram_bridge/__init__.py").is_file())
             self.assertTrue((app / "telegram_bridge/cli.py").is_file())
             self.assertTrue((app / "config/opencode.example.json").is_file())

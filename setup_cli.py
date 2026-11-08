@@ -38,6 +38,7 @@ HOSTS = [
     ("Cursor", "cursor", [HOME / ".cursor/mcp.json"], True),
     ("Gemini CLI", "gemini", [HOME / ".gemini/settings.json"], True),
     ("Hermes Agent", "hermes", [_HERMES_DIR / "config.yaml", _HERMES_DIR / "config.json"], True),
+    ("Google Antigravity", "antigravity", [HOME / ".gemini/antigravity-cli/settings.json", HOME / ".gemini/antigravity/settings.json"], True),
     ("Aider", "aider", [HOME / ".aider.conf.yml"], False),
     ("Cline", "cline", [HOME / ".vscode/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"], True),
     ("Continue", "continue", [HOME / ".continue/config.json", HOME / ".continue/config.yaml"], False),
@@ -396,7 +397,7 @@ def register_json(path, host):
         if not isinstance(servers, dict) or "telegram-bridge" in servers:
             raise ValueError("invalid or existing mcpServers.telegram-bridge; refusing overwrite")
         servers["telegram-bridge"] = {"type": "stdio", **entry}
-    elif kind == "gemini":
+    elif kind in ("gemini", "antigravity"):
         servers = data.setdefault("mcpServers", {})
         if not isinstance(servers, dict) or "telegram-bridge" in servers:
             raise ValueError("invalid or existing mcpServers.telegram-bridge; refusing overwrite")
@@ -600,7 +601,7 @@ def main():
         print(f"Configured Hermes Agent MCP integration at {config}")
         print("Restart the CLI to load the Telegram Bridge MCP server.")
         return 0
-    if not supported or (not config and host[1] not in ("opencode", "claude", "gemini", "cursor", "cline", "roo", "q", "hermes")) or (config and config.suffix not in (".json", ".yaml", ".yml")):
+    if not supported or (not config and host[1] not in ("opencode", "claude", "gemini", "cursor", "cline", "roo", "q", "hermes", "antigravity")) or (config and config.suffix not in (".json", ".yaml", ".yml")):
         print(f"Automatic config edit is not supported for {host[0]} on this installation.")
         example = MCP_EXAMPLES.get(host[1])
         if example:
