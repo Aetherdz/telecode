@@ -30,7 +30,7 @@ const messages = {
     mapOwner: 'OWNER CHAT', mapBridge: 'LOCAL BRIDGE', mapCheck: 'OWNER CHECK · ROUTE', mapSession: 'SELECTED SESSION', mapRoute: 'LOCAL ROUTE / 01', mapReply: 'MCP REPLY ↗',
     loopEyebrow: '01 / THE LOOP', loopTitle: 'One owner.<br>One clear route.',
     step1Title: 'Connect your bot', step1Text: 'Configure the owner chat and run the listener locally. It accepts only authorized updates.',
-    step2Title: 'Choose a session', step2Text: 'Pick a session from your selected local agent. Incoming messages go to that active target.',
+    step2Title: 'Choose an agent & session', step2Text: 'Pick your coding agent and session (Antigravity, OpenCode, Claude, Hermes). Incoming messages go to that active target.',
     step3Title: 'Keep working', step3Text: 'Send requests in Telegram. The agent can reply through MCP and return allowlisted files.',
     capEyebrow: '02 / CAPABILITIES', capTitle: 'Purpose-built, not a remote shell.',
     cap1Title: 'Named session routing', cap1Text: 'Browse sessions by title, navigate pages, and switch the active target explicitly.',
@@ -72,7 +72,7 @@ const messages = {
     copyCloneAria: 'Copy repository clone command', copyInstallAria: 'Copy installer command', copyStatusAria: 'Copy status command',
     installGuide: 'Detailed installation guide', installSecurity: 'Security notes', footerLine: 'Local sessions, reachable by design.',
     securityNav: 'Security', license: 'MIT license', previewSelected: '{provider} selected', previewAction: '{action} preview',
-    tabAgentCli: 'Switch CLI', tabModels: 'Models', chooseAgentTitle: 'CHOOSE A CODING AGENT', installTermux: 'Android & Termux ready'
+    tabAgentCli: 'Switch CLI', tabModels: 'Models', tabRealMobile: 'Live Mobile', kbNewSession: 'New session', chooseAgentTitle: 'CHOOSE A CODING AGENT', installTermux: 'Android & Termux ready'
   },
   ar: {
     pageTitle: 'TeleCode — جلسات البرمجة في متناولك',
@@ -92,7 +92,7 @@ const messages = {
     mapOwner: 'محادثة المالك', mapBridge: 'الجسر المحلي', mapCheck: 'تحقق المالك · توجيه', mapSession: 'الجلسة المحددة', mapRoute: 'المسار المحلي / 01', mapReply: 'رد MCP ↗',
     loopEyebrow: '01 / آلية العمل', loopTitle: 'مالك واحد.<br>ومسار واضح.',
     step1Title: 'اربط البوت', step1Text: 'أعدّ محادثة المالك وشغّل المستمع محليًا. لن يقبل إلا التحديثات المصرح بها.',
-    step2Title: 'اختر جلسة', step2Text: 'اختر جلسة من وكيل البرمجة المحلي المحدد. ستصل الرسائل الواردة إلى الهدف النشط.',
+    step2Title: 'اختر الوكيل والجلسة', step2Text: 'اختر وكيل البرمجة وجلسته (Antigravity، OpenCode، Claude، Hermes). ستصل الرسائل الواردة إلى الهدف النشط.',
     step3Title: 'واصل عملك', step3Text: 'أرسل طلباتك عبر تيليجرام. يستطيع الوكيل الرد عبر MCP وإعادة الملفات المسموح بها.',
     capEyebrow: '02 / الإمكانات', capTitle: 'مصمم للعمل، وليس كطرفية تحكم عن بُعد.',
     cap1Title: 'توجيه الجلسات بالاسم', cap1Text: 'تصفح الجلسات حسب الاسم، وتنقل بين الصفحات، وحدد الهدف النشط بوضوح.',
@@ -134,7 +134,7 @@ const messages = {
     copyCloneAria: 'نسخ أمر استنساخ المستودع', copyInstallAria: 'نسخ أمر تشغيل المثبّت', copyStatusAria: 'نسخ أمر التحقق من الحالة',
     installGuide: 'دليل التثبيت المفصل', installSecurity: 'ملاحظات الأمان', footerLine: 'جلسات محلية، في متناولك.',
     securityNav: 'الأمان', license: 'رخصة MIT', previewSelected: 'تم اختيار {provider}', previewAction: 'معاينة {action}',
-    tabAgentCli: 'تبديل الوكيل', tabModels: 'النماذج', chooseAgentTitle: 'اختر وكيل البرمجة', installTermux: 'جاهز لأندرويد و Termux'
+    tabAgentCli: 'تبديل الوكيل', tabModels: 'النماذج', tabRealMobile: 'شاشة حقيقية', kbNewSession: 'جلسة جديدة', chooseAgentTitle: 'اختر وكيل البرمجة', installTermux: 'جاهز لأندرويد و Termux'
   },
   fr: {
     pageTitle: 'TeleCode — vos sessions de code, à portée de main',
@@ -145,13 +145,13 @@ const messages = {
     navFlow: 'Fonctionnement', navIntegrations: 'Intégrations', navCommands: 'Commandes', navSecurity: 'Sécurité', navInstall: 'Installation', darkMode: 'Thème sombre', lightMode: 'Thème clair',
     heroEyebrow: 'DE TELEGRAM AUX SESSIONS LOCALES', heroTitle: 'Votre session de code,<br><em>à portée de main.</em>', heroLede: 'Choisissez une session d’agent local prise en charge, écrivez-lui depuis Telegram et recevez ses réponses via des outils MCP locaux.', getStarted: 'Commencer', viewSource: 'Voir le code', selectedTarget: 'Cible sélectionnée : session d’agent local', localListener: 'Service local', pythonVersion: 'Python 3.11+', stdlib: 'Bibliothèque standard', mitLicense: 'Licence MIT', github: 'GitHub',
     mapTitle: 'Routage des messages TeleCode', mapDesc: 'La conversation du propriétaire sur Telegram envoie les messages via le pont local vers une session d’agent prise en charge, puis reçoit les réponses de l’agent par les outils MCP.', mapOwner: 'DISCUSSION DU PROPRIÉTAIRE', mapBridge: 'PONT LOCAL', mapCheck: 'VÉRIFICATION · ROUTAGE', mapSession: 'SESSION CHOISIE', mapRoute: 'ROUTE LOCALE / 01', mapReply: 'RÉPONSE MCP ↗',
-    loopEyebrow: '01 / LE FLUX', loopTitle: 'Un propriétaire.<br>Un parcours clair.', step1Title: 'Connectez votre bot', step1Text: 'Configurez la discussion du propriétaire et lancez le service en local. Seules les mises à jour autorisées sont acceptées.', step2Title: 'Choisissez une session', step2Text: 'Sélectionnez une session de l’agent local choisi. Les messages entrants sont envoyés à la cible active.', step3Title: 'Continuez à travailler', step3Text: 'Envoyez vos demandes sur Telegram. L’agent peut répondre via MCP et renvoyer les fichiers autorisés.',
+    loopEyebrow: '01 / LE FLUX', loopTitle: 'Un propriétaire.<br>Un parcours clair.', step1Title: 'Connectez votre bot', step1Text: 'Configurez la discussion du propriétaire et lancez le service en local. Seules les mises à jour autorisées sont acceptées.', step2Title: 'Choisissez un agent et une session', step2Text: 'Sélectionnez votre agent et sa session (Antigravity, OpenCode, Claude, Hermes). Les messages entrants sont envoyés à la cible active.', step3Title: 'Continuez à travailler', step3Text: 'Envoyez vos demandes sur Telegram. L’agent peut répondre via MCP et renvoyer les fichiers autorisés.',
     capEyebrow: '02 / FONCTIONNALITÉS', capTitle: 'Conçu pour travailler, pas pour ouvrir un terminal distant.', cap1Title: 'Routage par session', cap1Text: 'Parcourez les sessions par nom, naviguez entre les pages et choisissez explicitement la cible active.', cap2Title: 'Choix du modèle', cap2Text: 'Parcourez les fournisseurs et modèles sur Telegram, puis modifiez le modèle de la session OpenCode active.', cap3Title: 'Échange de fichiers', cap3Text: 'Les pièces jointes sont dirigées vers leur session d’origine et les fichiers sortants sont limités aux chemins autorisés.', cap4Title: 'Réponses MCP', cap4Text: 'Les clients locaux peuvent utiliser les outils du pont pour envoyer du texte, des fichiers et l’état de la session.', cap5Title: 'Vérification du propriétaire', cap5Text: 'La conversation est vérifiée avant le routage, ainsi que l’expéditeur lorsque Telegram fournit son identité.', cap6Title: 'Exécution locale', cap6Text: 'Pas de webhook public ni de relais hébergé. Un service systemd utilisateur peut lancer le listener.',
     showEyebrow: '03 / INTERFACE TELEGRAM', showTitle: 'Une interface simple pour le travail réel.', showText: 'Choisissez une session, vérifiez la cible active ou changez son modèle sans ouvrir un tableau de bord web.', kbLabel: 'Options du clavier Telegram', kbSessions: 'Sessions', kbCurrent: 'Session actuelle', kbModels: 'Modèles', kbSwitchCli: 'Changer de CLI', kbHelp: 'Aide', previewLabel: 'APERÇU DU SÉLECTEUR DE MODÈLES', providerTitle: 'CHOISIR UN FOURNISSEUR', preview: 'APERÇU', chooseProvider: 'Choisissez un fournisseur', previous: 'Précédent', next: 'Suivant', providers: 'Fournisseurs', close: 'Fermer',
       intEyebrow: '04 / INTÉGRATIONS', intTitle: 'Des limites de compatibilité claires.', tableCaption: 'Compatibilité des clients de programmation', intText: 'OpenCode, Claude Code, Hermes Agent et Google Antigravity prennent en charge le routage ciblé. Codex et Cursor sont expérimentaux. Gemini CLI, Cline, Roo Code et Amazon Q ne proposent pas de routage entrant ; Continue et Aider nécessitent une configuration MCP sortante manuelle.', opencode: 'OpenCode', claudeCode: 'Claude Code', hermes: 'Hermes Agent', antigravity: 'Google Antigravity', cursor: 'Cursor Agent CLI', gemini: 'Gemini CLI', cline: 'Cline', roo: 'Roo Code', continue: 'Continue', aider: 'Aider', amazonQ: 'Amazon Q Developer', codex: 'Codex CLI', thClient: 'Client', thMcp: 'Outils MCP sortants', thRouting: 'Routage entrant ciblé', supported: 'Pris en charge', notImplemented: 'Non disponible', inboundExperimental: 'Expérimental', manualMcp: 'Configuration MCP manuelle',
      commandsEyebrow: '05 / COMMANDES', commandsTitle: 'Des commandes directes.<br>Sans surprise.', cmdSession: 'Parcourir et choisir la session active.', cmdCurrent: 'Afficher le nom et l’identifiant de la session active.', cmdModels: 'Parcourir les fournisseurs et changer le modèle.', cmdCli: 'Changer d’agent de programmation actif.', cmdFiles: 'Lister les fichiers reçus pour la session active.', cmdHelp: 'Afficher le clavier et les commandes.', securityEyebrow: '06 / SÉCURITÉ', securityTitle: 'Gardez le contrôle<br>sur votre machine.', securityLink: 'Lire les notes de sécurité', security1: 'La discussion du propriétaire est vérifiée avant le routage.', security2: 'Les identifiants restent dans la configuration privée de l’utilisateur, jamais dans le dépôt.', security3: 'Les fichiers sortants sont limités aux chemins autorisés et à une liste de refus.', security4: 'Les identifiants de session sont validés avant les appels API.', security5: 'Un verrou local empêche le lancement de plusieurs listeners Telegram.', security6: 'Le routage ciblé dépend du client local pris en charge sélectionné ; MCP ne donne pas accès à un shell distant.',
     installEyebrow: '07 / DÉMARRER', installTitle: 'Un parcours simple jusqu’à votre premier message.', installText: 'Installez depuis le dépôt source, puis suivez l’assistant pour relier votre bot et votre client de programmation.', installPython: 'Python 3.11 ou plus récent', installLinux: 'Linux + services systemd utilisateur', installMethod: 'Installation guidée depuis les sources', installMethodText: 'L’installateur vérifie l’environnement, sauvegarde la configuration du client avant toute modification et conserve les identifiants privés dans votre dossier utilisateur.', installSourceCta: 'Ouvrir le dépôt source', installNoBinary: 'Vérifiez le script avant de l’exécuter. La commande télécharge le code puis démarre la configuration guidée.', copyInstallCommandAria: 'Copier la commande d’installation guidée', installCommandTitle: 'Commencez avec une commande', installCommandNote: 'Vérifiez d’abord install.sh dans le dépôt public. La commande télécharge le script et lance la configuration guidée. Linux, systemd et Python 3.11+ requis.', installStepsHeading: 'Installation en quelques étapes', installStepOneTitle: 'Clonez le dépôt', installStepTwoTitle: 'Lancez l’installation guidée', installStepTwoText: 'Choisissez un client détecté avec les flèches puis Entrée. Votre accord sera demandé avant toute modification, puis le jeton du bot.', installStepThreeTitle: 'Reliez votre discussion Telegram', installStepThreeText: 'Saisissez votre identifiant numérique fourni par @Getmyid_bot ou choisissez la détection automatique, puis envoyez /start à votre bot.', installStepFourTitle: 'Redémarrez votre client', installStepFourText: 'Redémarrez le client pour charger MCP, envoyez /start sur Telegram et vérifiez le service avec telecode status.', copyCommand: 'Copier', copyAria: 'Copier la commande', copySuccess: 'Commande copiée.', copyFailure: 'Copie impossible. Sélectionnez puis copiez la commande manuellement.', copyCloneAria: 'Copier la commande de clonage', copyInstallAria: 'Copier la commande d’installation', copyStatusAria: 'Copier la commande de statut', installGuide: 'Guide d’installation détaillé', installSecurity: 'Notes de sécurité', footerLine: 'Des sessions locales, accessibles par conception.', securityNav: 'Sécurité', license: 'Licence MIT', previewSelected: '{provider} sélectionné', previewAction: 'Aperçu : {action}',
-    tabAgentCli: 'Changer de CLI', tabModels: 'Modèles', chooseAgentTitle: 'CHOISIR UN AGENT', installTermux: 'Prêt pour Android & Termux'
+    tabAgentCli: 'Changer de CLI', tabModels: 'Modèles', tabRealMobile: 'Mobile réel', kbNewSession: 'Nouvelle session', chooseAgentTitle: 'CHOISIR UN AGENT', installTermux: 'Prêt pour Android & Termux'
   }
 };
 
@@ -420,15 +420,17 @@ if ('IntersectionObserver' in window && !reduceMotion) {
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 } else document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
 
-// Phone mode tabs (Agent CLI vs Models)
+// Phone mode tabs (Agent CLI vs Models vs Live Mobile)
 document.querySelectorAll('.mode-tab').forEach(tab => tab.addEventListener('click', () => {
   document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t === tab));
   const mode = tab.dataset.mode;
   const panelAgent = document.querySelector('#panel-agent');
   const panelModel = document.querySelector('#panel-model');
+  const panelReal = document.querySelector('#panel-real');
   if (panelAgent && panelModel) {
     panelAgent.hidden = mode !== 'agent';
     panelModel.hidden = mode !== 'model';
+    if (panelReal) panelReal.hidden = mode !== 'real';
   }
 }));
 
