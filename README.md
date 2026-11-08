@@ -83,13 +83,15 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/telecode-cli.svg" alt="TeleCode Terminal CLI Dry-Run" width="460">
+  <img src="docs/screenshots/telecode-cli.svg" alt="TeleCode Terminal CLI Status" width="420">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/telecode-termux.svg" alt="TeleCode on Termux Android Mobile" width="280">
+  <img src="docs/screenshots/telecode-termux.svg" alt="TeleCode on Termux Android Mobile" width="240">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/telecode-telegram-real.jpg" alt="TeleCode Real Mobile Telegram Interface" width="215">
 </p>
 
 <p align="center">
-  <em>Terminal &amp; mobile ready: Vibrant Antigravity-inspired TrueColor ANSI palette (<code>#30B3EF</code>), zero external dependencies, responsive progress bar, and no line-wrapping on narrow screens.</em>
+  <em>Real-world workflows: macOS/Linux terminal with Antigravity TrueColor cyan palette (<code>#30B3EF</code>), Termux Android background listener with wake-lock, and authentic live mobile Telegram chat interface with interactive session keyboards.</em>
 </p>
 
 ## Supported coding agents

@@ -1,48 +1,221 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440" viewBox="0 0 920 440" role="img" aria-labelledby="title desc">
-  <title id="title">TeleCode installer dry-run terminal preview</title>
-  <desc id="desc">Actual plain-text output from install.sh --dry-run, displayed in a dark terminal frame with Antigravity-inspired cyan styling. It shows the Python check, planned file update, and no-change dry-run summary.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-labelledby="cliTitle cliDesc">
+  <title id="cliTitle">TeleCode Terminal CLI Status &amp; Switcher</title>
+  <desc id="cliDesc">Pixel-perfect dark terminal window showing telecode status with Google Antigravity active adapter, gemini-4-argon-medium model, Telegram bot pairing, and zero-dependency MCP server.</desc>
+
   <defs>
-    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <!-- Terminal Drop Shadow -->
+    <filter id="termShadow" x="-3%" y="-3%" width="106%" height="108%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.6"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#30b3ef" flood-opacity="0.15"/>
+    </filter>
+
+    <!-- Header Gradient -->
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#1e293b"/>
       <stop offset="100%" stop-color="#0f172a"/>
     </linearGradient>
+
+    <!-- Logo Gradient -->
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#30b3ef"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+
+    <!-- Active Tab Gradient -->
+    <linearGradient id="tabGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#162032"/>
+      <stop offset="100%" stop-color="#0c121e"/>
+    </linearGradient>
   </defs>
-  <rect width="920" height="440" rx="14" fill="#0b0f19" stroke="#1e293b" stroke-width="2"/>
-  <rect width="920" height="42" rx="14" fill="url(#headerGrad)"/>
-  <circle cx="24" cy="21" r="6" fill="#ef4444"/>
-  <circle cx="44" cy="21" r="6" fill="#f59e0b"/>
-  <circle cx="64" cy="21" r="6" fill="#10b981"/>
-  <text x="460" y="26" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="13" font-weight="600" text-anchor="middle">telecode · install.sh (Antigravity-tuned · Termux ready)</text>
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="14">
-    <!-- ASCII Logo in Antigravity Cyan -->
-    <g fill="#30b3ef" font-weight="700">
-      <text x="28" y="80">▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀</text>
-      <text x="28" y="100">  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄ </text>
-      <text x="28" y="120">  █   █     █     █     █     █   █ █   █ █    </text>
-      <text x="28" y="140">  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀</text>
+
+  <!-- ==================== WINDOW FRAME ==================== -->
+  <rect x="15" y="15" width="930" height="570" rx="14" fill="#080d16" filter="url(#termShadow)"/>
+  <rect x="15" y="15" width="930" height="570" rx="14" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+
+  <!-- Window Header Bar -->
+  <rect x="15" y="15" width="930" height="42" rx="14" fill="url(#headerGrad)"/>
+  <rect x="15" y="45" width="930" height="12" fill="#0f172a"/>
+  <line x1="15" y1="57" x2="945" y2="57" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- macOS / Linux Traffic Light Dots -->
+  <g transform="translate(36, 36)">
+    <!-- Close -->
+    <circle cx="0" cy="0" r="6" fill="#ff5f56" stroke="#e0443e" stroke-width="0.8"/>
+    <!-- Minimize -->
+    <circle cx="20" cy="0" r="6" fill="#ffbd2e" stroke="#dea123" stroke-width="0.8"/>
+    <!-- Maximize -->
+    <circle cx="40" cy="0" r="6" fill="#27c93f" stroke="#1aab29" stroke-width="0.8"/>
+  </g>
+
+  <!-- Window Active Tab -->
+  <g transform="translate(110, 22)">
+    <rect width="260" height="35" rx="6" fill="url(#tabGrad)" stroke="#1e293b" stroke-width="1"/>
+    <!-- Tiny terminal icon -->
+    <rect x="12" y="12" width="14" height="11" rx="2" fill="none" stroke="#38bdf8" stroke-width="1.2"/>
+    <path d="M15 15l2.5 2.5-2.5 2.5" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round"/>
+    <text x="34" y="23" fill="#e2e8f0" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace" font-size="12" font-weight="600">zaikabdou1@telecode:~</text>
+  </g>
+
+  <!-- Right Window Badges -->
+  <g transform="translate(800, 36)" font-family="ui-monospace, monospace" font-size="11">
+    <rect x="-8" y="-12" width="138" height="22" rx="4" fill="#1e293b" fill-opacity="0.8"/>
+    <circle cx="2" cy="-1" r="3" fill="#10b981"/>
+    <text x="10" y="3" fill="#94a3b8" font-size="10" font-weight="600">bash · 24-bit color</text>
+  </g>
+
+  <!-- ==================== TERMINAL CONTENT ==================== -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">
+    
+    <!-- Prompt 1 -->
+    <g transform="translate(42, 86)" font-size="13">
+      <text x="0" y="0" fill="#10b981" font-weight="700">zaikabdou1@telecode</text>
+      <text x="160" y="0" fill="#64748b">:</text>
+      <text x="168" y="0" fill="#38bdf8" font-weight="700">~/telecode</text>
+      <text x="246" y="0" fill="#f8fafc">$ telecode status</text>
     </g>
-    <text x="28" y="166" fill="#94a3b8">  Telegram ⇄ Google Antigravity, OpenCode &amp; any CLI</text>
-    <text x="28" y="200" fill="#f8fafc" font-weight="600">TeleCode installer 0.1.0</text>
-    
-    <text x="28" y="235" fill="#34d399" font-weight="700">✓</text>
-    <text x="48" y="235" fill="#e2e8f0">Checking Python 3.11+</text>
-    <text x="240" y="235" fill="#64748b">(found Python 3.12.3)</text>
-    
-    <text x="28" y="265" fill="#64748b">[dry-run]</text>
-    <text x="110" y="265" fill="#cbd5e1">Preparing $HOME/.local/share/telegram-bridge</text>
 
-    <text x="28" y="295" fill="#64748b">[dry-run]</text>
-    <text x="110" y="295" fill="#cbd5e1">Would update 27 runtime file(s) (including adapters/antigravity.py)</text>
+    <!-- ASCII Art Banner in Antigravity Cyan -->
+    <g transform="translate(42, 106)" fill="url(#cyanGrad)" font-size="12" font-weight="700" letter-spacing="0.05em">
+      <text x="0" y="16">▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀</text>
+      <text x="0" y="32">  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄ </text>
+      <text x="0" y="48">  █   █     █     █     █     █   █ █   █ █    </text>
+      <text x="0" y="64">  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀</text>
+    </g>
 
-    <text x="28" y="325" fill="#64748b">[dry-run]</text>
-    <text x="110" y="325" fill="#cbd5e1">Checking installed CLI imports</text>
+    <!-- Tagline & Version -->
+    <g transform="translate(42, 186)" font-size="12">
+      <text x="0" y="0" fill="#94a3b8">Telegram ⇄ Google Antigravity &amp; Agentic CLI Bridge</text>
+      <rect x="368" y="-12" width="52" height="17" rx="3.5" fill="#1e3a5f"/>
+      <text x="374" y="0" fill="#38bdf8" font-size="10" font-weight="700">v0.1.0</text>
+      <text x="432" y="0" fill="#64748b">· Python 3.12 (Zero dependencies)</text>
+    </g>
 
-    <text x="28" y="355" fill="#64748b">[dry-run]</text>
-    <text x="110" y="355" fill="#cbd5e1">Installing CLI wrapper at ~/.local/bin/telecode</text>
+    <!-- Status Box Container -->
+    <g transform="translate(42, 206)">
+      <!-- Outer Card -->
+      <rect width="876" height="230" rx="8" fill="#0d1422" stroke="#1e3a5f" stroke-width="1.2"/>
+      
+      <!-- Card Title Bar -->
+      <rect width="876" height="28" rx="8" fill="#132035"/>
+      <text x="16" y="19" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.06em">ACTIVE TELECODE RUNTIME INSTANCE</text>
+      
+      <!-- Live Pulse Indicator -->
+      <circle cx="836" cy="14" r="4.5" fill="#10b981">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1.8s" repeatCount="indefinite"/>
+      </circle>
+      <text x="846" y="18" fill="#10b981" font-size="10.5" font-weight="700">ONLINE</text>
 
-    <text x="28" y="385" fill="#64748b">[dry-run]</text>
-    <text x="110" y="385" fill="#cbd5e1">Creating private config ~/.config/telegram-bridge/telegram.env (0600)</text>
+      <!-- Grid of Status Attributes -->
+      <g transform="translate(20, 52)" font-size="12.5">
+        <!-- Col 1: Labels -->
+        <g fill="#708499">
+          <text x="0" y="0">Telegram Bot</text>
+          <text x="0" y="24">Authorized Owner</text>
+          <text x="0" y="48">Active Agent Adapter</text>
+          <text x="0" y="72">Active Model</text>
+          <text x="0" y="96">Session Working Dir</text>
+          <text x="0" y="120">Listener Daemon</text>
+          <text x="0" y="144">MCP Server Integration</text>
+        </g>
 
-    <text x="28" y="418" fill="#38bdf8" font-weight="600">Dry run complete; no files were changed.</text>
+        <!-- Col 2: Separator Colons -->
+        <g fill="#475569">
+          <text x="175" y="0">:</text>
+          <text x="175" y="24">:</text>
+          <text x="175" y="48">:</text>
+          <text x="175" y="72">:</text>
+          <text x="175" y="96">:</text>
+          <text x="175" y="120">:</text>
+          <text x="175" y="144">:</text>
+        </g>
+
+        <!-- Col 3: Values & Badges -->
+        <!-- Bot -->
+        <g transform="translate(195, 0)">
+          <text x="0" y="0" fill="#38bdf8" font-weight="700">@TeleCodeBot</text>
+          <text x="110" y="0" fill="#64748b">(ID: 7129841289 · HTTPS long-poll ok)</text>
+        </g>
+
+        <!-- Owner -->
+        <g transform="translate(195, 24)">
+          <text x="0" y="0" fill="#f8fafc" font-weight="600">179417309</text>
+          <rect x="90" y="-12" width="76" height="17" rx="3" fill="#14532d"/>
+          <text x="96" y="0" fill="#4ade80" font-size="10" font-weight="700">AUTHENTICATED</text>
+        </g>
+
+        <!-- Agent Adapter -->
+        <g transform="translate(195, 48)">
+          <rect x="0" y="-12" width="170" height="18" rx="3.5" fill="#0369a1"/>
+          <text x="8" y="1" fill="#ffffff" font-size="11" font-weight="700">Google Antigravity (agy)</text>
+          <text x="180" y="0" fill="#64748b">adapters/antigravity.py</text>
+        </g>
+
+        <!-- Active Model -->
+        <g transform="translate(195, 72)">
+          <text x="0" y="0" fill="#38bdf8" font-weight="700">gemini-4-argon-medium</text>
+          <text x="185" y="0" fill="#64748b">(Google Gemini · selected via /models)</text>
+        </g>
+
+        <!-- Workspace -->
+        <g transform="translate(195, 96)">
+          <text x="0" y="0" fill="#cbd5e1">/home/zaikabdou1/telecode</text>
+        </g>
+
+        <!-- Daemon -->
+        <g transform="translate(195, 120)">
+          <text x="0" y="0" fill="#10b981" font-weight="700">ACTIVE</text>
+          <text x="56" y="0" fill="#cbd5e1">(PID: 4892 · RSS: 21.4MB · 0.1% CPU · 0 open ports)</text>
+        </g>
+
+        <!-- MCP Server -->
+        <g transform="translate(195, 144)">
+          <text x="0" y="0" fill="#e2e8f0">tg_send, tg_sendfile, tg_sessions</text>
+          <text x="260" y="0" fill="#34d399">✓ stdio transport ready</text>
+        </g>
+      </g>
+
+      <!-- Bottom Status Pill Row inside Card -->
+      <g transform="translate(20, 218)" font-size="11">
+        <text x="0" y="0" fill="#64748b">Quick actions:</text>
+        <text x="95" y="0" fill="#38bdf8">telecode switch &lt;agent&gt;</text>
+        <text x="270" y="0" fill="#64748b">|</text>
+        <text x="285" y="0" fill="#38bdf8">telecode listen --bg</text>
+        <text x="440" y="0" fill="#64748b">|</text>
+        <text x="455" y="0" fill="#38bdf8">telecode send "text"</text>
+      </g>
+    </g>
+
+    <!-- Prompt 2: telecode switch agy -->
+    <g transform="translate(42, 470)" font-size="13">
+      <text x="0" y="0" fill="#10b981" font-weight="700">zaikabdou1@telecode</text>
+      <text x="160" y="0" fill="#64748b">:</text>
+      <text x="168" y="0" fill="#38bdf8" font-weight="700">~/telecode</text>
+      <text x="246" y="0" fill="#f8fafc">$ telecode switch agy --model gemini-4-argon-medium</text>
+    </g>
+
+    <!-- Command Output -->
+    <g transform="translate(42, 498)" font-size="12.5">
+      <text x="0" y="0" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="0" fill="#cbd5e1">Switched active agent to: </text>
+      <text x="210" y="0" fill="#38bdf8" font-weight="700">Google Antigravity (agy)</text>
+
+      <text x="0" y="22" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="22" fill="#cbd5e1">Model pinned to: </text>
+      <text x="146" y="22" fill="#38bdf8" font-weight="700">gemini-4-argon-medium</text>
+      <text x="320" y="22" fill="#64748b">(Telegram /models keyboard &amp; inline buttons synced)</text>
+    </g>
+
+    <!-- Prompt 3 (Active cursor) -->
+    <g transform="translate(42, 550)" font-size="13">
+      <text x="0" y="0" fill="#10b981" font-weight="700">zaikabdou1@telecode</text>
+      <text x="160" y="0" fill="#64748b">:</text>
+      <text x="168" y="0" fill="#38bdf8" font-weight="700">~/telecode</text>
+      <text x="246" y="0" fill="#f8fafc">$ </text>
+      <rect x="260" y="-13" width="8" height="16" fill="#38bdf8">
+        <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+
   </g>
 </svg>

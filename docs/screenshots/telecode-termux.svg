@@ -1,77 +1,324 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="480" height="680" viewBox="0 0 480 680" role="img" aria-labelledby="tmxTitle tmxDesc">
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="880" viewBox="0 0 500 880" role="img" aria-labelledby="tmxTitle tmxDesc">
   <title id="tmxTitle">TeleCode on Termux Android Mobile</title>
-  <desc id="tmxDesc">Mobile terminal preview showing clean responsive installation on Termux without line wraps, adaptive progress bar, and vibrant Antigravity cyan palette.</desc>
+  <desc id="tmxDesc">Pixel-perfect mobile terminal screenshot showing TeleCode running seamlessly inside Termux on Android with wake-lock, compact progress bar, Google Antigravity integration, and Termux extra keys row.</desc>
+
   <defs>
-    <filter id="phoneShadow" x="-10%" y="-5%" width="120%" height="110%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.45"/>
+    <!-- Device Ambient Drop Shadow -->
+    <filter id="phoneShadow" x="-10%" y="-5%" width="120%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="28" flood-color="#000000" flood-opacity="0.65"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#30b3ef" flood-opacity="0.12"/>
     </filter>
+
+    <!-- Metallic Edge Gradient -->
+    <linearGradient id="phoneBezel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="25%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="75%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+
+    <!-- Inner Screen Glow -->
+    <radialGradient id="screenGlow" cx="50%" cy="25%" r="70%">
+      <stop offset="0%" stop-color="#0e1726"/>
+      <stop offset="100%" stop-color="#050811"/>
+    </radialGradient>
+
+    <!-- Progress Bar Gradient -->
+    <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="60%" stop-color="#30b3ef"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+
+    <!-- Antigravity Cyan Badge Gradient -->
+    <linearGradient id="cyanBadge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
   </defs>
 
-  <!-- Mobile Device Frame -->
-  <rect x="10" y="10" width="460" height="660" rx="36" fill="#18181b" stroke="#3f3f46" stroke-width="3" filter="url(#phoneShadow)"/>
-  <!-- Screen Area -->
-  <rect x="22" y="32" width="436" height="616" rx="24" fill="#090d16"/>
+  <!-- ==================== PHONE CHASSIS ==================== -->
+  <!-- Outer Bezel / Frame -->
+  <rect x="15" y="15" width="470" height="850" rx="46" fill="url(#phoneBezel)" stroke="#475569" stroke-width="2.5" filter="url(#phoneShadow)"/>
+  
+  <!-- Antenna Inset Lines -->
+  <line x1="14" y1="120" x2="17" y2="120" stroke="#64748b" stroke-width="2"/>
+  <line x1="483" y1="120" x2="486" y2="120" stroke="#64748b" stroke-width="2"/>
+  <line x1="14" y1="760" x2="17" y2="760" stroke="#64748b" stroke-width="2"/>
+  <line x1="483" y1="760" x2="486" y2="760" stroke="#64748b" stroke-width="2"/>
 
-  <!-- Top Notch / Camera & Speaker -->
-  <rect x="190" y="18" width="100" height="6" rx="3" fill="#3f3f46"/>
-  <circle cx="160" cy="21" r="3" fill="#27272a"/>
+  <!-- Screen AMOLED Panel -->
+  <rect x="25" y="25" width="450" height="830" rx="38" fill="url(#screenGlow)"/>
+  <rect x="25" y="25" width="450" height="830" rx="38" fill="none" stroke="#1e293b" stroke-width="1.5"/>
 
-  <!-- Mobile Status Bar -->
-  <text x="44" y="52" fill="#94a3b8" font-family="-apple-system, sans-serif" font-size="12" font-weight="600">21:05</text>
-  <path d="M400 44h18v10h-18z" fill="none" stroke="#94a3b8" stroke-width="1.2" rx="2"/>
-  <rect x="402" y="46" width="12" height="6" rx="1" fill="#34d399"/>
-  <path d="M420 47v4" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Speaker Grill -->
+  <rect x="215" y="32" width="70" height="3.5" rx="1.75" fill="#334155"/>
 
-  <!-- Termux Header -->
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">
-    <text x="36" y="86" fill="#30b3ef" font-weight="700">~/telecode $</text>
-    <text x="136" y="86" fill="#f8fafc">./install.sh</text>
+  <!-- Front Camera Punch-Hole -->
+  <circle cx="250" cy="52" r="7" fill="#000000" stroke="#1e293b" stroke-width="1.2"/>
+  <circle cx="251" cy="51" r="2.2" fill="#0c4a6e" opacity="0.8"/>
 
-    <!-- Responsive Compact Logo (<52 cols) -->
-    <text x="36" y="116" fill="#30b3ef" font-weight="700">TeleCode</text>
-    <text x="104" y="116" fill="#cbd5e1">installer 0.1.0</text>
-    <text x="36" y="134" fill="#64748b">  Telegram ⇄ Google Antigravity &amp; any CLI</text>
+  <!-- ==================== ANDROID STATUS BAR ==================== -->
+  <!-- Clock -->
+  <text x="46" y="56" fill="#f1f5f9" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5" font-weight="700">22:15</text>
+  
+  <!-- Status Icons: Termux terminal icon in status bar -->
+  <rect x="88" y="47" width="13" height="10" rx="2" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-width="1"/>
+  <text x="91.5" y="55" fill="#10b981" font-family="ui-monospace, monospace" font-size="8" font-weight="800">&gt;_</text>
 
-    <text x="36" y="166" fill="#34d399">✓</text>
-    <text x="52" y="166" fill="#e2e8f0">Checking Python 3.11+</text>
-
-    <text x="36" y="190" fill="#34d399">✓</text>
-    <text x="52" y="190" fill="#e2e8f0">Preparing install directories</text>
-
-    <!-- Compact Progress Bar (<46 cols) -->
-    <rect x="36" y="212" width="408" height="42" rx="6" fill="#111827" stroke="#1f2937"/>
-    <text x="48" y="238" fill="#30b3ef" font-weight="600">[ 84%]</text>
-    <text x="104" y="238" fill="#cbd5e1">1.1 MB / 1.3 MB</text>
-    <text x="320" y="238" fill="#64748b">no-wrap</text>
-
-    <text x="36" y="280" fill="#34d399">✓</text>
-    <text x="52" y="280" fill="#e2e8f0">Installing runtime files (27 updated)</text>
-
-    <text x="36" y="304" fill="#34d399">✓</text>
-    <text x="52" y="304" fill="#e2e8f0">Checking installed CLI imports</text>
-
-    <text x="36" y="328" fill="#34d399">✓</text>
-    <text x="52" y="328" fill="#e2e8f0">Installing CLI wrapper</text>
-
-    <!-- Termux Notice Block -->
-    <rect x="36" y="352" width="408" height="136" rx="8" fill="#131c2e" stroke="#30b3ef" stroke-width="1.2"/>
-    <text x="50" y="378" fill="#30b3ef" font-weight="700">📱 Termux Environment Detected</text>
-    <text x="50" y="402" fill="#94a3b8">Run in background without sleep kill:</text>
+  <!-- Right status bar icons: 5G, Wi-Fi, Battery -->
+  <g transform="translate(365, 46)">
+    <!-- 5G Badge -->
+    <text x="0" y="10" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" font-weight="700">5G</text>
     
-    <rect x="50" y="416" width="380" height="28" rx="4" fill="#090d16"/>
-    <text x="60" y="435" fill="#34d399">termux-wake-lock</text>
-
-    <rect x="50" y="450" width="380" height="28" rx="4" fill="#090d16"/>
-    <text x="60" y="469" fill="#f59e0b">nohup telecode listen &gt; log 2&gt;&amp;1 &amp;</text>
-
-    <!-- Success Message -->
-    <text x="36" y="516" fill="#34d399" font-weight="700">Installed to: ~/.local/share/telegram-bridge</text>
-    <text x="36" y="538" fill="#e2e8f0">CLI: ~/.local/bin/telecode</text>
-    <text x="36" y="560" fill="#cbd5e1">Active Agent: Google Antigravity (agy)</text>
-
-    <text x="36" y="600" fill="#30b3ef" font-weight="700">~/telecode $</text>
-    <rect x="136" y="588" width="8" height="15" fill="#30b3ef">
-      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
-    </rect>
+    <!-- Wi-Fi Icon -->
+    <path d="M22 10a8 8 0 0 1 11 0M24.5 7a12 12 0 0 1 6 0M27.5 12a1 1 0 1 1 0 .1" stroke="#94a3b8" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    
+    <!-- Battery 98% -->
+    <text x="37" y="10" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10.5" font-weight="600">98%</text>
+    <rect x="63" y="2" width="20" height="9" rx="2.5" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+    <rect x="65" y="3.8" width="15" height="5.4" rx="1.2" fill="#10b981"/>
+    <path d="M84 4.5v4" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
   </g>
+
+  <!-- ==================== TERMUX APP HEADER ==================== -->
+  <rect x="25" y="72" width="450" height="34" fill="#0b111e" stroke="#1e293b" stroke-width="1"/>
+  
+  <!-- Termux Session Tab -->
+  <g transform="translate(42, 82)">
+    <rect width="112" height="20" rx="4" fill="#1e293b"/>
+    <circle cx="10" cy="10" r="3.5" fill="#30b3ef"/>
+    <text x="20" y="14" fill="#f8fafc" font-family="ui-monospace, monospace" font-size="10" font-weight="600">1: bash (main)</text>
+    
+    <!-- Wake lock badge -->
+    <rect x="120" y="0" width="74" height="20" rx="4" fill="#1e293b" fill-opacity="0.8"/>
+    <text x="128" y="14" fill="#10b981" font-family="ui-monospace, monospace" font-size="9.5" font-weight="700">🔒 WAKE-LOCK</text>
+  </g>
+
+  <!-- Right menu dots -->
+  <g transform="translate(446, 85)" fill="#94a3b8">
+    <circle cx="0" cy="3" r="1.6"/>
+    <circle cx="0" cy="8" r="1.6"/>
+    <circle cx="0" cy="13" r="1.6"/>
+  </g>
+
+  <!-- ==================== TERMINAL BODY ==================== -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5">
+    
+    <!-- Prompt 1 -->
+    <g transform="translate(38, 126)">
+      <text x="0" y="0" fill="#10b981" font-weight="700">zaikabdou1@localhost</text>
+      <text x="145" y="0" fill="#64748b">:</text>
+      <text x="153" y="0" fill="#38bdf8" font-weight="700">~/telecode</text>
+      <text x="216" y="0" fill="#f8fafc">$ ./install.sh</text>
+    </g>
+
+    <!-- TeleCode Terminal Mini-Banner -->
+    <g transform="translate(38, 150)">
+      <rect width="424" height="48" rx="6" fill="#0b1322" stroke="#1e293b"/>
+      <text x="14" y="20" fill="#30b3ef" font-size="13" font-weight="800" letter-spacing="0.05em">TeleCode Installer 0.1.0</text>
+      <rect x="186" y="8" width="60" height="15" rx="3" fill="#1e3a5f"/>
+      <text x="192" y="19" fill="#7dd3fc" font-size="9" font-weight="700">TERMUX</text>
+      <text x="14" y="38" fill="#94a3b8" font-size="10.5">Telegram ⇄ Google Antigravity &amp; Any Agent CLI</text>
+    </g>
+
+    <!-- Checklist Steps -->
+    <g transform="translate(38, 218)">
+      <text x="0" y="0" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="0" fill="#cbd5e1">Android / Termux detected</text>
+      <text x="220" y="0" fill="#64748b">(aarch64 Linux)</text>
+
+      <text x="0" y="20" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="20" fill="#cbd5e1">Python 3.12.3</text>
+      <text x="120" y="20" fill="#64748b">(stdlib only · 0 pip bloat)</text>
+
+      <text x="0" y="40" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="40" fill="#cbd5e1">Termux wake-lock</text>
+      <text x="156" y="40" fill="#34d399">(background safe)</text>
+
+      <text x="0" y="60" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="60" fill="#cbd5e1">Google Antigravity agent adapter ready</text>
+    </g>
+
+    <!-- Compact Progress Bar Card -->
+    <g transform="translate(38, 298)">
+      <rect width="424" height="52" rx="7" fill="#0c1424" stroke="#1e3a5f" stroke-width="1.2"/>
+      
+      <!-- Progress Bar Track -->
+      <rect x="14" y="12" width="396" height="8" rx="4" fill="#1e293b"/>
+      <rect x="14" y="12" width="352" height="8" rx="4" fill="url(#progressGrad)"/>
+
+      <!-- Progress Labels -->
+      <text x="14" y="38" fill="#38bdf8" font-weight="700">[ 88%]</text>
+      <text x="68" y="38" fill="#f8fafc">1.1 MB / 1.3 MB</text>
+      <text x="180" y="38" fill="#64748b">4.2 MB/s</text>
+      <rect x="330" y="26" width="80" height="16" rx="3" fill="#1e293b"/>
+      <text x="342" y="38" fill="#94a3b8" font-size="9.5">NO WRAP</text>
+    </g>
+
+    <!-- Post-install status snippet -->
+    <g transform="translate(38, 372)">
+      <text x="0" y="0" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="0" fill="#f8fafc">Installed CLI to: </text>
+      <text x="136" y="0" fill="#38bdf8">~/.local/bin/telecode</text>
+
+      <text x="0" y="20" fill="#10b981" font-weight="700">✓</text>
+      <text x="16" y="20" fill="#f8fafc">Runtime files: </text>
+      <text x="126" y="20" fill="#cbd5e1">27 updated in ~40ms</text>
+    </g>
+
+    <!-- Notification Highlight Card: Termux Wake-Lock info -->
+    <g transform="translate(38, 412)">
+      <rect width="424" height="66" rx="8" fill="#091b29" stroke="#0284c7" stroke-width="1.2"/>
+      <circle cx="22" cy="22" r="10" fill="#0284c7" fill-opacity="0.3"/>
+      <text x="17.5" y="26" fill="#38bdf8" font-size="12">⚡</text>
+      <text x="40" y="22" fill="#38bdf8" font-weight="700">Termux Background Mode Active</text>
+      <text x="40" y="39" fill="#94a3b8" font-size="10.5">CPU sleep disabled via </text>
+      <text x="182" y="39" fill="#34d399" font-weight="700">termux-wake-lock</text>
+      <text x="40" y="54" fill="#64748b" font-size="10">Bridge will keep running with screen locked.</text>
+    </g>
+
+    <!-- Prompt 2: telecode listen -->
+    <g transform="translate(38, 502)">
+      <text x="0" y="0" fill="#10b981" font-weight="700">zaikabdou1@localhost</text>
+      <text x="145" y="0" fill="#64748b">:</text>
+      <text x="153" y="0" fill="#38bdf8" font-weight="700">~/telecode</text>
+      <text x="216" y="0" fill="#f8fafc">$ telecode listen --bg</text>
+    </g>
+
+    <!-- Status Output Box -->
+    <g transform="translate(38, 518)">
+      <rect width="424" height="154" rx="8" fill="#080e18" stroke="#1e293b"/>
+      
+      <!-- Header row of box -->
+      <rect width="424" height="24" rx="8" fill="#131c2e"/>
+      <text x="12" y="16" fill="#38bdf8" font-size="10" font-weight="700">TELECODE BACKGROUND DAEMON STATUS</text>
+      <circle cx="406" cy="12" r="4" fill="#10b981">
+        <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+      </circle>
+
+      <!-- Status Lines -->
+      <g transform="translate(14, 42)" font-size="10.5">
+        <text x="0" y="0" fill="#64748b">Daemon PID:</text>
+        <text x="100" y="0" fill="#f8fafc" font-weight="600">14209 (running · 0% CPU)</text>
+
+        <text x="0" y="19" fill="#64748b">Telegram Bot:</text>
+        <text x="100" y="19" fill="#38bdf8">@TeleCodeBot</text>
+        <text x="195" y="19" fill="#64748b">(owner: 179417309)</text>
+
+        <text x="0" y="38" fill="#64748b">Active Agent:</text>
+        <text x="100" y="38" fill="#34d399" font-weight="700">Google Antigravity (agy)</text>
+
+        <text x="0" y="57" fill="#64748b">Active Model:</text>
+        <text x="100" y="57" fill="#cbd5e1">gemini-4-argon-medium</text>
+
+        <text x="0" y="76" fill="#64748b">Long-Polling:</text>
+        <text x="100" y="76" fill="#10b981">Active (no open inbound ports)</text>
+
+        <text x="0" y="95" fill="#64748b">MCP Server:</text>
+        <text x="100" y="95" fill="#e2e8f0">tg_send, tg_sendfile, tg_sessions</text>
+      </g>
+    </g>
+
+    <!-- Prompt 3 (active cursor) -->
+    <g transform="translate(38, 696)">
+      <text x="0" y="0" fill="#10b981" font-weight="700">zaikabdou1@localhost</text>
+      <text x="145" y="0" fill="#64748b">:</text>
+      <text x="153" y="0" fill="#38bdf8" font-weight="700">~/telecode</text>
+      <text x="216" y="0" fill="#f8fafc">$ </text>
+      <rect x="230" y="-12" width="7.5" height="14" fill="#38bdf8">
+        <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+
+  </g>
+
+  <!-- ==================== TERMUX EXTRA KEYS BAR ==================== -->
+  <!-- Authentic Termux touch keyboard shortcut bar -->
+  <g transform="translate(25, 718)">
+    <rect width="450" height="88" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+    
+    <!-- Row 1 Keys -->
+    <g transform="translate(6, 6)" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" text-anchor="middle">
+      <!-- ESC -->
+      <g transform="translate(0, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#38bdf8">ESC</text>
+      </g>
+      <!-- / -->
+      <g transform="translate(62, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#f1f5f9">/</text>
+      </g>
+      <!-- - -->
+      <g transform="translate(124, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#f1f5f9">-</text>
+      </g>
+      <!-- HOME -->
+      <g transform="translate(186, 0)">
+        <rect width="60" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="30" y="21" fill="#cbd5e1">HOME</text>
+      </g>
+      <!-- UP -->
+      <g transform="translate(252, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#38bdf8">▲</text>
+      </g>
+      <!-- END -->
+      <g transform="translate(314, 0)">
+        <rect width="60" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="30" y="21" fill="#cbd5e1">END</text>
+      </g>
+      <!-- PGUP -->
+      <g transform="translate(380, 0)">
+        <rect width="58" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="29" y="21" fill="#cbd5e1">PGUP</text>
+      </g>
+    </g>
+
+    <!-- Row 2 Keys -->
+    <g transform="translate(6, 46)" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" text-anchor="middle">
+      <!-- TAB -->
+      <g transform="translate(0, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#cbd5e1">TAB</text>
+      </g>
+      <!-- CTRL -->
+      <g transform="translate(62, 0)">
+        <rect width="56" height="34" rx="4" fill="#0369a1" stroke="#38bdf8" stroke-width="1"/>
+        <text x="28" y="21" fill="#ffffff">CTRL</text>
+      </g>
+      <!-- ALT -->
+      <g transform="translate(124, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#cbd5e1">ALT</text>
+      </g>
+      <!-- LEFT -->
+      <g transform="translate(186, 0)">
+        <rect width="60" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="30" y="21" fill="#38bdf8">◀</text>
+      </g>
+      <!-- DOWN -->
+      <g transform="translate(252, 0)">
+        <rect width="56" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="28" y="21" fill="#38bdf8">▼</text>
+      </g>
+      <!-- RIGHT -->
+      <g transform="translate(314, 0)">
+        <rect width="60" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="30" y="21" fill="#38bdf8">▶</text>
+      </g>
+      <!-- PGDN -->
+      <g transform="translate(380, 0)">
+        <rect width="58" height="34" rx="4" fill="#1f2937" stroke="#374151" stroke-width="1"/>
+        <text x="29" y="21" fill="#cbd5e1">PGDN</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ==================== ANDROID NAVIGATION GESTURE PILL ==================== -->
+  <rect x="190" y="836" width="120" height="4.5" rx="2.25" fill="#475569"/>
+
 </svg>
