@@ -93,9 +93,15 @@ def _agent_adapter(cfg):
         return HermesAdapter(binary=(cfg.get("HERMES_BIN") or "hermes").strip())
     if name == "antigravity":
         from adapters.antigravity import AntigravityAdapter
+        try:
+            active = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
+            model = active.get("model") if active.get("id") == tg._active_session_id() else None
+        except (OSError, ValueError, TypeError):
+            model = None
         return AntigravityAdapter(
             binary=(cfg.get("ANTIGRAVITY_BIN") or cfg.get("AGY_BIN") or "agy").strip(),
             workspace=cfg.get("ANTIGRAVITY_WORKSPACE"),
+            model=model,
         )
     from adapters.opencode import OpenCodeAdapter
     return OpenCodeAdapter(binary=tg._opencode_bin(cfg))

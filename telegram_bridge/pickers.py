@@ -185,7 +185,9 @@ def _models_from_api(cfg):
         return models
     if tg._agent_name(cfg) == "codex":
         return tg._codex_adapter(cfg).list_models()
-    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes", "antigravity"):
+    if tg._agent_name(cfg) == "antigravity":
+        return tg._agent_adapter(cfg).list_models()
+    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes"):
         return []
     data = tg._opencode_api(cfg, "get", "/api/model", timeout=45)
     items = data.get("data") if isinstance(data, dict) else data
@@ -257,12 +259,27 @@ def _current_model(cfg, sid):
             return tg._codex_adapter(cfg).current_model(sid)
         except Exception:
             return ""
-    if tg._agent_name(cfg) in ("cursor", "codex"):
+    if tg._agent_name(cfg) in ("cursor", "codex", "antigravity"):
         try:
             state = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
-            return str(state.get("model") or "") if state.get("id") == sid else ""
+            if state.get("id") == sid and state.get("model"):
+                return str(state.get("model"))
         except (OSError, ValueError, TypeError):
+            pass
+        if tg._agent_name(cfg) == "antigravity":
+            try:
+                s_path = pathlib.Path.home() / ".gemini/antigravity-cli/settings.json"
+                if not s_path.is_file():
+                    s_path = pathlib.Path.home() / ".gemini/antigravity/settings.json"
+                if s_path.is_file():
+                    s_data = json.loads(s_path.read_text(encoding="utf-8"))
+                    m = s_data.get("model")
+                    if m:
+                        return str(m)
+            except Exception:
+                pass
             return ""
+        return ""
     try:
         data = tg._opencode_api(cfg, "get",
                                 f"/api/session/{urllib.parse.quote(sid, safe='')}", timeout=20)
@@ -275,7 +292,7 @@ def _current_model(cfg, sid):
 
 def _models_menu(cfg, provider_index=None, page=0, models_snapshot=None):
     """Show model-provider and model pages in Telegram's bottom reply keyboard."""
-    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes", "antigravity"):
+    if tg._agent_name(cfg) in ("claude-code", "claude", "hermes"):
         tg.ACTIVE_PICKER = None
         tg.MODEL_SELECTION.update(provider=None, page=0, labels={})
         label = tg.agent_label(tg._agent_name(cfg))
@@ -469,7 +486,7 @@ def _switch_session_model(cfg, model):
     if tg._agent_name(cfg) == "codex":
         tg.send_text(cfg, "Codex lists models from its live catalog, but queued messages use the model already set on that Codex session. Change the model in Codex to switch it.")
         return
-    if tg._agent_name(cfg) in ("cursor", "codex"):
+    if tg._agent_name(cfg) in ("cursor", "codex", "antigravity"):
         try:
             state = json.loads(tg.ACTIVE_SESSION.read_text(encoding="utf-8"))
         except (OSError, ValueError, TypeError):

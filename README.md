@@ -13,7 +13,7 @@
   <img alt="MCP stdio" src="https://img.shields.io/badge/MCP-stdio-6B7280.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Termux-333333.svg">
   <img alt="Zero Dependencies" src="https://img.shields.io/badge/dependencies-0%20external%20(std--lib)-success.svg">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-347%20passed-brightgreen.svg">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-350%20passed-brightgreen.svg">
 </p>
 
 <p align="center">
@@ -99,7 +99,7 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
 | **OpenCode** | Yes | Yes (Default) | REST API & CLI session discovery and prompt injection |
 | **Claude Code** | Yes | Yes | Headless `claude --resume` adapter (`TELECODE_AGENT=claude-code`) |
 | **Hermes Agent** | Yes | Yes | Nous Research Hermes CLI adapter (`TELECODE_AGENT=hermes`) |
-| **Google Antigravity** | Yes | Yes | Google Antigravity CLI (`agy`) adapter (`TELECODE_AGENT=antigravity`) |
+| **Google Antigravity** | Yes | Yes | Google Antigravity CLI (`agy`) adapter with live model selection (`TELECODE_AGENT=antigravity`) |
 | **Codex CLI** | Yes | Experimental | Local threads & `codex queue` (`TELECODE_AGENT=codex`, 0.166.0+) |
 | **Cursor** | Yes | Experimental | Cursor Agent CLI and local metadata (`TELECODE_AGENT=cursor`) |
 | **Gemini CLI, Cline, Roo, Q** | Yes | Outbound only | Outbound MCP tools enabled via configuration |

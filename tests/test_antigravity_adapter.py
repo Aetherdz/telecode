@@ -154,6 +154,54 @@ class AntigravityAdapterTests(unittest.TestCase):
                 self.adapter.send_message("conv-1234", "Do something")
             self.assertIn("context window exhausted", str(ctx.exception))
 
+    def test_send_message_with_model(self):
+        adapter = AntigravityAdapter(
+            binary="agy",
+            config_dir=self.config_dir,
+            workspace=self.workspace,
+            model="gemini-4-argon-high",
+        )
+        with patch.object(adapter, "_resolve_binary", return_value="/usr/local/bin/agy"), \
+             patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="Model response", stderr="")
+            reply = adapter.send_message("conv-1234", "Run test suite")
+            self.assertEqual(reply, "Model response")
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            self.assertEqual(args, [
+                "/usr/local/bin/agy",
+                "--conversation", "conv-1234",
+                "--dangerously-skip-permissions",
+                "--model", "gemini-4-argon-high",
+                "--print", "Run test suite"
+            ])
+
+    def test_list_models_parsing_and_fallback(self):
+        # 1. Output parsing from agy models
+        stdout = (
+            "⠋ Fetching available models...\n"
+            "gemini-4-argon-medium     Gemini 4 Argon (Medium)\n"
+            "claude-opus-5-5-high      Claude Opus 5.5 (High)\n"
+            "gpt-oss-120b-medium       GPT-OSS 120B (Medium)\n"
+        )
+        with patch.object(self.adapter, "_resolve_binary", return_value="/usr/local/bin/agy"), \
+             patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=stdout, stderr="")
+            models = self.adapter.list_models()
+            self.assertEqual(len(models), 3)
+            self.assertEqual(models[0]["id"], "gemini-4-argon-medium")
+            self.assertEqual(models[0]["providerID"], "Google Gemini")
+            self.assertEqual(models[1]["id"], "claude-opus-5-5-high")
+            self.assertEqual(models[1]["providerID"], "Anthropic Claude")
+            self.assertEqual(models[2]["id"], "gpt-oss-120b-medium")
+            self.assertEqual(models[2]["providerID"], "OpenAI / OSS")
+
+        # 2. Fallback when binary is missing
+        with patch.object(self.adapter, "_resolve_binary", return_value=None):
+            models = self.adapter.list_models()
+            self.assertGreater(len(models), 5)
+            self.assertTrue(any(m["id"] == "gemini-4-argon-medium" for m in models))
+
     def test_register_json_for_antigravity(self):
         settings_path = self.config_dir / "settings.json"
         settings_path.write_text(json.dumps({"model": "Gemini 3.8 Flash"}))

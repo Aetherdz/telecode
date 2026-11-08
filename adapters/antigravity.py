@@ -18,6 +18,22 @@ _SESSION_ID_RE = re.compile(r"^[0-9a-zA-Z_-]{1,128}$")
 _ANSI_ESCAPE_RE = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 _MARKDOWN_STRIP_RE = re.compile(r"^[#*`_~\s]+|[#*`_~\s]+$")
 
+DEFAULT_ANTIGRAVITY_MODELS = [
+    {"id": "gemini-4-argon-medium", "providerID": "Google Gemini", "name": "Gemini 4 Argon (Medium)"},
+    {"id": "gemini-4-argon-high", "providerID": "Google Gemini", "name": "Gemini 4 Argon (High)"},
+    {"id": "gemini-4-argon-low", "providerID": "Google Gemini", "name": "Gemini 4 Argon (Low)"},
+    {"id": "gemini-3.8-flash-high", "providerID": "Google Gemini", "name": "Gemini 3.8 Flash (High)"},
+    {"id": "gemini-3.8-flash-medium", "providerID": "Google Gemini", "name": "Gemini 3.8 Flash (Medium)"},
+    {"id": "gemini-3.8-flash-low", "providerID": "Google Gemini", "name": "Gemini 3.8 Flash (Low)"},
+    {"id": "claude-opus-5-5-medium", "providerID": "Anthropic Claude", "name": "Claude Opus 5.5 (Medium)"},
+    {"id": "claude-opus-5-5-high", "providerID": "Anthropic Claude", "name": "Claude Opus 5.5 (High)"},
+    {"id": "claude-opus-5-5-low", "providerID": "Anthropic Claude", "name": "Claude Opus 5.5 (Low)"},
+    {"id": "claude-sonnet-5-5-medium", "providerID": "Anthropic Claude", "name": "Claude Sonnet 5.5 (Medium)"},
+    {"id": "claude-sonnet-5-5-high", "providerID": "Anthropic Claude", "name": "Claude Sonnet 5.5 (High)"},
+    {"id": "claude-sonnet-5-5-low", "providerID": "Anthropic Claude", "name": "Claude Sonnet 5.5 (Low)"},
+    {"id": "gpt-oss-120b-medium", "providerID": "OpenAI / OSS", "name": "GPT-OSS 120B (Medium)"},
+]
+
 
 class AntigravityAdapterError(RuntimeError):
     """A clear, user-displayable Antigravity failure."""
@@ -131,6 +147,7 @@ class AntigravityAdapter:
         timeout: int = 600,
         config_dir: pathlib.Path | None = None,
         workspace: pathlib.Path | None = None,
+        model: str | None = None,
     ):
         self.binary = binary
         self.timeout = timeout
@@ -138,6 +155,41 @@ class AntigravityAdapter:
         self.workspace = pathlib.Path(
             workspace or os.environ.get("ANTIGRAVITY_WORKSPACE") or pathlib.Path.home()
         ).expanduser().resolve()
+        self.model = str(model or "").strip()
+
+    def list_models(self) -> list[dict]:
+        """Query available models from 'agy models' or return verified catalog."""
+        bin_path = self._resolve_binary()
+        if bin_path:
+            try:
+                env = dict(os.environ)
+                env["NO_COLOR"] = "1"
+                env["TERM"] = "dumb"
+                res = subprocess.run([bin_path, "models"], capture_output=True, text=True, timeout=15, check=False, env=env)
+                if res.returncode == 0 and res.stdout:
+                    models = []
+                    for line in res.stdout.splitlines():
+                        clean = _ANSI_ESCAPE_RE.sub("", line).strip()
+                        if not clean or "fetching" in clean.lower():
+                            continue
+                        parts = clean.split(None, 1)
+                        if parts:
+                            mid = parts[0].strip()
+                            name = parts[1].strip() if len(parts) > 1 else mid
+                            if mid.startswith("gemini-"):
+                                provider = "Google Gemini"
+                            elif mid.startswith("claude-"):
+                                provider = "Anthropic Claude"
+                            elif mid.startswith("gpt-"):
+                                provider = "OpenAI / OSS"
+                            else:
+                                provider = "Google Antigravity"
+                            models.append({"id": mid, "providerID": provider, "name": name})
+                    if models:
+                        return models
+            except (subprocess.SubprocessError, OSError):
+                pass
+        return list(DEFAULT_ANTIGRAVITY_MODELS)
 
     def _resolve_binary(self) -> str | None:
         """Find the agy/antigravity binary executable."""
@@ -308,8 +360,11 @@ class AntigravityAdapter:
                 "Ensure Google Antigravity CLI is installed."
             )
 
-        # agy --conversation <sid> --dangerously-skip-permissions --print <text>
-        cmd = [bin_path, "--conversation", sid, "--dangerously-skip-permissions", "--print", text]
+        # agy --conversation <sid> --dangerously-skip-permissions [--model <model>] --print <text>
+        cmd = [bin_path, "--conversation", sid, "--dangerously-skip-permissions"]
+        if self.model:
+            cmd += ["--model", self.model]
+        cmd += ["--print", text]
 
         env = dict(os.environ)
         env["NO_COLOR"] = "1"
