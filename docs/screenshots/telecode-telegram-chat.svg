@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="740" viewBox="0 0 860 740" role="img" aria-labelledby="tgTitle tgDesc">
+  <title id="tgTitle">TeleCode Telegram Chat Interface Mockup</title>
+  <desc id="tgDesc">Interactive mockup of the TeleCode Telegram bridge showing real-time agent switching to Google Antigravity, responsive inline buttons, tool executions, and sessions menu.</desc>
+  <defs>
+    <filter id="shadow" x="-5%" y="-2%" width="110%" height="106%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <linearGradient id="botAvatarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#30b3ef"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="userBubbleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2b5278"/>
+      <stop offset="100%" stop-color="#1e3e5c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Telegram Window Container -->
+  <rect width="860" height="740" rx="16" fill="#0e1621" filter="url(#shadow)"/>
+
+  <!-- Header Bar -->
+  <rect width="860" height="64" rx="16" fill="#17212b"/>
+  <rect y="48" width="860" height="16" fill="#17212b"/>
+  <line x1="0" y1="64" x2="860" y2="64" stroke="#0e1621" stroke-width="1.5"/>
+
+  <!-- Bot Avatar -->
+  <circle cx="44" cy="32" r="20" fill="url(#botAvatarGrad)"/>
+  <path d="M36 26h16v12H36z" fill="#ffffff" opacity="0.9"/>
+  <circle cx="41" cy="31" r="2" fill="#0284c7"/>
+  <circle cx="47" cy="31" r="2" fill="#0284c7"/>
+  <rect x="42" y="35" width="4" height="2" rx="1" fill="#0284c7"/>
+  <line x1="44" y1="26" x2="44" y2="21" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="44" cy="20" r="2" fill="#f59e0b"/>
+
+  <!-- Header Titles -->
+  <text x="76" y="28" fill="#f5f7fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="16" font-weight="600">TeleCode Bot</text>
+  <text x="76" y="47" fill="#6c7883" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13">bot • online</text>
+
+  <!-- Header Action Icons (Search, Menu) -->
+  <circle cx="792" cy="32" r="14" fill="#242f3d" opacity="0.6"/>
+  <path d="M787 32a5 5 0 1 1 10 0 5 5 0 0 1-10 0m8 3l3 3" stroke="#828f9a" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="830" cy="26" r="2" fill="#828f9a"/>
+  <circle cx="830" cy="32" r="2" fill="#828f9a"/>
+  <circle cx="830" cy="38" r="2" fill="#828f9a"/>
+
+  <!-- Chat Area Background Pattern / subtle dots -->
+  <g opacity="0.03" fill="#ffffff">
+    <circle cx="100" cy="120" r="1.5"/><circle cx="300" cy="180" r="1.5"/><circle cx="500" cy="140" r="1.5"/><circle cx="700" cy="200" r="1.5"/>
+    <circle cx="200" cy="300" r="1.5"/><circle cx="400" cy="360" r="1.5"/><circle cx="600" cy="320" r="1.5"/><circle cx="800" cy="400" r="1.5"/>
+  </g>
+
+  <!-- User Message 1: /cli -->
+  <g transform="translate(680, 84)">
+    <rect width="144" height="42" rx="14" fill="url(#userBubbleGrad)"/>
+    <text x="18" y="27" fill="#ffffff" font-family="ui-monospace, SFMono-Regular, monospace" font-size="14" font-weight="600">/cli</text>
+    <text x="96" y="32" fill="#82a5c4" font-family="sans-serif" font-size="11">21:04 ✓✓</text>
+  </g>
+
+  <!-- Bot Response 1: Agent Switcher & Inline Buttons -->
+  <g transform="translate(36, 142)">
+    <rect width="640" height="226" rx="14" fill="#182533"/>
+    
+    <text x="20" y="28" fill="#30b3ef" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">⚡ Active Coding Agent: Google Antigravity</text>
+    
+    <text x="20" y="54" fill="#d1d7de" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12.5">
+      <tspan fill="#828f9a">Binary: </tspan>~/.local/bin/agy  <tspan fill="#828f9a">| Status: </tspan><tspan fill="#34d399">Ready</tspan>
+    </text>
+    <text x="20" y="74" fill="#d1d7de" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12.5">
+      <tspan fill="#828f9a">Active: </tspan>c0ff1e99 (Google Antigravity CLI)
+    </text>
+    <text x="20" y="94" fill="#828f9a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">
+      Tap below to switch agent (session auto-syncs immediately):
+    </text>
+
+    <!-- Inline Keyboard Row 1 -->
+    <rect x="20" y="112" width="292" height="38" rx="8" fill="#243447" stroke="#30b3ef" stroke-width="1.5"/>
+    <text x="44" y="136" fill="#30b3ef" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600">✓ Google Antigravity (agy)</text>
+
+    <rect x="328" y="112" width="292" height="38" rx="8" fill="#202b36"/>
+    <text x="410" y="136" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13">OpenCode</text>
+
+    <!-- Inline Keyboard Row 2 -->
+    <rect x="20" y="158" width="190" height="36" rx="8" fill="#202b36"/>
+    <text x="64" y="181" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13">Claude Code</text>
+
+    <rect x="218" y="158" width="190" height="36" rx="8" fill="#202b36"/>
+    <text x="252" y="181" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13">Hermes Agent</text>
+
+    <rect x="416" y="158" width="204" height="36" rx="8" fill="#202b36"/>
+    <text x="472" y="181" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13">Codex / Cursor</text>
+
+    <text x="590" y="214" fill="#586776" font-family="sans-serif" font-size="11">21:04</text>
+  </g>
+
+  <!-- User Message 2: Task Execution -->
+  <g transform="translate(390, 384)">
+    <rect width="434" height="42" rx="14" fill="url(#userBubbleGrad)"/>
+    <text x="18" y="26" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13.5">Review PR #9 &amp; check Termux responsive layout</text>
+    <text x="382" y="32" fill="#82a5c4" font-family="sans-serif" font-size="11">21:05 ✓✓</text>
+  </g>
+
+  <!-- Bot Response 2: Agent Streaming / Result Execution -->
+  <g transform="translate(36, 442)">
+    <rect width="660" height="154" rx="14" fill="#182533"/>
+    
+    <circle cx="28" cy="24" r="5" fill="#30b3ef"/>
+    <text x="42" y="28" fill="#30b3ef" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">Google Antigravity turn completed</text>
+
+    <g font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" fill="#e2e8f0">
+      <text x="24" y="56"><tspan fill="#34d399">✓</tspan> install.sh: Termux line wrap fixed (adaptive width cols &lt; 46)</text>
+      <text x="24" y="78"><tspan fill="#34d399">✓</tspan> install.sh: Deduplicated logo &amp; added Antigravity TrueColor cyan</text>
+      <text x="24" y="100"><tspan fill="#34d399">✓</tspan> adapters/antigravity.py: Active SQLite discovery &amp; auto-session</text>
+      <text x="24" y="122"><tspan fill="#34d399">✓</tspan> Verification: 347 passed, 0 failed, 1 skipped (make check OK)</text>
+    </g>
+
+    <text x="612" y="142" fill="#586776" font-family="sans-serif" font-size="11">21:05</text>
+  </g>
+
+  <!-- Bottom Reply Keyboard Menu -->
+  <g transform="translate(36, 612)">
+    <rect width="386" height="46" rx="10" fill="#202b36" stroke="#2d3d4d"/>
+    <text x="142" y="640" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="500">📂 Sessions</text>
+
+    <rect x="438" y="612" width="386" height="46" rx="10" fill="#202b36" stroke="#2d3d4d"/>
+    <text x="548" y="640" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="500">🎯 Current Session</text>
+  </g>
+
+  <g transform="translate(36, 666)">
+    <rect width="386" height="46" rx="10" fill="#202b36" stroke="#2d3d4d"/>
+    <text x="142" y="694" fill="#30b3ef" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600">⚡ Switch CLI (/cli)</text>
+
+    <rect x="438" y="666" width="386" height="46" rx="10" fill="#202b36" stroke="#2d3d4d"/>
+    <text x="572" y="694" fill="#e1e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="500">🧠 Model</text>
+  </g>
+</svg>

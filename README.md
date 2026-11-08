@@ -72,6 +72,26 @@ It is a deliberately narrow bridge: **no public web endpoint, no shell exposed t
  └──────────────────────────────────────────────────────────────┘
 ```
 
+## See it in action
+
+<p align="center">
+  <img src="docs/screenshots/telecode-telegram-chat.svg" alt="TeleCode Telegram Chat Interface" width="760">
+</p>
+
+<p align="center">
+  <em>Control coding agents (Google Antigravity, OpenCode, Claude Code, Hermes) directly from Telegram with instant inline switching and turn execution updates.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/telecode-cli.svg" alt="TeleCode Terminal CLI Dry-Run" width="460">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/telecode-termux.svg" alt="TeleCode on Termux Android Mobile" width="280">
+</p>
+
+<p align="center">
+  <em>Terminal &amp; mobile ready: Vibrant Antigravity-inspired TrueColor ANSI palette (<code>#30B3EF</code>), zero external dependencies, responsive progress bar, and no line-wrapping on narrow screens.</em>
+</p>
+
 ## Supported coding agents
 
 | Client | Outbound MCP tools | Inbound session routing | Adapter details |
