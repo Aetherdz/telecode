@@ -1711,6 +1711,36 @@ class SessionRoutingTests(unittest.TestCase):
         models.assert_not_called()
         self.assertIn("Hermes Agent", mock_send.call_args.args[1])
 
+    def test_antigravity_models_menu_and_switch(self):
+        cfg = {"TG_BOT_TOKEN": "unused", "TG_CHAT_ID": "1", "TELECODE_AGENT": "antigravity"}
+        models = [
+            {"id": "gemini-4-argon-medium", "providerID": "Google Gemini", "name": "Gemini 4 Argon (Medium)"},
+            {"id": "claude-opus-5-5-medium", "providerID": "Anthropic Claude", "name": "Claude Opus 5.5 (Medium)"},
+        ]
+        with patch.object(tb, "_models_from_api", return_value=models), \
+             patch.object(tb, "_write_models_cache"), \
+             patch.object(tb, "_load_models_message_ref", return_value=""), \
+             patch.object(tb, "_read_models_cache", return_value=models), \
+             patch.object(tb, "_send_reply_picker") as picker:
+            tb._models_menu(cfg)
+            picker.assert_called_once()
+            header = picker.call_args.args[1]
+            self.assertIn("Choose a model provider", header)
+
+        # Test model switch writes to active session
+        with tempfile.TemporaryDirectory() as tmp:
+            active_file = pathlib.Path(tmp) / "active_session.json"
+            active_file.write_text(json.dumps({"id": "conv-test", "agent": "antigravity"}))
+            with patch.object(tb, "ACTIVE_SESSION", active_file), \
+                 patch.object(tb, "resolve_session", return_value=("conv-test", "active")), \
+                 patch.object(tb, "send_text") as mock_send:
+                tb._switch_session_model(cfg, models[0])
+                mock_send.assert_called_once()
+                self.assertIn("Gemini 4 Argon (Medium)", mock_send.call_args.args[1])
+                updated = json.loads(active_file.read_text())
+                self.assertEqual(updated["model"], "gemini-4-argon-medium")
+                self.assertEqual(updated["modelProvider"], "Google Gemini")
+
 
 if __name__ == "__main__":
     unittest.main()
