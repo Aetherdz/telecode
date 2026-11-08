@@ -35,6 +35,8 @@ C_DIM=""
 C_GREEN=""
 C_RED=""
 C_YELLOW=""
+C_CYAN=""
+C_ACCENT=""
 ICON_OK="ok"
 ICON_FAIL="error"
 ICON_WARN="!"
@@ -42,9 +44,11 @@ if [[ "$UI_TTY" == "1" && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then
   C_RESET=$'\033[0m'
   C_BOLD=$'\033[1m'
   C_DIM=$'\033[2m'
-  C_GREEN=$'\033[32m'
-  C_RED=$'\033[31m'
-  C_YELLOW=$'\033[33m'
+  C_ACCENT=$'\033[38;2;48;179;239m'
+  C_CYAN=$'\033[38;2;56;189;248m'
+  C_GREEN=$'\033[38;2;52;211;153m'
+  C_RED=$'\033[38;2;248;113;113m'
+  C_YELLOW=$'\033[38;2;251;191;36m'
   case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
     *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) ICON_OK="✓"; ICON_FAIL="✗" ;;
   esac
@@ -434,19 +438,15 @@ bootstrap_main() {
   chmod 0755 "$source/install.sh" 2>/dev/null || true
 
   if ( : </dev/tty ) 2>/dev/null; then
-    printf '\n'
-    logo
     printf '\nStarting TeleCode setup...\n\n'
     local rc=0
-    bash "$source/install.sh" </dev/tty || rc=$?
+    TELECODE_BOOTSTRAPPED=1 bash "$source/install.sh" </dev/tty || rc=$?
     exit "$rc"
   fi
 
-  printf '\n'
-  logo
   printf '\nStarting TeleCode setup...\n\n'
   local rc=0
-  bash "$source/install.sh" || rc=$?
+  TELECODE_BOOTSTRAPPED=1 bash "$source/install.sh" || rc=$?
   exit "$rc"
 }
 
@@ -616,8 +616,10 @@ if [[ "$COMMAND" == "--setup" || "$COMMAND" == "setup" ]]; then
 fi
 
 # ---------------------------------------------------------------- install ---
-logo
-(( QUIET )) || printf 'TeleCode installer %s\n\n' "$VERSION"
+if [[ "${TELECODE_BOOTSTRAPPED:-0}" != "1" ]]; then
+  logo
+  (( QUIET )) || printf 'TeleCode installer %s\n\n' "$VERSION"
+fi
 
 if [[ "$COMMAND" == "--update" ]] && same_dir "$SOURCE_DIR" "$APP_DIR"; then
   fail "Run ./install.sh --update from a source checkout, not the installed copy."

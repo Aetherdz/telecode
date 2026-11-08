@@ -4,8 +4,8 @@
   "private": true,
   "description": "Telegram bridge for local coding-agent sessions (OpenCode, Claude Code, Hermes, Antigravity, Codex, Cursor)",
   "scripts": {
-    "build": "node --check assets/site.js",
     "lint": "node --check assets/site.js",
+    "test": "python3 -m unittest discover -s tests",
     "start": "python3 -m http.server 8080"
   },
   "keywords": [

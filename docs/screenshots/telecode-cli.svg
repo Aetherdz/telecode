@@ -1,22 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="920" height="425" viewBox="0 0 920 425" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440" viewBox="0 0 920 440" role="img" aria-labelledby="title desc">
   <title id="title">TeleCode installer dry-run terminal preview</title>
-  <desc id="desc">Actual plain-text output from install.sh --dry-run, displayed in a dark terminal frame. It shows the Python check, planned file update, and no-change dry-run summary.</desc>
-  <rect width="920" height="425" rx="14" fill="#101214"/>
-  <rect width="920" height="42" rx="14" fill="#202427"/>
-  <circle cx="24" cy="21" r="6" fill="#777"/><circle cx="46" cy="21" r="6" fill="#777"/><circle cx="68" cy="21" r="6" fill="#777"/>
-  <text x="460" y="27" fill="#d5d9dc" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" text-anchor="middle">TeleCode · installer dry-run</text>
-  <g fill="#e6e9eb" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="15">
-    <text x="28" y="82">▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀</text>
-    <text x="28" y="104">  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄</text>
-    <text x="28" y="126">  █   █     █     █     █     █   █ █   █ █</text>
-    <text x="28" y="148">  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀</text>
-    <text x="28" y="177">  Telegram ⇄ OpenCode &amp; any CLI</text>
-    <text x="28" y="213">TeleCode installer 0.1.0</text>
-    <text x="28" y="250" fill="#6ccf9a">ok</text><text x="63" y="250">Checking Python 3.11+</text>
-    <text x="28" y="279" fill="#8f969b">[dry-run]</text><text x="118" y="279">Preparing install directories</text>
-    <text x="28" y="308" fill="#8f969b">[dry-run]</text><text x="118" y="308">Would update 38 runtime file(s)</text>
-    <text x="28" y="337" fill="#8f969b">[dry-run]</text><text x="118" y="337">Checking installed CLI imports</text>
-    <text x="28" y="366" fill="#8f969b">[dry-run]</text><text x="118" y="366">Creating private config (0600)</text>
-    <text x="28" y="399" fill="#bdc3c7">Dry run complete; no files were changed.</text>
+  <desc id="desc">Actual plain-text output from install.sh --dry-run, displayed in a dark terminal frame with Antigravity-inspired cyan styling. It shows the Python check, planned file update, and no-change dry-run summary.</desc>
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="920" height="440" rx="14" fill="#0b0f19" stroke="#1e293b" stroke-width="2"/>
+  <rect width="920" height="42" rx="14" fill="url(#headerGrad)"/>
+  <circle cx="24" cy="21" r="6" fill="#ef4444"/>
+  <circle cx="44" cy="21" r="6" fill="#f59e0b"/>
+  <circle cx="64" cy="21" r="6" fill="#10b981"/>
+  <text x="460" y="26" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="13" font-weight="600" text-anchor="middle">telecode · install.sh (Antigravity-tuned · Termux ready)</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="14">
+    <!-- ASCII Logo in Antigravity Cyan -->
+    <g fill="#30b3ef" font-weight="700">
+      <text x="28" y="80">▀▀█▀▀ █▀▀▀▀ █     █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▀</text>
+      <text x="28" y="100">  █   █▄▄▄  █     █▄▄▄  █     █   █ █   █ █▄▄▄ </text>
+      <text x="28" y="120">  █   █     █     █     █     █   █ █   █ █    </text>
+      <text x="28" y="140">  ▀   ▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀</text>
+    </g>
+    <text x="28" y="166" fill="#94a3b8">  Telegram ⇄ Google Antigravity, OpenCode &amp; any CLI</text>
+    <text x="28" y="200" fill="#f8fafc" font-weight="600">TeleCode installer 0.1.0</text>
+    
+    <text x="28" y="235" fill="#34d399" font-weight="700">✓</text>
+    <text x="48" y="235" fill="#e2e8f0">Checking Python 3.11+</text>
+    <text x="240" y="235" fill="#64748b">(found Python 3.12.3)</text>
+    
+    <text x="28" y="265" fill="#64748b">[dry-run]</text>
+    <text x="110" y="265" fill="#cbd5e1">Preparing $HOME/.local/share/telegram-bridge</text>
+
+    <text x="28" y="295" fill="#64748b">[dry-run]</text>
+    <text x="110" y="295" fill="#cbd5e1">Would update 27 runtime file(s) (including adapters/antigravity.py)</text>
+
+    <text x="28" y="325" fill="#64748b">[dry-run]</text>
+    <text x="110" y="325" fill="#cbd5e1">Checking installed CLI imports</text>
+
+    <text x="28" y="355" fill="#64748b">[dry-run]</text>
+    <text x="110" y="355" fill="#cbd5e1">Installing CLI wrapper at ~/.local/bin/telecode</text>
+
+    <text x="28" y="385" fill="#64748b">[dry-run]</text>
+    <text x="110" y="385" fill="#cbd5e1">Creating private config ~/.config/telegram-bridge/telegram.env (0600)</text>
+
+    <text x="28" y="418" fill="#38bdf8" font-weight="600">Dry run complete; no files were changed.</text>
   </g>
 </svg>

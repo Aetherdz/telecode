@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="680" viewBox="0 0 480 680" role="img" aria-labelledby="tmxTitle tmxDesc">
+  <title id="tmxTitle">TeleCode on Termux Android Mobile</title>
+  <desc id="tmxDesc">Mobile terminal preview showing clean responsive installation on Termux without line wraps, adaptive progress bar, and vibrant Antigravity cyan palette.</desc>
+  <defs>
+    <filter id="phoneShadow" x="-10%" y="-5%" width="120%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Mobile Device Frame -->
+  <rect x="10" y="10" width="460" height="660" rx="36" fill="#18181b" stroke="#3f3f46" stroke-width="3" filter="url(#phoneShadow)"/>
+  <!-- Screen Area -->
+  <rect x="22" y="32" width="436" height="616" rx="24" fill="#090d16"/>
+
+  <!-- Top Notch / Camera & Speaker -->
+  <rect x="190" y="18" width="100" height="6" rx="3" fill="#3f3f46"/>
+  <circle cx="160" cy="21" r="3" fill="#27272a"/>
+
+  <!-- Mobile Status Bar -->
+  <text x="44" y="52" fill="#94a3b8" font-family="-apple-system, sans-serif" font-size="12" font-weight="600">21:05</text>
+  <path d="M400 44h18v10h-18z" fill="none" stroke="#94a3b8" stroke-width="1.2" rx="2"/>
+  <rect x="402" y="46" width="12" height="6" rx="1" fill="#34d399"/>
+  <path d="M420 47v4" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Termux Header -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">
+    <text x="36" y="86" fill="#30b3ef" font-weight="700">~/telecode $</text>
+    <text x="136" y="86" fill="#f8fafc">./install.sh</text>
+
+    <!-- Responsive Compact Logo (<52 cols) -->
+    <text x="36" y="116" fill="#30b3ef" font-weight="700">TeleCode</text>
+    <text x="104" y="116" fill="#cbd5e1">installer 0.1.0</text>
+    <text x="36" y="134" fill="#64748b">  Telegram ⇄ Google Antigravity &amp; any CLI</text>
+
+    <text x="36" y="166" fill="#34d399">✓</text>
+    <text x="52" y="166" fill="#e2e8f0">Checking Python 3.11+</text>
+
+    <text x="36" y="190" fill="#34d399">✓</text>
+    <text x="52" y="190" fill="#e2e8f0">Preparing install directories</text>
+
+    <!-- Compact Progress Bar (<46 cols) -->
+    <rect x="36" y="212" width="408" height="42" rx="6" fill="#111827" stroke="#1f2937"/>
+    <text x="48" y="238" fill="#30b3ef" font-weight="600">[ 84%]</text>
+    <text x="104" y="238" fill="#cbd5e1">1.1 MB / 1.3 MB</text>
+    <text x="320" y="238" fill="#64748b">no-wrap</text>
+
+    <text x="36" y="280" fill="#34d399">✓</text>
+    <text x="52" y="280" fill="#e2e8f0">Installing runtime files (27 updated)</text>
+
+    <text x="36" y="304" fill="#34d399">✓</text>
+    <text x="52" y="304" fill="#e2e8f0">Checking installed CLI imports</text>
+
+    <text x="36" y="328" fill="#34d399">✓</text>
+    <text x="52" y="328" fill="#e2e8f0">Installing CLI wrapper</text>
+
+    <!-- Termux Notice Block -->
+    <rect x="36" y="352" width="408" height="136" rx="8" fill="#131c2e" stroke="#30b3ef" stroke-width="1.2"/>
+    <text x="50" y="378" fill="#30b3ef" font-weight="700">📱 Termux Environment Detected</text>
+    <text x="50" y="402" fill="#94a3b8">Run in background without sleep kill:</text>
+    
+    <rect x="50" y="416" width="380" height="28" rx="4" fill="#090d16"/>
+    <text x="60" y="435" fill="#34d399">termux-wake-lock</text>
+
+    <rect x="50" y="450" width="380" height="28" rx="4" fill="#090d16"/>
+    <text x="60" y="469" fill="#f59e0b">nohup telecode listen &gt; log 2&gt;&amp;1 &amp;</text>
+
+    <!-- Success Message -->
+    <text x="36" y="516" fill="#34d399" font-weight="700">Installed to: ~/.local/share/telegram-bridge</text>
+    <text x="36" y="538" fill="#e2e8f0">CLI: ~/.local/bin/telecode</text>
+    <text x="36" y="560" fill="#cbd5e1">Active Agent: Google Antigravity (agy)</text>
+
+    <text x="36" y="600" fill="#30b3ef" font-weight="700">~/telecode $</text>
+    <rect x="136" y="588" width="8" height="15" fill="#30b3ef">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+</svg>
