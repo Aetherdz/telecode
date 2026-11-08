@@ -71,7 +71,8 @@ const messages = {
     copyFeedbackLabel: 'Copy status',
     copyCloneAria: 'Copy repository clone command', copyInstallAria: 'Copy installer command', copyStatusAria: 'Copy status command',
     installGuide: 'Detailed installation guide', installSecurity: 'Security notes', footerLine: 'Local sessions, reachable by design.',
-    securityNav: 'Security', license: 'MIT license', previewSelected: '{provider} selected', previewAction: '{action} preview'
+    securityNav: 'Security', license: 'MIT license', previewSelected: '{provider} selected', previewAction: '{action} preview',
+    tabAgentCli: 'Switch CLI', tabModels: 'Models', chooseAgentTitle: 'CHOOSE A CODING AGENT', installTermux: 'Android & Termux ready'
   },
   ar: {
     pageTitle: 'TeleCode — جلسات البرمجة في متناولك',
@@ -132,7 +133,8 @@ const messages = {
     copyFeedbackLabel: 'حالة النسخ',
     copyCloneAria: 'نسخ أمر استنساخ المستودع', copyInstallAria: 'نسخ أمر تشغيل المثبّت', copyStatusAria: 'نسخ أمر التحقق من الحالة',
     installGuide: 'دليل التثبيت المفصل', installSecurity: 'ملاحظات الأمان', footerLine: 'جلسات محلية، في متناولك.',
-    securityNav: 'الأمان', license: 'رخصة MIT', previewSelected: 'تم اختيار {provider}', previewAction: 'معاينة {action}'
+    securityNav: 'الأمان', license: 'رخصة MIT', previewSelected: 'تم اختيار {provider}', previewAction: 'معاينة {action}',
+    tabAgentCli: 'تبديل الوكيل', tabModels: 'النماذج', chooseAgentTitle: 'اختر وكيل البرمجة', installTermux: 'جاهز لأندرويد و Termux'
   },
   fr: {
     pageTitle: 'TeleCode — vos sessions de code, à portée de main',
@@ -148,7 +150,8 @@ const messages = {
     showEyebrow: '03 / INTERFACE TELEGRAM', showTitle: 'Une interface simple pour le travail réel.', showText: 'Choisissez une session, vérifiez la cible active ou changez son modèle sans ouvrir un tableau de bord web.', kbLabel: 'Options du clavier Telegram', kbSessions: 'Sessions', kbCurrent: 'Session actuelle', kbModels: 'Modèles', kbSwitchCli: 'Changer de CLI', kbHelp: 'Aide', previewLabel: 'APERÇU DU SÉLECTEUR DE MODÈLES', providerTitle: 'CHOISIR UN FOURNISSEUR', preview: 'APERÇU', chooseProvider: 'Choisissez un fournisseur', previous: 'Précédent', next: 'Suivant', providers: 'Fournisseurs', close: 'Fermer',
       intEyebrow: '04 / INTÉGRATIONS', intTitle: 'Des limites de compatibilité claires.', tableCaption: 'Compatibilité des clients de programmation', intText: 'OpenCode, Claude Code, Hermes Agent et Google Antigravity prennent en charge le routage ciblé. Codex et Cursor sont expérimentaux. Gemini CLI, Cline, Roo Code et Amazon Q ne proposent pas de routage entrant ; Continue et Aider nécessitent une configuration MCP sortante manuelle.', opencode: 'OpenCode', claudeCode: 'Claude Code', hermes: 'Hermes Agent', antigravity: 'Google Antigravity', cursor: 'Cursor Agent CLI', gemini: 'Gemini CLI', cline: 'Cline', roo: 'Roo Code', continue: 'Continue', aider: 'Aider', amazonQ: 'Amazon Q Developer', codex: 'Codex CLI', thClient: 'Client', thMcp: 'Outils MCP sortants', thRouting: 'Routage entrant ciblé', supported: 'Pris en charge', notImplemented: 'Non disponible', inboundExperimental: 'Expérimental', manualMcp: 'Configuration MCP manuelle',
      commandsEyebrow: '05 / COMMANDES', commandsTitle: 'Des commandes directes.<br>Sans surprise.', cmdSession: 'Parcourir et choisir la session active.', cmdCurrent: 'Afficher le nom et l’identifiant de la session active.', cmdModels: 'Parcourir les fournisseurs et changer le modèle.', cmdCli: 'Changer d’agent de programmation actif.', cmdFiles: 'Lister les fichiers reçus pour la session active.', cmdHelp: 'Afficher le clavier et les commandes.', securityEyebrow: '06 / SÉCURITÉ', securityTitle: 'Gardez le contrôle<br>sur votre machine.', securityLink: 'Lire les notes de sécurité', security1: 'La discussion du propriétaire est vérifiée avant le routage.', security2: 'Les identifiants restent dans la configuration privée de l’utilisateur, jamais dans le dépôt.', security3: 'Les fichiers sortants sont limités aux chemins autorisés et à une liste de refus.', security4: 'Les identifiants de session sont validés avant les appels API.', security5: 'Un verrou local empêche le lancement de plusieurs listeners Telegram.', security6: 'Le routage ciblé dépend du client local pris en charge sélectionné ; MCP ne donne pas accès à un shell distant.',
-    installEyebrow: '07 / DÉMARRER', installTitle: 'Un parcours simple jusqu’à votre premier message.', installText: 'Installez depuis le dépôt source, puis suivez l’assistant pour relier votre bot et votre client de programmation.', installPython: 'Python 3.11 ou plus récent', installLinux: 'Linux + services systemd utilisateur', installMethod: 'Installation guidée depuis les sources', installMethodText: 'L’installateur vérifie l’environnement, sauvegarde la configuration du client avant toute modification et conserve les identifiants privés dans votre dossier utilisateur.', installSourceCta: 'Ouvrir le dépôt source', installNoBinary: 'Vérifiez le script avant de l’exécuter. La commande télécharge le code puis démarre la configuration guidée.', copyInstallCommandAria: 'Copier la commande d’installation guidée', installCommandTitle: 'Commencez avec une commande', installCommandNote: 'Vérifiez d’abord install.sh dans le dépôt public. La commande télécharge le script et lance la configuration guidée. Linux, systemd et Python 3.11+ requis.', installStepsHeading: 'Installation en quelques étapes', installStepOneTitle: 'Clonez le dépôt', installStepTwoTitle: 'Lancez l’installation guidée', installStepTwoText: 'Choisissez un client détecté avec les flèches puis Entrée. Votre accord sera demandé avant toute modification, puis le jeton du bot.', installStepThreeTitle: 'Reliez votre discussion Telegram', installStepThreeText: 'Saisissez votre identifiant numérique fourni par @Getmyid_bot ou choisissez la détection automatique, puis envoyez /start à votre bot.', installStepFourTitle: 'Redémarrez votre client', installStepFourText: 'Redémarrez le client pour charger MCP, envoyez /start sur Telegram et vérifiez le service avec telecode status.', copyCommand: 'Copier', copyAria: 'Copier la commande', copySuccess: 'Commande copiée.', copyFailure: 'Copie impossible. Sélectionnez puis copiez la commande manuellement.', copyCloneAria: 'Copier la commande de clonage', copyInstallAria: 'Copier la commande d’installation', copyStatusAria: 'Copier la commande de statut', installGuide: 'Guide d’installation détaillé', installSecurity: 'Notes de sécurité', footerLine: 'Des sessions locales, accessibles par conception.', securityNav: 'Sécurité', license: 'Licence MIT', previewSelected: '{provider} sélectionné', previewAction: 'Aperçu : {action}'
+    installEyebrow: '07 / DÉMARRER', installTitle: 'Un parcours simple jusqu’à votre premier message.', installText: 'Installez depuis le dépôt source, puis suivez l’assistant pour relier votre bot et votre client de programmation.', installPython: 'Python 3.11 ou plus récent', installLinux: 'Linux + services systemd utilisateur', installMethod: 'Installation guidée depuis les sources', installMethodText: 'L’installateur vérifie l’environnement, sauvegarde la configuration du client avant toute modification et conserve les identifiants privés dans votre dossier utilisateur.', installSourceCta: 'Ouvrir le dépôt source', installNoBinary: 'Vérifiez le script avant de l’exécuter. La commande télécharge le code puis démarre la configuration guidée.', copyInstallCommandAria: 'Copier la commande d’installation guidée', installCommandTitle: 'Commencez avec une commande', installCommandNote: 'Vérifiez d’abord install.sh dans le dépôt public. La commande télécharge le script et lance la configuration guidée. Linux, systemd et Python 3.11+ requis.', installStepsHeading: 'Installation en quelques étapes', installStepOneTitle: 'Clonez le dépôt', installStepTwoTitle: 'Lancez l’installation guidée', installStepTwoText: 'Choisissez un client détecté avec les flèches puis Entrée. Votre accord sera demandé avant toute modification, puis le jeton du bot.', installStepThreeTitle: 'Reliez votre discussion Telegram', installStepThreeText: 'Saisissez votre identifiant numérique fourni par @Getmyid_bot ou choisissez la détection automatique, puis envoyez /start à votre bot.', installStepFourTitle: 'Redémarrez votre client', installStepFourText: 'Redémarrez le client pour charger MCP, envoyez /start sur Telegram et vérifiez le service avec telecode status.', copyCommand: 'Copier', copyAria: 'Copier la commande', copySuccess: 'Commande copiée.', copyFailure: 'Copie impossible. Sélectionnez puis copiez la commande manuellement.', copyCloneAria: 'Copier la commande de clonage', copyInstallAria: 'Copier la commande d’installation', copyStatusAria: 'Copier la commande de statut', installGuide: 'Guide d’installation détaillé', installSecurity: 'Notes de sécurité', footerLine: 'Des sessions locales, accessibles par conception.', securityNav: 'Sécurité', license: 'Licence MIT', previewSelected: '{provider} sélectionné', previewAction: 'Aperçu : {action}',
+    tabAgentCli: 'Changer de CLI', tabModels: 'Modèles', chooseAgentTitle: 'CHOISIR UN AGENT', installTermux: 'Prêt pour Android & Termux'
   }
 };
 
@@ -416,3 +419,91 @@ if ('IntersectionObserver' in window && !reduceMotion) {
   }), { threshold: .12 });
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 } else document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+
+// Phone mode tabs (Agent CLI vs Models)
+document.querySelectorAll('.mode-tab').forEach(tab => tab.addEventListener('click', () => {
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t === tab));
+  const mode = tab.dataset.mode;
+  const panelAgent = document.querySelector('#panel-agent');
+  const panelModel = document.querySelector('#panel-model');
+  if (panelAgent && panelModel) {
+    panelAgent.hidden = mode !== 'agent';
+    panelModel.hidden = mode !== 'model';
+  }
+}));
+
+// Agent Switcher buttons in Phone preview
+const agentSimData = {
+  antigravity: {
+    cmd: '/cli antigravity',
+    title: 'Google Antigravity (agy)',
+    status: '✓ Target switched to Google Antigravity session. Subscriptions active.',
+    session: 'Session: c0ff1e99',
+    mcp: 'MCP: 3 tools registered'
+  },
+  opencode: {
+    cmd: '/cli opencode',
+    title: 'OpenCode (Local REST / CLI)',
+    status: '✓ Target switched to OpenCode session. Long-polling active.',
+    session: 'Session: ses_latest_01',
+    mcp: 'MCP: 7 tools registered'
+  },
+  claude: {
+    cmd: '/cli claude-code',
+    title: 'Claude Code (Headless Adapter)',
+    status: '✓ Target switched to Claude Code session. Headless adapter active.',
+    session: 'Session: claude-dev-turn',
+    mcp: 'MCP: 3 tools registered'
+  },
+  hermes: {
+    cmd: '/cli hermes',
+    title: 'Hermes Agent (Nous Research CLI)',
+    status: '✓ Target switched to Hermes Agent. Autonomous tool calling active.',
+    session: 'Session: hermes-ses-42',
+    mcp: 'MCP: 3 tools registered'
+  }
+};
+
+document.querySelectorAll('.agent-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.agent-btn').forEach(b => b.classList.toggle('selected', b === btn));
+  const key = btn.dataset.agent;
+  const data = agentSimData[key];
+  if (!data) return;
+  const cmd = document.querySelector('#chat-sim-cmd');
+  const title = document.querySelector('#chat-sim-title');
+  const status = document.querySelector('#chat-sim-status');
+  const session = document.querySelector('#chat-sim-session');
+  const mcp = document.querySelector('#chat-sim-mcp');
+  if (cmd) cmd.textContent = data.cmd;
+  if (title) title.textContent = data.title;
+  if (status) status.textContent = data.status;
+  if (session) session.textContent = data.session;
+  if (mcp) mcp.textContent = data.mcp;
+}));
+
+// Hero Interactive SVG Agent Node
+const sessionNode = document.querySelector('#session-node');
+const agentNodeText = document.querySelector('#agent-node-text');
+const cycleAgents = [
+  { label: 'ANTIGRAVITY', name: 'Google Antigravity (agy)' },
+  { label: 'OPENCODE', name: 'OpenCode' },
+  { label: 'CLAUDE', name: 'Claude Code' },
+  { label: 'HERMES', name: 'Hermes Agent' }
+];
+let cycleIdx = 0;
+function cycleAgentNode() {
+  cycleIdx = (cycleIdx + 1) % cycleAgents.length;
+  if (agentNodeText) agentNodeText.textContent = cycleAgents[cycleIdx].label;
+  const caption = document.querySelector('#active-caption');
+  if (caption) {
+    const dict = messages[language];
+    caption.textContent = (dict.selectedTarget || 'Selected target: ') + ' ' + cycleAgents[cycleIdx].name;
+  }
+}
+sessionNode?.addEventListener('click', cycleAgentNode);
+sessionNode?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    cycleAgentNode();
+  }
+});
