@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="340" viewBox="0 0 920 340" role="img" aria-labelledby="hiwTitle hiwDesc">
+  <title id="hiwTitle">How TeleCode Works</title>
+  <desc id="hiwDesc">Three-step visual overview of TeleCode: prompt from Telegram, routed securely through the local bridge, solved by your coding agent, with results sent right back.</desc>
+
+  <defs>
+    <!-- Background Card Filter -->
+    <filter id="boxShadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+
+    <!-- Arrow Gradient -->
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+
+    <!-- Return Arrow Gradient -->
+    <linearGradient id="returnGrad" x1="100%" y1="0%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+
+    <!-- Header Gradient -->
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#30b3ef"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Container Box -->
+  <rect x="10" y="10" width="900" height="320" rx="16" fill="#0b101b" stroke="#1e293b" stroke-width="1.5" filter="url(#boxShadow)"/>
+
+  <!-- Top Title Bar -->
+  <g transform="translate(32, 38)">
+    <circle cx="6" cy="6" r="6" fill="#38bdf8"/>
+    <text x="22" y="10" fill="url(#glowGrad)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="800" letter-spacing="0.1em">HOW IT WORKS · 3 SIMPLE STEPS</text>
+    <text x="260" y="10" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">— From your phone to your local agent, and back in seconds.</text>
+  </g>
+
+  <!-- ==================== STEP 1 ==================== -->
+  <g transform="translate(32, 68)">
+    <rect width="250" height="190" rx="10" fill="#0f172a" stroke="#1e3a5f" stroke-width="1.2"/>
+    
+    <!-- Step Badge -->
+    <rect x="14" y="14" width="28" height="20" rx="4" fill="#0369a1"/>
+    <text x="28" y="28" fill="#ffffff" font-family="ui-monospace, monospace" font-size="11" font-weight="800" text-anchor="middle">01</text>
+    <text x="50" y="28" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700">Prompt in Telegram</text>
+
+    <!-- Subtitle / Tagline -->
+    <text x="14" y="54" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600">📱 Any Phone or Desktop</text>
+
+    <!-- Features -->
+    <g transform="translate(14, 76)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" fill="#94a3b8">
+      <text x="0" y="0">• Send requests to your private bot</text>
+      <text x="0" y="18">• Switch agents: <tspan fill="#e2e8f0" font-weight="600">/cli antigravity</tspan></text>
+      <text x="0" y="36">• Switch models: <tspan fill="#e2e8f0" font-weight="600">/models</tspan></text>
+      <text x="0" y="54">• Click buttons to change sessions</text>
+      <text x="0" y="72">• Send code snippets or images</text>
+    </g>
+
+    <!-- Bottom Pill -->
+    <rect x="14" y="160" width="222" height="18" rx="4" fill="#132238"/>
+    <text x="125" y="172.5" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Encrypted HTTPS · Authorized chat only</text>
+  </g>
+
+  <!-- ==================== ARROW 1 -> 2 ==================== -->
+  <g transform="translate(290, 150)">
+    <line x1="0" y1="0" x2="36" y2="0" stroke="url(#arrowGrad)" stroke-width="2.5" stroke-dasharray="4 3"/>
+    <polygon points="36,-5 44,0 36,5" fill="#34d399"/>
+    <text x="22" y="-10" fill="#64748b" font-family="ui-monospace, monospace" font-size="9" text-anchor="middle">long-poll</text>
+  </g>
+
+  <!-- ==================== STEP 2 ==================== -->
+  <g transform="translate(342, 68)">
+    <rect width="250" height="190" rx="10" fill="#0f172a" stroke="#0284c7" stroke-width="1.2"/>
+    
+    <!-- Step Badge -->
+    <rect x="14" y="14" width="28" height="20" rx="4" fill="#0284c7"/>
+    <text x="28" y="28" fill="#ffffff" font-family="ui-monospace, monospace" font-size="11" font-weight="800" text-anchor="middle">02</text>
+    <text x="50" y="28" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700">TeleCode Bridge</text>
+
+    <!-- Subtitle / Tagline -->
+    <text x="14" y="54" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600">⚡ Local PC, Server, or Termux</text>
+
+    <!-- Features -->
+    <g transform="translate(14, 76)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" fill="#94a3b8">
+      <text x="0" y="0">• Zero open inbound ports (NAT-safe)</text>
+      <text x="0" y="18">• Python standard library (0 pip bloat)</text>
+      <text x="0" y="36">• Verifies owner chat identity</text>
+      <text x="0" y="54">• Routes to active coding session</text>
+      <text x="0" y="72">• Enforces file allowlist security</text>
+    </g>
+
+    <!-- Bottom Pill -->
+    <rect x="14" y="160" width="222" height="18" rx="4" fill="#0d2b2a"/>
+    <text x="125" y="172.5" fill="#6ee7b7" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Local Listener · 0.1% CPU · 20MB RSS</text>
+  </g>
+
+  <!-- ==================== ARROW 2 -> 3 ==================== -->
+  <g transform="translate(600, 150)">
+    <line x1="0" y1="0" x2="36" y2="0" stroke="url(#arrowGrad)" stroke-width="2.5" stroke-dasharray="4 3"/>
+    <polygon points="36,-5 44,0 36,5" fill="#34d399"/>
+    <text x="22" y="-10" fill="#64748b" font-family="ui-monospace, monospace" font-size="9" text-anchor="middle">stdio MCP</text>
+  </g>
+
+  <!-- ==================== STEP 3 ==================== -->
+  <g transform="translate(652, 68)">
+    <rect width="236" height="190" rx="10" fill="#0f172a" stroke="#1e3a5f" stroke-width="1.2"/>
+    
+    <!-- Step Badge -->
+    <rect x="14" y="14" width="28" height="20" rx="4" fill="#0369a1"/>
+    <text x="28" y="28" fill="#ffffff" font-family="ui-monospace, monospace" font-size="11" font-weight="800" text-anchor="middle">03</text>
+    <text x="50" y="28" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700">Coding Agent Acts</text>
+
+    <!-- Subtitle / Tagline -->
+    <text x="14" y="54" fill="#a78bfa" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600">🤖 Google Antigravity, Claude, etc.</text>
+
+    <!-- Features -->
+    <g transform="translate(14, 76)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" fill="#94a3b8">
+      <text x="0" y="0">• Receives prompt in local workspace</text>
+      <text x="0" y="18">• Reads, edits code &amp; runs tests</text>
+      <text x="0" y="36">• Calls <tspan fill="#e2e8f0" font-weight="600">tg_send</tspan> with results</text>
+      <text x="0" y="54">• Calls <tspan fill="#e2e8f0" font-weight="600">tg_sendfile</tspan> with diffs</text>
+      <text x="0" y="72">• Answers arrive right on your phone!</text>
+    </g>
+
+    <!-- Bottom Pill -->
+    <rect x="14" y="160" width="208" height="18" rx="4" fill="#201a38"/>
+    <text x="118" y="172.5" fill="#c4b5fd" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Antigravity · OpenCode · Claude · Hermes</text>
+  </g>
+
+  <!-- ==================== RETURN FLOW BAR AT BOTTOM ==================== -->
+  <g transform="translate(32, 276)">
+    <rect width="856" height="36" rx="8" fill="#091424" stroke="#1e293b"/>
+    
+    <!-- Left glowing dot -->
+    <circle cx="20" cy="18" r="4.5" fill="#10b981">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    
+    <!-- Text -->
+    <text x="36" y="22" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11.5" font-weight="600">
+      Instant Feedback Loop:
+      <tspan fill="#94a3b8" font-weight="400"> Agent replies, test outputs, and generated files stream straight back to your Telegram conversation in real time.</tspan>
+    </text>
+
+    <!-- Return arrow pill -->
+    <rect x="740" y="8" width="104" height="20" rx="4" fill="#1e3a5f"/>
+    <text x="792" y="21.5" fill="#38bdf8" font-family="ui-monospace, monospace" font-size="10" font-weight="700" text-anchor="middle">◄ REAL-TIME ◄</text>
+  </g>
+
+</svg>

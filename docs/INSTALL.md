@@ -134,6 +134,29 @@ project's lock guard; duplicate `getUpdates` pollers conflict at Telegram.
 
 MCP-compatible clients can register `tg_mcp.py` using their local stdio-MCP
 configuration. Session enumeration and prompt delivery are adapter-specific;
-OpenCode, Claude Code, and Hermes Agent adapters are available out of the box, with
+Google Antigravity, OpenCode, Claude Code, and Hermes Agent adapters are available out of the box, with
 experimental support for Codex CLI and Cursor. Any CLI without MCP needs
 a dedicated adapter or hook. See `docs/CLI.md` for client details.
+
+## 5. Android & Termux
+
+TeleCode is fully optimized for mobile devices and narrow terminals running Android via Termux:
+
+```sh
+# 1. Install prerequisites in Termux
+pkg update && pkg upgrade
+pkg install python git termux-api
+
+# 2. Clone and install
+git clone https://github.com/Aetherdz/telecode.git
+cd telecode
+./install.sh --cli
+
+# 3. Background execution with wake-lock
+termux-wake-lock
+nohup telecode listen > ~/.telecode/listener.log 2>&1 &
+
+# 4. Storage permissions (optional, for sending photos/files)
+termux-setup-storage
+```
+Then add `/sdcard` or your workspace directory to `TG_SEND_ROOTS` in `~/.config/telegram-bridge/telegram.env`.
