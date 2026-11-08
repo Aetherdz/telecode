@@ -13,3 +13,11 @@ local rollouts and falls back to the app-server `thread/list` API; delivery uses
 `codex queue` so it targets an existing thread without opening a competing writer.
 An empty Codex app-server thread is not durable until it has a turn, so create new
 Codex sessions in Codex itself before selecting them in TeleCode.
+
+Hermes Agent (`hermes.py`) adapter connects to Nous Research's Hermes CLI, scanning
+`~/.hermes/sessions` (JSON and JSONL) or `~/.hermes/state.db`, and resumes chats headlessly
+via `hermes chat --resume <id> -q <text>`.
+
+Google Antigravity (`antigravity.py`) adapter connects to the Antigravity CLI (`agy`),
+enumerating active conversations from `~/.gemini/antigravity-cli/conversation_summaries.db`,
+and executing non-interactive turns with `agy --conversation <id> --dangerously-skip-permissions --print <text>`.

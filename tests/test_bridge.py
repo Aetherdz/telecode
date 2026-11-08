@@ -1558,6 +1558,12 @@ class SessionRoutingTests(unittest.TestCase):
         self.assertIsInstance(adapter, HermesAdapter)
         self.assertEqual(adapter.name, "hermes")
 
+    def test_agent_adapter_loads_antigravity_adapter(self):
+        from adapters.antigravity import AntigravityAdapter
+        adapter = tb._agent_adapter({"TELECODE_AGENT": "antigravity"})
+        self.assertIsInstance(adapter, AntigravityAdapter)
+        self.assertEqual(adapter.name, "antigravity")
+
     def test_switch_active_agent_clears_old_session_and_selects_new(self):
         with tempfile.TemporaryDirectory() as temp:
             active = pathlib.Path(temp) / "active-session.json"
@@ -1612,6 +1618,32 @@ class SessionRoutingTests(unittest.TestCase):
             # Resolve session auto-discovers newest
             sid, how = tb.resolve_session(cfg)
             self.assertEqual(sid, "hermes-abc")
+            self.assertEqual(how, "discovered")
+
+    def test_antigravity_session_routing_and_discovery(self):
+        cfg = {"TELECODE_AGENT": "antigravity"}
+        class FakeAntigravityAdapter:
+            name = "antigravity"
+            def list_sessions(self):
+                from adapters.base import AgentSession
+                return [AgentSession("conv-abc", "Chat 1", "/home", "antigravity", updated=100),
+                        AgentSession("conv-xyz", "Chat 2", "/home", "antigravity", updated=50)]
+            def validate_session(self, sid):
+                from adapters.base import AgentSession
+                return AgentSession("conv-abc", "Chat 1", "/home", "antigravity", updated=100) if sid == "conv-abc" else None
+
+        with patch.object(tb, "_agent_adapter", return_value=FakeAntigravityAdapter()), \
+             patch.object(tb, "_active_session_id", return_value=""):
+            sessions = tb.list_sessions(cfg)
+            self.assertEqual(len(sessions), 2)
+            self.assertEqual(sessions[0]["id"], "conv-abc")
+
+            found = tb._session_by_id(cfg, "conv-abc")
+            self.assertIsNotNone(found)
+            self.assertEqual(found["id"], "conv-abc")
+
+            sid, how = tb.resolve_session(cfg)
+            self.assertEqual(sid, "conv-abc")
             self.assertEqual(how, "discovered")
 
     def test_switch_cli_direct_command(self):

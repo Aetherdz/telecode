@@ -112,6 +112,13 @@ class SiteTests(unittest.TestCase):
         self.assertIn("printf '\\r%s[%3d%%]", script)
         self.assertIn("format_bytes", script)
 
+    def test_installer_handles_narrow_screens_and_termux(self):
+        script = (ROOT / "install.sh").read_text()
+        self.assertIn("cols < 46", script)
+        self.assertIn("cols < 52", script)
+        self.assertIn("Termux detected", script)
+        self.assertIn("termux-wake-lock", script)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -363,6 +363,9 @@ html[dir="rtl"] .provider, html[dir="rtl"] .phone-title > span { direction: ltr;
 @media (max-width: 360px) {
   .brand span { display: none; }
   .hero h1 { font-size: 44px; }
+  .install-panel { padding: 14px 10px 10px; }
+  .install-panel > .install-command { padding: 6px; }
+  .install-panel > .install-command code { font-size: 10px; word-break: break-all; }
   .command-list > div { grid-template-columns: 1fr; gap: 3px; }
   html[dir="rtl"] .command-list > div { grid-template-columns: 1fr; }
   html[dir="rtl"] .command-list code, html[dir="rtl"] .command-list span { grid-column: 1; }
