@@ -684,7 +684,8 @@ def handle_control_message(cfg, msg, text):
             return True
         session = tg._session_by_id(cfg, cmd)
         if not session:
-            tg.send_text(cfg, "That session ID is invalid or unavailable in this OpenCode workspace. Check the ID and try again, or Cancel.")
+            agent_label = tg.agent_label(tg._agent_name(cfg))
+            tg.send_text(cfg, f"That session ID is invalid or unavailable for {agent_label}. Check the ID and try again, or Cancel.")
             return True
         tg._set_active_session(session)
         tg._restore_primary_controls()
@@ -820,10 +821,28 @@ def handle_control_message(cfg, msg, text):
         sid, _ = tg.resolve_session(cfg)
         session = tg._session_by_id(cfg, sid) if sid else None
         agent_display = tg.agent_label(tg._agent_name(cfg))
+        agent_name = tg._agent_name(cfg)
+        extra = []
+        if session and session.get("directory"):
+            extra.append(f"<b>Workspace:</b> <code>{tg._html_escape(session['directory'])}</code>")
+        if agent_name == "antigravity":
+            try:
+                import json
+                s_path = pathlib.Path.home() / ".gemini/antigravity-cli/settings.json"
+                if not s_path.is_file():
+                    s_path = pathlib.Path.home() / ".gemini/antigravity/settings.json"
+                if s_path.is_file():
+                    s_data = json.loads(s_path.read_text(encoding="utf-8"))
+                    m = s_data.get("model")
+                    if m:
+                        extra.append(f"<b>Model:</b> <code>{tg._html_escape(str(m))}</code>")
+            except Exception:
+                pass
+        extra_str = ("\n" + "\n".join(extra)) if extra else ""
         if session:
-            tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\n<b>Active session:</b> {tg._html_escape(tg.session_title(session))}\n<b>Session ID:</b> <code>{tg._html_escape(sid)}</code>", parse_mode="HTML")
+            tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\n<b>Active session:</b> {tg._html_escape(tg.session_title(session))}\n<b>Session ID:</b> <code>{tg._html_escape(sid)}</code>{extra_str}", parse_mode="HTML")
         else:
-            tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\nActive session: <code>{tg._html_escape(sid or 'not set')}</code>", parse_mode="HTML")
+            tg.send_text(cfg, f"<b>Active agent:</b> {tg._html_escape(agent_display)}\nActive session: <code>{tg._html_escape(sid or 'not set')}</code>{extra_str}", parse_mode="HTML")
         return True
     if cmd.startswith("/cli ") or cmd.startswith("/agent "):
         canonical = tg.normalize_agent(cmd.split(maxsplit=1)[1])
@@ -842,6 +861,18 @@ def handle_control_message(cfg, msg, text):
             tg._restore_primary_controls()
             tg._send_keyboard(cfg)
         tg._send_agent_picker(cfg)
+        return True
+    if cmd.startswith("/session ") or cmd.startswith("/entersession "):
+        target_id = cmd.split(maxsplit=1)[1].strip()
+        session = tg._session_by_id(cfg, target_id)
+        if not session:
+            agent_label = tg.agent_label(tg._agent_name(cfg))
+            tg.send_text(cfg, f"That session ID is invalid or unavailable for {agent_label}. Check the ID and try again, or send /session to browse.")
+            return True
+        tg._set_active_session(session)
+        tg._restore_primary_controls()
+        tg.send_text(cfg, f"<b>Target session:</b> {tg._html_escape(tg.session_title(session))}\n<b>Session ID:</b> <code>{tg._html_escape(session['id'])}</code>", parse_mode="HTML")
+        tg._send_keyboard(cfg)
         return True
     if cmd in ("/session", "Sessions"):
         if tg.ACTIVE_PICKER is not None:

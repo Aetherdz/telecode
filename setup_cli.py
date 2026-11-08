@@ -58,9 +58,19 @@ MCP_EXAMPLES = {
 }
 
 
+BIN_ALIASES = {
+    "antigravity": ["agy", "antigravity", str(HOME / ".local/bin/agy"), str(HOME / ".gemini/bin/agy")],
+    "cursor": ["agent", "cursor"],
+    "opencode": ["opencode", str(HOME / ".opencode/bin/opencode")],
+    "hermes": ["hermes"],
+    "claude": ["claude"],
+}
+
+
 def discover(host):
     label, executable, configs, supported = host
-    found_cli = bool(executable and shutil.which(executable))
+    candidates = BIN_ALIASES.get(executable, [executable] if executable else [])
+    found_cli = any(bool(c and shutil.which(c)) or (os.path.isabs(c) and os.path.isfile(c) and os.access(c, os.X_OK)) for c in candidates)
     found_config = next((p for p in configs if p.is_file() and os.access(p, os.R_OK)), None)
     return found_cli, found_config, supported
 

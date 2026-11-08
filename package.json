@@ -1,0 +1,24 @@
+{
+  "name": "telecode",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram bridge for local coding-agent sessions (OpenCode, Claude Code, Hermes, Antigravity, Codex, Cursor)",
+  "scripts": {
+    "build": "node --check assets/site.js",
+    "lint": "node --check assets/site.js",
+    "start": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "telegram",
+    "mcp",
+    "ai-agent",
+    "opencode",
+    "claude-code",
+    "hermes-agent",
+    "antigravity",
+    "codex",
+    "cursor"
+  ],
+  "author": "AetherDz",
+  "license": "MIT"
+}
